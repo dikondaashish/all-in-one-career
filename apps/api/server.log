@@ -1,0 +1,5 @@
+
+> api@1.0.0 dev /Users/ashishdikonda/Desktop/all in one carrier/all-in-one-career/apps/api
+> tsx watch src/index.ts
+
+[13:52:51.153] INFO (72090): API running on :4000
