@@ -17,11 +17,11 @@ COPY . .
 # Move into the API workdir (apps/api)
 WORKDIR /app/apps/api
 
+# Install tsx globally for production use
+RUN npm install -g tsx
+
 # Generate Prisma client
 RUN npx prisma generate --schema=../../prisma/schema.prisma
-
-# Build the TypeScript code
-RUN pnpm run --filter api build
 
 # Env config
 ENV NODE_ENV=production
@@ -29,5 +29,5 @@ ENV PORT=4000
 
 EXPOSE 4000
 
-# Start the API using compiled JavaScript
-CMD ["node", "apps/api/dist/index.js"]
+# Start the API using tsx
+CMD ["tsx", "src/index.ts"]
