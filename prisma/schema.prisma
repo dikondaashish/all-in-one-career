@@ -14,15 +14,23 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Usage metrics
+  atsScans      Int      @default(0)
+  portfolios    Int      @default(0)
+  emails        Int      @default(0)
+  referrals     Int      @default(0)
+  trackerEvents Int      @default(0)
 
   applications      Application[]
   referralRequests ReferralRequest[]
   portfolioSites   PortfolioSite[]
+  logs             Log[]
 }
 
 model JobDescription {
@@ -90,4 +98,14 @@ enum ReferralStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+model Log {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  message   String?
+  createdAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id])
 }

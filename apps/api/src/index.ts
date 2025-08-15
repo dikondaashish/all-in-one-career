@@ -10,6 +10,8 @@ import portfolioRouter from './routes/portfolio';
 import emailsRouter from './routes/emails';
 import applicationsRouter from './routes/applications';
 import storageRouter from './routes/storage';
+import profileRouter from './routes/profile';
+import adminRouter from './routes/admin';
 
 const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
@@ -38,6 +40,8 @@ app.use('/portfolio', portfolioRouter(prisma, logger));
 app.use('/emails', emailsRouter(prisma, logger));
 app.use('/applications', applicationsRouter(prisma, logger));
 app.use('/storage', storageRouter(prisma, logger));
+app.use('/me', profileRouter(prisma, logger));
+app.use('/admin', adminRouter(prisma, logger));
 
 const PORT = Number(process.env.PORT || 4000);
 app.listen(PORT, () => logger.info(`API running on port ${PORT}`));

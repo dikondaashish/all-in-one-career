@@ -5,6 +5,7 @@ import fetch from 'node-fetch';
 import { z } from 'zod';
 import { geminiGenerate } from '../lib/gemini';
 import { extractTextFromPDF } from '../lib/pdf-parser';
+import { incrementMetric } from '../utils/metrics';
 
 const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
@@ -17,7 +18,7 @@ export default function atsRouter(prisma: PrismaClient, _logger: pino.Logger): R
     jdText: z.string().min(20),
   });
 
-  r.post('/scan', async (req, res) => {
+  r.post('/scan', async (req: any, res) => {
     const body = ScanBody.parse(req.body);
 
     // get resume text
@@ -49,6 +50,11 @@ export default function atsRouter(prisma: PrismaClient, _logger: pino.Logger): R
       data: { title: 'JD', company: '', content: body.jdText },
     });
 
+    // Track usage metrics
+    if (req.user?.email) {
+      await incrementMetric(prisma, req.user.email, 'atsScans');
+    }
+
     res.json({ score, present, missing, jdId: jd.id });
   });
 
@@ -57,7 +63,7 @@ export default function atsRouter(prisma: PrismaClient, _logger: pino.Logger): R
     jdText: z.string().min(50),
   });
 
-  r.post('/tailor', async (req, res) => {
+  r.post('/tailor', async (req: any, res) => {
     const { resumeText, jdText } = TailorBody.parse(req.body);
 
     const system = `You are an expert resume tailor.
@@ -77,6 +83,11 @@ export default function atsRouter(prisma: PrismaClient, _logger: pino.Logger): R
     const uniq = Array.from(new Set(jdTerms));
     const present = uniq.filter(k => mdSet.has(k));
     const score = Math.round((present.length / Math.max(1, uniq.length)) * 100);
+
+    // Track usage metrics
+    if (req.user?.email) {
+      await incrementMetric(prisma, req.user.email, 'atsScans');
+    }
 
     res.json({ contentMarkdown: md, score });
   });

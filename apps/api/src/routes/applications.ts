@@ -2,8 +2,9 @@ import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
 import { z } from 'zod';
+import { incrementMetric } from '../utils/metrics';
 
-export default function applicationsRouter(prisma: PrismaClient, _logger: pino.Logger): Router {
+export default function applicationsRouter(prisma: PrismaClient, logger: pino.Logger): Router {
   const r = Router();
 
   const Create = z.object({
@@ -25,6 +26,12 @@ export default function applicationsRouter(prisma: PrismaClient, _logger: pino.L
         notes: data.notes || null
       } 
     });
+    
+    // Track usage metrics
+    if (req.user?.email) {
+      await incrementMetric(prisma, req.user.email, 'trackerEvents');
+    }
+    
     res.json(app);
   });
 

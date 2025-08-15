@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
 import { z } from 'zod';
 import { geminiGenerate } from '../lib/gemini';
+import { incrementMetric } from '../utils/metrics';
 
 const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
@@ -28,6 +29,11 @@ Schema: {"hero":{"title":"","subtitle":""},"about":"","experience":[{"company":"
     const site = await prisma.portfolioSite.create({
       data: { userId: req.user.uid, slug, theme, data: JSON.parse(json), url: `/u/${slug}` },
     });
+
+    // Track usage metrics
+    if (req.user?.email) {
+      await incrementMetric(prisma, req.user.email, 'portfolios');
+    }
 
     res.json({ url: site.url, slug });
   });

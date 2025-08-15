@@ -3,10 +3,11 @@ import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
 import { z } from 'zod';
 import { geminiGenerate } from '../lib/gemini';
+import { incrementMetric } from '../utils/metrics';
 
 const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
-export default function emailsRouter(_prisma: PrismaClient, _logger: pino.Logger): Router {
+export default function emailsRouter(prisma: PrismaClient, logger: pino.Logger): Router {
   const r = Router();
 
   const Body = z.object({
@@ -18,7 +19,7 @@ export default function emailsRouter(_prisma: PrismaClient, _logger: pino.Logger
     jdHighlights: z.string().min(10).optional(),
   });
 
-  r.post('/generate', async (req, res) => {
+  r.post('/generate', async (req: any, res) => {
     try {
       const { company, role, referrer, tone, resumeSummary, jdHighlights } = Body.parse(req.body);
       const system = `You write concise, high-converting application emails. You must return ONLY valid JSON in this exact format: {"subject":"email subject here","body":"email body here"}. Maximum 180 words total. No markdown, no backticks, just pure JSON.`;
@@ -40,6 +41,12 @@ Return ONLY valid JSON, no other text.`;
       }
       
       const parsed = JSON.parse(jsonMatch[0]);
+      
+      // Track usage metrics
+      if (req.user?.email) {
+        await incrementMetric(prisma, req.user.email, 'emails');
+      }
+      
       res.json(parsed);
     } catch (error) {
       console.error('Email generation error:', error);
