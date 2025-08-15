@@ -14,14 +14,12 @@ RUN pnpm install --frozen-lockfile
 # Copy the entire monorepo into the container
 COPY . .
 
-# Move into the API workdir (apps/api)
+# Generate Prisma client for production
+RUN npx prisma generate --schema=prisma/schema.prisma
+
+# Move into the API workdir and install tsx as production dependency
 WORKDIR /app/apps/api
-
-# Install tsx globally for production use
-RUN npm install -g tsx
-
-# Generate Prisma client
-RUN npx prisma generate --schema=../../prisma/schema.prisma
+RUN pnpm add tsx
 
 # Env config
 ENV NODE_ENV=production
@@ -30,4 +28,4 @@ ENV PORT=4000
 EXPOSE 4000
 
 # Start the API using tsx
-CMD ["tsx", "src/index.ts"]
+CMD ["pnpm", "start"]
