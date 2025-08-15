@@ -20,11 +20,14 @@ WORKDIR /app/apps/api
 # Generate Prisma client
 RUN npx prisma generate --schema=../../prisma/schema.prisma
 
+# Build the TypeScript code
+RUN pnpm run --filter api build
+
 # Env config
 ENV NODE_ENV=production
 ENV PORT=4000
 
 EXPOSE 4000
 
-# Start the API using tsx or node
-CMD ["pnpm", "start"]
+# Start the API using compiled JavaScript
+CMD ["node", "apps/api/dist/index.js"]
