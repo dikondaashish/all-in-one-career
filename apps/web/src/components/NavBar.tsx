@@ -11,6 +11,7 @@ const links = [
   { href: "/emails", label: "Emails" },
   { href: "/referrals", label: "Referrals" },
   { href: "/tracker", label: "Tracker" },
+  { href: "/profile", label: "Profile" },
 ];
 
 export default function NavBar() {
