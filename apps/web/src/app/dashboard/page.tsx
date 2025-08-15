@@ -88,17 +88,11 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-bold text-gray-900">
               All-in-One Career Platform
             </h1>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-700">
-                Welcome, {user.displayName || user.email}
-              </span>
-              <button
-                onClick={signOutUser}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Sign Out
-              </button>
-            </div>
+                                        <div className="flex items-center space-x-4">
+                              <span className="text-gray-700">
+                                Welcome, {user.displayName || user.email}
+                              </span>
+                            </div>
           </div>
         </div>
       </header>
