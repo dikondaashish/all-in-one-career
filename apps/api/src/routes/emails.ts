@@ -19,18 +19,32 @@ export default function emailsRouter(_prisma: PrismaClient, _logger: pino.Logger
   });
 
   r.post('/generate', async (req, res) => {
-    const { company, role, referrer, tone, resumeSummary, jdHighlights } = Body.parse(req.body);
-    const system = `You write concise, high-converting application emails. Output JSON only: {"subject":"","body":""}. Max 180 words.`;
-    const user = `Company: ${company}
+    try {
+      const { company, role, referrer, tone, resumeSummary, jdHighlights } = Body.parse(req.body);
+      const system = `You write concise, high-converting application emails. You must return ONLY valid JSON in this exact format: {"subject":"email subject here","body":"email body here"}. Maximum 180 words total. No markdown, no backticks, just pure JSON.`;
+      const user = `Company: ${company}
 Role: ${role}
 Referrer: ${referrer || 'none'}
 Tone: ${tone}
 Resume summary: ${resumeSummary || ''}
 JD highlights: ${jdHighlights || ''}
 
-Return JSON only.`;
-    const out = await geminiGenerate(model, system, user);
-    res.json(JSON.parse(out));
+Return ONLY valid JSON, no other text.`;
+      
+      const out = await geminiGenerate(model, system, user);
+      
+      // Clean the response to extract JSON
+      const jsonMatch = out.match(/\{.*\}/s);
+      if (!jsonMatch) {
+        return res.status(500).json({ error: 'Invalid response format from AI service' });
+      }
+      
+      const parsed = JSON.parse(jsonMatch[0]);
+      res.json(parsed);
+    } catch (error) {
+      console.error('Email generation error:', error);
+      res.status(500).json({ error: 'Failed to generate email' });
+    }
   });
 
   return r;
