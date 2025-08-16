@@ -1,10 +1,11 @@
 /**
- * Topbar Component with Responsive Sidebar Integration
+ * Topbar Component with Full Width Layout
  * 
- * ✅ SUCCESSFULLY IMPLEMENTED: Responsive topbar that adjusts to sidebar state
- * - Positions correctly based on sidebar collapsed/expanded state
- * - Smooth transitions and animations
+ * ✅ SUCCESSFULLY IMPLEMENTED: Full-width topbar that spans the entire screen
+ * - Fixed positioning at the top of the screen
+ * - Spans full width regardless of sidebar state
  * - Maintains proper layout across all screen sizes
+ * - Clean, consistent header design
  */
 
 'use client';
@@ -13,11 +14,7 @@ import { Bell, Search, User, Mail } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 
-interface TopbarProps {
-  sidebarCollapsed?: boolean;
-}
-
-export default function Topbar({ sidebarCollapsed = true }: TopbarProps) {
+export default function Topbar() {
   const { user, hasSkippedAuth } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState('User');
@@ -43,9 +40,7 @@ export default function Topbar({ sidebarCollapsed = true }: TopbarProps) {
   }, [user, hasSkippedAuth, isClient]);
 
   return (
-    <div className={`fixed top-0 right-0 h-18 bg-white border-b border-gray-100 z-20 shadow-sm transition-all duration-300 ease-in-out ${
-      sidebarCollapsed ? 'left-16' : 'left-60'
-    } lg:left-60`}>
+    <div className="fixed top-0 left-0 right-0 h-18 bg-white border-b border-gray-100 z-20 shadow-sm">
       <div className="flex items-center justify-between h-full px-8">
         {/* Left - Logo */}
         <div className="flex items-center">

@@ -91,7 +91,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       </div>
 
       {/* Sidebar */}
-      <div className={`fixed left-0 top-0 h-full bg-white shadow-inner z-30 transition-all duration-300 ease-in-out ${
+      <div className={`fixed left-0 top-18 h-[calc(100vh-4.5rem)] bg-white shadow-inner z-30 transition-all duration-300 ease-in-out ${
         isCollapsed ? 'w-16' : 'w-60'
       } lg:translate-x-0 ${
         isCollapsed ? '-translate-x-0' : 'lg:translate-x-0'
