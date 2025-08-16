@@ -1,8 +1,18 @@
 'use client';
+
 import { useState, useEffect } from 'react';
-import {
-  Plus, Upload, TrendingUp, FileText, Briefcase, Mail, Users,
-  Clock, Play, Target, BarChart3
+import { 
+  Plus, 
+  Upload,
+  TrendingUp,
+  FileText, 
+  Briefcase, 
+  Mail, 
+  Users,
+  Clock,
+  Play,
+  Square,
+  Calendar
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -14,17 +24,38 @@ interface DashboardStats {
 
 interface ActivityItem {
   id: string;
-  action: string;
-  timeAgo: string;
-  type: 'resume' | 'email' | 'portfolio' | 'application';
+  user: string;
+  task: string;
+  status: 'completed' | 'in-progress' | 'pending';
+  avatar: string;
+}
+
+interface ProjectItem {
+  id: string;
+  name: string;
+  dueDate: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 export default function DashboardPage() {
-  const [stats] = useState<DashboardStats>({ atsScans: 24, portfolios: 10, emails: 12, referrals: 2 });
+  const [stats] = useState<DashboardStats>({
+    atsScans: 24,
+    portfolios: 10,
+    emails: 12,
+    referrals: 2
+  });
   const [activities] = useState<ActivityItem[]>([
-    { id: '1', action: 'You tailored a resume', timeAgo: '2h ago', type: 'resume' },
-    { id: '2', action: 'Generated AI email for Google application', timeAgo: '4h ago', type: 'email' },
-    { id: '3', action: 'Created new portfolio', timeAgo: '6h ago', type: 'portfolio' },
+    { id: '1', user: 'Alexandra Deff', task: 'Working on Github Project Repository', status: 'completed', avatar: 'AD' },
+    { id: '2', user: 'Edwin Adenike', task: 'Working on Integrate User Authentication System', status: 'in-progress', avatar: 'EA' },
+    { id: '3', user: 'Isaac Oluwatemilorun', task: 'Working on Develop Search and Filter Functionality', status: 'pending', avatar: 'IO' },
+    { id: '4', user: 'David Oshodi', task: 'Working on Responsive Layout for Homepage', status: 'in-progress', avatar: 'DO' },
+  ]);
+  const [projects] = useState<ProjectItem[]>([
+    { id: '1', name: 'Develop API Endpoints', dueDate: 'Nov 26, 2024', icon: FileText },
+    { id: '2', name: 'Onboarding Flow', dueDate: 'Nov 28, 2024', icon: Briefcase },
+    { id: '3', name: 'Build Dashboard', dueDate: 'Nov 30, 2024', icon: Mail },
+    { id: '4', name: 'Optimize Page Load', dueDate: 'Dec 5, 2024', icon: Users },
+    { id: '5', name: 'Cross-Browser Testing', dueDate: 'Dec 6, 2024', icon: Clock },
   ]);
   const [isClient, setIsClient] = useState(false);
   const [greeting, setGreeting] = useState('Dashboard');
@@ -35,10 +66,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (isClient) {
-      const hours = new Date().getHours();
-      if (hours < 12) {
+      const hour = new Date().getHours();
+      if (hour < 12) {
         setGreeting('Good Morning');
-      } else if (hours < 17) {
+      } else if (hour < 17) {
         setGreeting('Good Afternoon');
       } else {
         setGreeting('Good Evening');
@@ -46,21 +77,16 @@ export default function DashboardPage() {
     }
   }, [isClient]);
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'resume': return <FileText className="w-4 h-4" />;
-      case 'email': return <Mail className="w-4 h-4" />;
-      case 'portfolio': return <Briefcase className="w-4 h-4" />;
-      default: return <FileText className="w-4 h-4" />;
-    }
-  };
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'resume': return 'text-blue-400';
-      case 'email': return 'text-purple-400';
-      case 'portfolio': return 'text-pink-400';
-      default: return 'text-gray-400';
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'in-progress':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'pending':
+        return 'bg-orange-100 text-orange-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -69,15 +95,17 @@ export default function DashboardPage() {
       {/* Greeting Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">{greeting}, Ashish 👋</h1>
-          <p className="text-gray-300">Plan, prioritize and accomplish your career tasks with ease.</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{greeting}</h1>
+          <p className="text-gray-600">Plan, prioritize and accomplish your career tasks with ease.</p>
         </div>
         <div className="flex space-x-3">
-          <button className="bg-gradient-to-r from-[#4F46E5] to-[#181A42] hover:from-[#4338CA] hover:to-[#15162F] text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center shadow-lg">
-            <Plus className="w-5 h-5 mr-2" /> Add Application
+          <button className="bg-[#006B53] hover:bg-[#005A47] text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center">
+            <Plus className="w-5 h-5 mr-2" />
+            Add Application
           </button>
-          <button className="border border-gray-600 text-gray-300 hover:text-white hover:bg-gray-800 px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center">
-            <Upload className="w-5 h-5 mr-2" /> Import
+          <button className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors duration-200 flex items-center">
+            <Upload className="w-5 h-5 mr-2" />
+            Import
           </button>
         </div>
       </div>
@@ -85,158 +113,214 @@ export default function DashboardPage() {
       {/* Top KPI Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* ATS Scans Card */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-[0px_12px_30px_rgba(0,0,0,0.08)] p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-full -translate-y-10 translate-x-10"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wider">ATS Scans</h3>
-              <FileText className="w-5 h-5 text-indigo-400" />
-            </div>
-            <div className="text-3xl font-bold text-white mb-2">{stats.atsScans}</div>
-            <div className="flex items-center text-sm text-green-400">
-              <TrendingUp className="w-4 h-4 mr-1" />
-              5 ↑ Increased from last month
-            </div>
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6 h-35">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-3xl font-bold text-[#006B53]">{stats.atsScans}</div>
+            <TrendingUp className="w-6 h-6 text-green-500" />
           </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">ATS Scans</h3>
+          <div className="w-12 h-1 bg-gradient-to-r from-[#006B53] to-[#008F6F] rounded-full mb-3"></div>
+          <p className="text-sm text-gray-600">5 Increased from last month</p>
         </div>
 
         {/* Portfolios Card */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-[0px_12px_30px_rgba(0,0,0,0.08)] p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-purple-500/20 to-pink-600/20 rounded-full -translate-y-10 translate-x-10"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wider">Portfolios</h3>
-              <Briefcase className="w-5 h-5 text-purple-400" />
-            </div>
-            <div className="text-3xl font-bold text-white mb-2">{stats.portfolios}</div>
-            <div className="flex items-center text-sm text-green-400">
-              <TrendingUp className="w-4 h-4 mr-1" />
-              6 ↑ Increased from last month
-            </div>
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6 h-35">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-3xl font-bold text-gray-900">{stats.portfolios}</div>
+            <TrendingUp className="w-6 h-6 text-green-500" />
           </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Portfolios</h3>
+          <div className="w-12 h-1 bg-gradient-to-r from-[#006B53] to-[#008F6F] rounded-full mb-3"></div>
+          <p className="text-sm text-gray-600">6 Increased from last month</p>
         </div>
 
         {/* AI Emails Card */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-[0px_12px_30px_rgba(0,0,0,0.08)] p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-pink-500/20 to-rose-600/20 rounded-full -translate-y-10 translate-x-10"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wider">AI Emails</h3>
-              <Mail className="w-5 h-5 text-pink-400" />
-            </div>
-            <div className="text-3xl font-bold text-white mb-2">{stats.emails}</div>
-            <div className="flex items-center text-sm text-green-400">
-              <TrendingUp className="w-4 h-4 mr-1" />
-              2 ↑ Increased from last month
-            </div>
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6 h-35">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-3xl font-bold text-gray-900">{stats.emails}</div>
+            <TrendingUp className="w-6 h-6 text-green-500" />
           </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Emails</h3>
+          <div className="w-12 h-1 bg-gradient-to-r from-[#006B53] to-[#008F6F] rounded-full mb-3"></div>
+          <p className="text-sm text-gray-600">2 Increased from last month</p>
         </div>
 
         {/* Referrals Card */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-[0px_12px_30px_rgba(0,0,0,0.08)] p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-orange-500/20 to-yellow-600/20 rounded-full -translate-y-10 translate-x-10"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-300 uppercase tracking-wider">Referrals</h3>
-              <Users className="w-5 h-5 text-orange-400" />
-            </div>
-            <div className="text-3xl font-bold text-white mb-2">{stats.referrals}</div>
-            <div className="text-sm text-yellow-400">Pending approval</div>
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6 h-35">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-3xl font-bold text-gray-900">{stats.referrals}</div>
+            <div className="text-sm text-gray-500">On Discuss</div>
           </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Referrals</h3>
+          <div className="w-12 h-1 bg-gradient-to-r from-[#006B53] to-[#008F6F] rounded-full mb-3"></div>
+          <p className="text-sm text-gray-600">Pending approval</p>
         </div>
       </div>
 
       {/* Middle Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Career Activity Analytics */}
-        <div className="lg:col-span-2 bg-gradient-to-br from-[#232A59] to-[#101131] rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.08)] p-6 border border-white/10">
-          <h3 className="text-xl font-bold text-white mb-6">Career Activity Analytics</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Project Analytics */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Project Analytics</h3>
           <div className="flex items-end justify-between h-32">
             {[
-              { day: 'Mon', height: 65, color: 'from-blue-500 to-indigo-600' },
-              { day: 'Tue', height: 45, color: 'from-indigo-500 to-purple-600' },
-              { day: 'Wed', height: 55, color: 'from-purple-500 to-pink-600' },
-              { day: 'Thu', height: 75, color: 'from-pink-500 to-rose-600' },
-              { day: 'Fri', height: 35, color: 'from-rose-500 to-red-600' },
-              { day: 'Sat', height: 60, color: 'from-red-500 to-orange-600' },
-              { day: 'Sun', height: 50, color: 'from-orange-500 to-yellow-600' }
+              { day: 'S', height: 65 },
+              { day: 'M', height: 45 },
+              { day: 'T', height: 55 },
+              { day: 'W', height: 75 },
+              { day: 'T', height: 35 },
+              { day: 'F', height: 60 },
+              { day: 'S', height: 50 }
             ].map((item, index) => (
               <div key={index} className="flex flex-col items-center">
-                <div className="text-xs text-gray-400 mb-2">{item.day}</div>
-                <div className={`w-8 bg-gradient-to-t ${item.color} rounded-t-sm`} style={{ height: `${item.height}px` }}></div>
-                {index === 3 && <div className="text-xs text-green-400 font-medium mt-1">74%</div>}
+                <div className="text-xs text-gray-500 mb-2">{item.day}</div>
+                <div className="w-8 bg-[#006B53] rounded-t-sm" style={{ height: `${item.height}px` }}></div>
+                {index === 3 && <div className="text-xs text-[#006B53] font-medium mt-1">74%</div>}
               </div>
             ))}
           </div>
         </div>
 
-        {/* Reminders Box */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-[0px_12px_30px_rgba(0,0,0,0.08)] p-6">
-          <h3 className="text-lg font-bold text-white mb-4">Upcoming Reminder</h3>
+        {/* Reminders */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Reminders</h3>
           <div className="space-y-4">
-            <div>
-              <p className="text-gray-300 text-sm mb-1">Follow up with recruiter from Google</p>
-              <div className="flex items-center text-xs text-gray-400">
-                <Clock className="w-4 h-4 mr-2" />
-                04:00 pm — 04:30 pm
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div>
+                <p className="font-medium text-gray-900">Meeting with Arc Company</p>
+                <p className="text-sm text-gray-500">02.00 pm - 04.00 pm</p>
               </div>
+              <button className="bg-[#006B53] hover:bg-[#005A47] text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                <Play className="w-4 h-4 mr-2" />
+                Start Meeting
+              </button>
             </div>
-            <button className="w-full bg-gradient-to-r from-[#4F46E5] to-[#181A42] hover:from-[#4338CA] hover:to-[#15162F] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center">
-              <Play className="w-4 h-4 mr-2" /> Start Now
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Recent Activity Card */}
-      <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-[0px_12px_30px_rgba(0,0,0,0.08)] p-6">
-        <h3 className="text-xl font-bold text-white mb-6">Recent Activity</h3>
-        <div className="space-y-4">
-          {activities.map((activity) => (
-            <div key={activity.id} className="flex items-center space-x-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors duration-200">
-              <div className={`p-2 rounded-lg bg-white/10 ${getTypeColor(activity.type)}`}>
-                {getTypeIcon(activity.type)}
+      {/* Bottom Section Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Team Collaboration */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-gray-900">Recent Activity</h3>
+            <button className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors duration-200">
+              + Add Member
+            </button>
+          </div>
+          <div className="space-y-4">
+            {activities.map((activity) => (
+              <div key={activity.id} className="flex items-start space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center text-white font-medium text-sm">
+                  {activity.avatar}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">{activity.user}</p>
+                  <p className="text-sm text-gray-600">{activity.task}</p>
+                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${getStatusColor(activity.status)}`}>
+                    {activity.status.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </span>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-white text-sm">{activity.action}</p>
-                <p className="text-gray-400 text-xs">{activity.timeAgo}</p>
+            ))}
+          </div>
+        </div>
+
+        {/* Project Progress */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Applications Progress</h3>
+          <div className="flex items-center justify-center mb-6">
+            <div className="relative w-32 h-32">
+              {/* Donut Chart */}
+              <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 32 32">
+                <circle
+                  cx="16"
+                  cy="16"
+                  r="14"
+                  fill="none"
+                  stroke="#e5e7eb"
+                  strokeWidth="3"
+                />
+                <circle
+                  cx="16"
+                  cy="16"
+                  r="14"
+                  fill="none"
+                  stroke="#006B53"
+                  strokeWidth="3"
+                  strokeDasharray={`${2 * Math.PI * 14 * 0.41} ${2 * Math.PI * 14}`}
+                  strokeDashoffset="0"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-2xl font-bold text-[#006B53]">41%</span>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-[#006B53] rounded-full mr-2"></div>
+                <span className="text-sm text-gray-600">Completed</span>
+              </div>
+              <span className="text-sm font-medium text-gray-900">41%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+                <span className="text-sm text-gray-600">In Progress</span>
+              </div>
+              <span className="text-sm font-medium text-gray-900">35%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
+                <span className="text-sm text-gray-600">Pending</span>
+              </div>
+              <span className="text-sm font-medium text-gray-900">24%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Time Tracker */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Time Tracker</h3>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-[#006B53] mb-6">01:24:08</div>
+            <div className="flex justify-center space-x-4">
+              <button className="w-12 h-12 bg-[#006B53] hover:bg-[#005A47] text-white rounded-full flex items-center justify-center transition-colors duration-200">
+                <Play className="w-5 h-5" />
+              </button>
+              <button className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors duration-200">
+                <Square className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Project List */}
+      <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-gray-900">Projects</h3>
+          <button className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors duration-200">
+            + New
+          </button>
+        </div>
+        <div className="space-y-4">
+          {projects.map((project) => (
+            <div key={project.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <project.icon className="w-5 h-5 text-[#006B53]" />
+                <span className="font-medium text-gray-900">{project.name}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-500">Due: {project.dueDate}</span>
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Goal Progress Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          {/* Empty space for future content */}
-        </div>
-        <div className="space-y-6">
-          {/* Weekly Goal Card */}
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-[0px_12px_30px_rgba(0,0,0,0.08)] p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">Weekly Goal</h3>
-              <Target className="w-5 h-5 text-green-400" />
-            </div>
-            <div className="text-2xl font-bold text-white mb-2">5 / 7</div>
-            <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
-              <div className="bg-gradient-to-r from-green-400 to-emerald-500 h-2 rounded-full" style={{ width: '71%' }}></div>
-            </div>
-            <p className="text-sm text-gray-400">Applications submitted</p>
-          </div>
-
-          {/* ATS Optimization Score Card */}
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-[0px_12px_30px_rgba(0,0,0,0.08)] p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">ATS Optimization</h3>
-              <BarChart3 className="w-5 h-5 text-indigo-400" />
-            </div>
-            <div className="text-2xl font-bold text-white mb-2">87%</div>
-            <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
-              <div className="bg-gradient-to-r from-indigo-400 to-purple-500 h-2 rounded-full" style={{ width: '87%' }}></div>
-            </div>
-            <p className="text-sm text-gray-400">Resume optimization score</p>
-          </div>
         </div>
       </div>
     </div>

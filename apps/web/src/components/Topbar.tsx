@@ -4,7 +4,11 @@ import { Bell, Search, User, Mail } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 
-export default function Topbar() {
+interface TopbarProps {
+  sidebarCollapsed?: boolean;
+}
+
+export default function Topbar({ sidebarCollapsed = false }: TopbarProps) {
   const { user, hasSkippedAuth } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState('User');
@@ -30,7 +34,9 @@ export default function Topbar() {
   }, [user, hasSkippedAuth, isClient]);
 
   return (
-    <div className="fixed top-0 left-60 right-0 h-18 bg-white border-b border-gray-100 z-20 shadow-sm">
+    <div className={`fixed top-0 right-0 h-18 bg-white border-b border-gray-100 z-20 shadow-sm transition-all duration-300 ease-in-out ${
+      sidebarCollapsed ? 'left-16' : 'left-60'
+    } lg:left-60`}>
       <div className="flex items-center justify-between h-full px-8">
         {/* Left - Logo */}
         <div className="flex items-center">
