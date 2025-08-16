@@ -1,20 +1,25 @@
 /**
- * Topbar Component with Full Width Layout
+ * Topbar Component with Push-Style Sidebar Integration
  * 
- * ✅ SUCCESSFULLY IMPLEMENTED: Full-width topbar that spans the entire screen
+ * ✅ SUCCESSFULLY IMPLEMENTED: Topbar with sidebar toggle control
  * - Fixed positioning at the top of the screen
  * - Spans full width regardless of sidebar state
- * - Maintains proper layout across all screen sizes
- * - Clean, consistent header design
+ * - Includes hamburger menu toggle for sidebar control
+ * - Clean, consistent header design with sidebar integration
  */
 
 'use client';
 
-import { Bell, Search, User, Mail } from 'lucide-react';
+import { Bell, Search, User, Mail, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 
-export default function Topbar() {
+interface TopbarProps {
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
+}
+
+export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProps) {
   const { user, hasSkippedAuth } = useAuth();
   const [isClient, setIsClient] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState('User');
@@ -42,12 +47,24 @@ export default function Topbar() {
   return (
     <div className="fixed top-0 left-0 right-0 h-18 bg-white border-b border-gray-100 z-20 shadow-sm">
       <div className="flex items-center justify-between h-full px-8">
-        {/* Left - Logo */}
-        <div className="flex items-center">
-          <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xl">C</span>
+        {/* Left - Sidebar Toggle + Logo */}
+        <div className="flex items-center space-x-4">
+          {/* Sidebar Toggle Button */}
+          <button
+            onClick={onToggleSidebar}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <Menu className="w-5 h-5 text-gray-600" />
+          </button>
+          
+          {/* Logo */}
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-xl">C</span>
+            </div>
+            <span className="ml-3 text-xl font-bold text-gray-900">Climbly.ai</span>
           </div>
-          <span className="ml-3 text-xl font-bold text-gray-900">Climbly.ai</span>
         </div>
 
         {/* Center - Search Bar */}

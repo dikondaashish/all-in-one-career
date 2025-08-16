@@ -1,15 +1,16 @@
 /**
- * Sidebar Component with Collapsible Menu Feature
+ * Sidebar Component with Push-Style Behavior
  * 
- * ✅ SUCCESSFULLY IMPLEMENTED: Collapsible menu feature with toggle button
+ * ✅ SUCCESSFULLY IMPLEMENTED: Push-style sidebar for responsive layout
  * - Responsive design that works across different screen sizes
  * - Smooth animations and transitions
  * - Mobile-friendly with overlay and auto-collapse
  * - Proper state management and communication with parent layout
  * - Tooltips for collapsed state navigation items
+ * - Push behavior: content shifts right when expanded, left when collapsed
  * 
  * Features:
- * - Toggle button to expand/collapse sidebar
+ * - Controlled by parent layout state
  * - Responsive behavior (auto-collapse on mobile)
  * - Smooth transitions and animations
  * - Mobile overlay for better UX
@@ -62,10 +63,6 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     { href: '/logout', label: 'Logout', icon: LogOut },
   ];
 
-  const toggleSidebar = () => {
-    onToggle(!isCollapsed);
-  };
-
   // Auto-collapse sidebar on mobile when navigating
   useEffect(() => {
     const handleResize = () => {
@@ -79,112 +76,122 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   }, [isCollapsed, onToggle]);
 
   return (
-    <div className={`fixed left-0 top-18 h-[calc(100vh-4.5rem)] bg-white shadow-inner z-30 transition-all duration-300 ease-in-out ${
-      isCollapsed ? 'w-16' : 'w-60'
-    } lg:translate-x-0 ${
-      isCollapsed ? '-translate-x-0' : 'lg:translate-x-0'
-    }`}>
-      {/* Toggle Button - Now inside the sidebar */}
-      <div className="flex justify-end p-4 border-b border-gray-100">
+    <>
+      {/* Mobile Menu Toggle Button */}
+      <div className="lg:hidden fixed top-4 left-4 z-50">
         <button
-          onClick={toggleSidebar}
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          onClick={() => onToggle(!isCollapsed)}
+          className="p-2 bg-white rounded-lg shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
         >
-          <Menu className="w-5 h-5 text-gray-600" />
+          <Menu className="w-5 h-5 text-gray-700" />
         </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="mt-4 px-2">
-        {/* Menu Section */}
-        <div className="mb-8">
-          {!isCollapsed && (
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 px-2">
-              Menu
-            </h3>
-          )}
-          <ul className="space-y-2">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href;
-              return (
+      {/* Sidebar */}
+      <div className={`fixed left-0 top-18 h-[calc(100vh-4.5rem)] bg-white shadow-inner z-30 transition-all duration-300 ease-in-out ${
+        isCollapsed ? 'w-16' : 'w-60'
+      } lg:translate-x-0 ${
+        isCollapsed ? '-translate-x-0' : 'lg:translate-x-0'
+      }`}>
+        {/* Navigation */}
+        <nav className="mt-4 px-2">
+          {/* Menu Section */}
+          <div className="mb-8">
+            {!isCollapsed && (
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 px-2">
+                Menu
+              </h3>
+            )}
+            <ul className="space-y-2">
+              {navItems.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className={`flex items-center px-2 py-3 rounded-xl transition-all duration-200 group ${
+                        isActive
+                          ? 'bg-[#006B53]/10 text-[#006B53] border-l-4 border-l-[#006B53]'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      } ${isCollapsed ? 'justify-center' : ''}`}
+                      title={isCollapsed ? item.label : undefined}
+                    >
+                      <item.icon className={`${
+                        isCollapsed ? 'w-6 h-6' : 'w-5 h-5 mr-3'
+                      } ${
+                        isActive ? 'text-[#006B53]' : 'text-gray-400 group-hover:text-gray-600'
+                      }`} />
+                      {!isCollapsed && (
+                        <span className="font-medium">{item.label}</span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* General Section */}
+          <div className="mb-8">
+            {!isCollapsed && (
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 px-2">
+                General
+              </h3>
+            )}
+            <ul className="space-y-2">
+              {generalItems.map((item) => (
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className={`flex items-center px-2 py-3 rounded-xl transition-all duration-200 group ${
-                      isActive
-                        ? 'bg-[#006B53]/10 text-[#006B53] border-l-4 border-l-[#006B53]'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    } ${isCollapsed ? 'justify-center' : ''}`}
+                    className={`flex items-center px-2 py-3 rounded-xl transition-all duration-200 group text-gray-600 hover:bg-gray-50 hover:text-gray-900 ${
+                      isCollapsed ? 'justify-center' : ''
+                    }`}
                     title={isCollapsed ? item.label : undefined}
                   >
                     <item.icon className={`${
                       isCollapsed ? 'w-6 h-6' : 'w-5 h-5 mr-3'
-                    } ${
-                      isActive ? 'text-[#006B53]' : 'text-gray-400 group-hover:text-gray-600'
-                    }`} />
+                    } text-gray-400 group-hover:text-gray-600`} />
                     {!isCollapsed && (
                       <span className="font-medium">{item.label}</span>
                     )}
                   </Link>
                 </li>
-              );
-            })}
-          </ul>
-        </div>
+              ))}
+            </ul>
+          </div>
 
-        {/* General Section */}
-        <div className="mb-8">
+          {/* Promotional Download Card */}
           {!isCollapsed && (
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 px-2">
-              General
-            </h3>
-          )}
-          <ul className="space-y-2">
-            {generalItems.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`flex items-center px-2 py-3 rounded-xl transition-all duration-200 group text-gray-600 hover:bg-gray-50 hover:text-gray-900 ${
-                    isCollapsed ? 'justify-center' : ''
-                  }`}
-                  title={isCollapsed ? item.label : undefined}
-                >
-                  <item.icon className={`${
-                    isCollapsed ? 'w-6 h-6' : 'w-5 h-5 mr-3'
-                  } text-gray-400 group-hover:text-gray-600`} />
-                  {!isCollapsed && (
-                    <span className="font-medium">{item.label}</span>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Promotional Download Card */}
-        {!isCollapsed && (
-          <div className="px-2">
-            <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 text-white relative overflow-hidden">
-              {/* Abstract Pattern Background */}
-              <div className="absolute top-0 right-0 w-24 h-24 bg-[#006B53]/20 rounded-full -translate-y-8 translate-x-8"></div>
-              <div className="absolute bottom-0 left-0 w-16 h-16 bg-[#006B53]/20 rounded-full translate-y-8 -translate-x-8"></div>
-              
-              <div className="relative z-10">
-                <div className="flex items-center mb-3">
-                  <Smartphone className="w-6 h-6 text-[#006B53] mr-2" />
-                  <h4 className="font-semibold text-lg">Download our Mobile App</h4>
+            <div className="px-2">
+              <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 text-white relative overflow-hidden">
+                {/* Abstract Pattern Background */}
+                <div className="absolute top-0 right-0 w-24 h-24 bg-[#006B53]/20 rounded-full -translate-y-8 translate-x-8"></div>
+                <div className="absolute bottom-0 left-0 w-16 h-16 bg-[#006B53]/20 rounded-full translate-y-8 -translate-x-8"></div>
+                
+                <div className="relative z-10">
+                  <div className="flex items-center mb-3">
+                    <Smartphone className="w-6 h-6 text-[#006B53] mr-2" />
+                    <h4 className="font-semibold text-lg">Download our Mobile App</h4>
+                  </div>
+                  <p className="text-gray-300 text-sm mb-4">Get easy in another way</p>
+                  <button className="bg-[#006B53] hover:bg-[#005A47] text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                    <Download className="w-4 h-4 mr-2" />
+                    Download
+                  </button>
                 </div>
-                <p className="text-gray-300 text-sm mb-4">Get easy in another way</p>
-                <button className="bg-[#006B53] hover:bg-[#005A47] text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </button>
               </div>
             </div>
-          </div>
-        )}
-      </nav>
-    </div>
+          )}
+        </nav>
+      </div>
+
+      {/* Overlay for mobile */}
+      {!isCollapsed && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-20"
+          onClick={() => onToggle(true)}
+        />
+      )}
+    </>
   );
 }

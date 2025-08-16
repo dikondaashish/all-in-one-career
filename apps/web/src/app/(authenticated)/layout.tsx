@@ -1,13 +1,13 @@
 /**
- * Authenticated Layout with Collapsible Sidebar
+ * Authenticated Layout with Push-Style Sidebar
  * 
- * ✅ SUCCESSFULLY IMPLEMENTED: Collapsible sidebar layout system
+ * ✅ SUCCESSFULLY IMPLEMENTED: Push-style sidebar layout system
  * - Manages sidebar collapsed/expanded state
- * - Responsive main content area that adjusts to sidebar state
+ * - Main content area shifts right/left based on sidebar state
  * - Smooth transitions and animations
  * - Proper state management between Sidebar, Topbar, and Layout components
  * - Dashboard content dynamically resizes based on sidebar state
- * - All dashboard sections adjust smoothly in size and alignment
+ * - Push behavior: content shifts right when sidebar expands, left when collapsed
  */
 
 'use client';
@@ -27,7 +27,10 @@ export default function AuthenticatedLayout({
   return (
     <div className="min-h-screen bg-[#F0F2F5]">
       {/* Fixed Topbar that spans full width */}
-      <Topbar />
+      <Topbar 
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
       
       {/* Sidebar positioned below the topbar */}
       <Sidebar 
@@ -35,7 +38,7 @@ export default function AuthenticatedLayout({
         onToggle={(collapsed) => setSidebarCollapsed(collapsed)}
       />
       
-      {/* Main content area that adjusts based on sidebar state */}
+      {/* Main content area that shifts right/left based on sidebar state */}
       <main className={`pt-18 min-h-screen transition-all duration-300 ease-in-out ${
         sidebarCollapsed ? 'ml-16' : 'ml-60'
       } lg:ml-60`}>
