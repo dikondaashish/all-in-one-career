@@ -90,8 +90,6 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       {/* Sidebar */}
       <div className={`fixed left-0 top-18 h-[calc(100vh-4.5rem)] bg-white shadow-inner z-30 transition-all duration-300 ease-in-out ${
         isCollapsed ? 'w-16' : 'w-60'
-      } lg:translate-x-0 ${
-        isCollapsed ? '-translate-x-0' : 'lg:translate-x-0'
       }`}>
         {/* Navigation */}
         <nav className="mt-4 px-2">

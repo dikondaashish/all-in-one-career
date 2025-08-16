@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 
@@ -24,24 +24,33 @@ export default function AuthenticatedLayout({
   // Set default state to collapsed
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
+  // Debug logging to verify state changes
+  useEffect(() => {
+    console.log('Sidebar state changed:', sidebarCollapsed ? 'collapsed' : 'expanded');
+  }, [sidebarCollapsed]);
+
+  const handleSidebarToggle = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+
   return (
     <div className="min-h-screen bg-[#F0F2F5]">
       {/* Fixed Topbar that spans full width */}
       <Topbar 
         sidebarCollapsed={sidebarCollapsed}
-        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onToggleSidebar={handleSidebarToggle}
       />
       
       {/* Sidebar positioned below the topbar */}
       <Sidebar 
         isCollapsed={sidebarCollapsed}
-        onToggle={(collapsed) => setSidebarCollapsed(collapsed)}
+        onToggle={setSidebarCollapsed}
       />
       
       {/* Main content area that shifts right/left based on sidebar state */}
       <main className={`pt-18 min-h-screen transition-all duration-300 ease-in-out ${
         sidebarCollapsed ? 'ml-16' : 'ml-60'
-      } lg:ml-60`}>
+      }`}>
         <div className="p-8">
           {children}
         </div>
