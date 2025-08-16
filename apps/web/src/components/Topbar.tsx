@@ -6,13 +6,15 @@
  * - Spans full width regardless of sidebar state
  * - Includes hamburger menu toggle for sidebar control
  * - Clean, consistent header design with sidebar integration
+ * - Integrated SmartSearch component for global search functionality
  */
 
 'use client';
 
-import { Bell, Search, User, Mail, Menu } from 'lucide-react';
+import { Bell, User, Mail, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
+import SmartSearch from './SmartSearch';
 
 interface TopbarProps {
   sidebarCollapsed: boolean;
@@ -67,19 +69,9 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
           </div>
         </div>
 
-        {/* Center - Search Bar */}
+        {/* Center - Smart Search Bar */}
         <div className="flex-1 max-w-md mx-8">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search task"
-              className="w-full pl-12 pr-20 py-3 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#006B53] focus:border-transparent text-sm"
-            />
-            <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-              <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs rounded-full font-medium">⌘ F</span>
-            </div>
-          </div>
+          <SmartSearch />
         </div>
 
         {/* Right - Notifications & User */}
