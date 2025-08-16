@@ -9,7 +9,7 @@ export default function AuthenticatedLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-[#F0F2F5]">
+    <div className="min-h-screen bg-gradient-to-br from-[#0E1129] to-[#1D233A]">
       <Sidebar />
       <Topbar />
       <main className="ml-60 pt-18 min-h-screen">
