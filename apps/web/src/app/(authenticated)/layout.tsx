@@ -7,6 +7,7 @@
  * - Smooth transitions and animations
  * - Proper state management between Sidebar, Topbar, and Layout components
  * - Dashboard content dynamically resizes based on sidebar state
+ * - All dashboard sections adjust smoothly in size and alignment
  */
 
 'use client';
