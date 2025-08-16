@@ -23,12 +23,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Briefcase, 
-  Mail, 
-  Users, 
+import {
+  LayoutDashboard,
+  FileText,
+  Briefcase,
+  Mail,
+  Users,
   ClipboardList,
   User,
   Settings,
@@ -36,7 +36,8 @@ import {
   LogOut,
   Download,
   Smartphone,
-  Menu
+  Menu,
+  BarChart3
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -54,6 +55,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     { href: '/emails', label: 'Emails', icon: Mail },
     { href: '/referrals', label: 'Referrals', icon: Users },
     { href: '/tracker', label: 'Tracker', icon: ClipboardList },
+    { href: '/search-insights', label: 'Insights', icon: BarChart3 },
     { href: '/profile', label: 'Profile', icon: User },
   ];
 
@@ -165,7 +167,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 {/* Abstract Pattern Background */}
                 <div className="absolute top-0 right-0 w-24 h-24 bg-[#006B53]/20 rounded-full -translate-y-8 translate-x-8"></div>
                 <div className="absolute bottom-0 left-0 w-16 h-16 bg-[#006B53]/20 rounded-full translate-y-8 -translate-x-8"></div>
-                
+
                 <div className="relative z-10">
                   <div className="flex items-center mb-3">
                     <Smartphone className="w-6 h-6 text-[#006B53] mr-2" />
@@ -185,7 +187,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
       {/* Overlay for mobile */}
       {!isCollapsed && (
-        <div 
+        <div
           className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-20"
           onClick={() => onToggle(true)}
         />

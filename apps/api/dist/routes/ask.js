@@ -184,6 +184,19 @@ Analyze the question and respond appropriately. If the question asks for specifi
                 response.results = searchResults.slice(0, 3);
             }
             console.log(`AI Q&A response type: ${responseType}, results: ${searchResults.length}`);
+            // Record search history with question and answer
+            try {
+                await prisma.searchHistory.create({
+                    data: {
+                        query: question,
+                        answer: response.answer || null,
+                        userId: req.user?.uid || null
+                    }
+                });
+            }
+            catch (historyError) {
+                console.log('Failed to record AI Q&A history:', historyError);
+            }
             res.json(response);
         }
         catch (error) {

@@ -267,6 +267,18 @@ export default function searchRouter(prisma: PrismaClient, logger: pino.Logger):
 
       console.log(`Search completed. Found ${sortedResults.length} results for query: "${query}" with filters:`, JSON.stringify(filters));
       
+      // Record search history
+      try {
+        await prisma.searchHistory.create({
+          data: {
+            query: query,
+            userId: req.user?.uid || null
+          }
+        });
+      } catch (historyError) {
+        console.log('Failed to record search history:', historyError);
+      }
+      
       res.json({
         query,
         extractedKeywords,
