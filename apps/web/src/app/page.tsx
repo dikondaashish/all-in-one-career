@@ -1,21 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, signInWithEmail } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: '',
     rememberMe: false
   });
   const [isLoading, setIsLoading] = useState(false);
 
+  // Load remember me state from localStorage
+  useEffect(() => {
+    const remembered = localStorage.getItem('rememberMe') === 'true';
+    setFormData(prev => ({ ...prev, rememberMe: remembered }));
+  }, []);
+
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Save remember me state to localStorage
+    if (field === 'rememberMe') {
+      localStorage.setItem('rememberMe', value.toString());
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,13 +36,21 @@ export default function LandingPage() {
     setIsLoading(true);
     
     try {
-      await signIn();
+      if (formData.email && formData.password) {
+        await signInWithEmail(formData.email, formData.password);
+      } else {
+        await signIn(); // Fallback to Google auth
+      }
       router.push('/dashboard');
     } catch (error) {
       console.error('Sign in error:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSkip = () => {
+    router.push('/dashboard');
   };
 
   const handleGoogleSignIn = async () => {
@@ -45,7 +66,24 @@ export default function LandingPage() {
   };
 
   const handleAppleSignIn = () => {
+    // Apple Sign In implementation would go here
     console.log('Apple Sign In clicked');
+  };
+
+  const handleForgotPassword = () => {
+    router.push('/forgot-password');
+  };
+
+  const handleRegister = () => {
+    router.push('/register');
+  };
+
+  const handlePrivacyPolicy = () => {
+    router.push('/privacy-policy');
+  };
+
+  const handleTerms = () => {
+    router.push('/terms');
   };
 
   return (
@@ -55,7 +93,7 @@ export default function LandingPage() {
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="flex justify-center mb-8">
-            <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
+            <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center shadow-lg">
               <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
@@ -72,28 +110,41 @@ export default function LandingPage() {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Username Field */}
+            {/* Email Field */}
             <div>
               <input
-                type="text"
-                placeholder="Username"
+                type="email"
+                placeholder="Enter your email address"
                 required
                 className="w-full h-12 px-4 border border-[#D1D5DB] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                value={formData.username}
-                onChange={(e) => handleInputChange('username', e.target.value)}
+                value={formData.email}
+                onChange={(e) => handleInputChange('email', e.target.value)}
               />
             </div>
 
             {/* Password Field */}
             <div>
-              <input
-                type="password"
-                placeholder="Password"
-                required
-                className="w-full h-12 px-4 border border-[#D1D5DB] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                value={formData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter your password"
+                  required
+                  className="w-full h-12 px-4 pr-12 border border-[#D1D5DB] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeSlashIcon className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Remember Me & Forgot Password */}
@@ -107,9 +158,13 @@ export default function LandingPage() {
                 />
                 <span className="ml-2 text-sm text-gray-700">Remember me</span>
               </label>
-              <a href="#" className="text-sm text-blue-600 hover:text-blue-500">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-sm text-blue-600 hover:text-blue-500 transition-colors"
+              >
                 Forgot password?
-              </a>
+              </button>
             </div>
 
             {/* Sign In Button */}
@@ -135,13 +190,13 @@ export default function LandingPage() {
           </div>
 
           {/* Social Login Buttons */}
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
             <button
               onClick={handleGoogleSignIn}
               disabled={isLoading}
-              className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50"
+              className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50"
             >
-              <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -164,10 +219,10 @@ export default function LandingPage() {
 
             <button
               onClick={handleAppleSignIn}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50"
+              disabled={true}
+              className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
               </svg>
               Apple
@@ -178,16 +233,41 @@ export default function LandingPage() {
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
-              <a href="#" className="text-blue-600 hover:text-blue-500 font-medium">
+              <button
+                onClick={handleRegister}
+                className="text-blue-600 hover:text-blue-500 font-medium transition-colors"
+              >
                 Register
-              </a>
+              </button>
             </p>
+          </div>
+
+          {/* Skip Button */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <button
+              onClick={handleSkip}
+              className="w-full text-gray-600 hover:text-gray-800 py-2 px-4 rounded-lg font-medium transition-colors duration-200"
+            >
+              Skip for now
+            </button>
           </div>
 
           {/* Footer */}
           <div className="mt-12 text-center">
-            <div className="text-sm text-[#9CA3AF]">
-              Privacy Policy · Terms & Conditions
+            <div className="text-sm text-gray-400">
+              <button
+                onClick={handlePrivacyPolicy}
+                className="hover:text-gray-600 transition-colors"
+              >
+                Privacy Policy
+              </button>
+              {' · '}
+              <button
+                onClick={handleTerms}
+                className="hover:text-gray-600 transition-colors"
+              >
+                Terms & Conditions
+              </button>
             </div>
           </div>
         </div>

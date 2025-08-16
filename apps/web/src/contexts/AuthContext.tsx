@@ -1,13 +1,14 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { User, signInWithPopup, signOut } from 'firebase/auth';
+import { User, signInWithPopup, signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, provider } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
   signOutUser: () => Promise<void>;
 }
 
@@ -34,6 +35,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      console.error('Email sign in error:', error);
+      throw error;
+    }
+  };
+
   const signOutUser = async () => {
     try {
       await signOut(auth);
@@ -43,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOutUser }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signInWithEmail, signOutUser }}>
       {children}
     </AuthContext.Provider>
   );
