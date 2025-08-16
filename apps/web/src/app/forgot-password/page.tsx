@@ -55,7 +55,7 @@ export default function ForgotPasswordPage() {
     return () => clearInterval(interval);
   }, [slides.length]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
@@ -64,8 +64,9 @@ export default function ForgotPasswordPage() {
     try {
       await sendPasswordReset(email);
       setSuccess(true);
-    } catch (error: any) {
-      setError(error.message || 'Failed to send reset email');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -143,7 +144,7 @@ export default function ForgotPasswordPage() {
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">Check Your Email</h3>
                   <p className="text-gray-600">
-                    We've sent a password reset link to <strong>{email}</strong>
+                    We&apos;ve sent a password reset link to <strong>{email}</strong>
                   </p>
                 </div>
 

@@ -76,7 +76,7 @@ export default function LandingPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
@@ -90,8 +90,9 @@ export default function LandingPage() {
       } else {
         setError('Please enter both email and password');
       }
-    } catch (error: any) {
-      setError(error.message || 'Failed to sign in');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to sign in';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -104,14 +105,14 @@ export default function LandingPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
-    setError('');
-    
     try {
+      setIsLoading(true);
+      setError('');
       await signIn();
       router.push('/dashboard');
-    } catch (error: any) {
-      setError('Failed to sign in with Google. Please try again.');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to sign in with Google';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -295,7 +296,7 @@ export default function LandingPage() {
           {/* Register Link */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <button
                 onClick={handleRegister}
                 className="text-blue-600 hover:text-blue-500 font-medium transition-colors"

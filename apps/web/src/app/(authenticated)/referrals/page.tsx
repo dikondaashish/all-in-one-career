@@ -58,7 +58,8 @@ export default function ReferralsPage() {
         `${process.env.NEXT_PUBLIC_API_URL}/referrals/suggest?company=${encodeURIComponent(company)}&role=${encodeURIComponent(role)}`,
         {
           headers: {
-            'Authorization': `Bearer ${await user.getIdToken()}`,
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${user ? await user.getIdToken() : ''}`,
           },
         }
       );

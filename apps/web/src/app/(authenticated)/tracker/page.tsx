@@ -70,7 +70,7 @@ export default function TrackerPage() {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/applications`, {
         headers: {
-          'Authorization': `Bearer ${await user.getIdToken()}`,
+          'Authorization': `Bearer ${user ? await user.getIdToken() : ''}`,
         },
       });
 
@@ -103,7 +103,7 @@ export default function TrackerPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await user.getIdToken()}`,
+          'Authorization': `Bearer ${user ? await user.getIdToken() : ''}`,
         },
         body: JSON.stringify({
           ...form,

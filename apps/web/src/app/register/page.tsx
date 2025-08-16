@@ -67,35 +67,17 @@ export default function RegisterPage() {
     setError(''); // Clear error when user types
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-
-    // Validation
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      setIsLoading(false);
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      setIsLoading(false);
-      return;
-    }
-
+    
     try {
-      // Create account
       await signUpWithEmail(formData.email, formData.password);
-      
-      // Auto sign-in after successful registration
-      await signInWithEmail(formData.email, formData.password);
-      
-      // Redirect to dashboard
       router.push('/dashboard');
-    } catch (error: any) {
-      setError(error.message || 'Failed to create account');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

@@ -155,7 +155,7 @@ export default function PrivacyPolicyPage() {
               Your Privacy Matters
             </h2>
             <p className="text-[#9CA3AF] text-sm mb-4 max-w-xs mx-auto">
-              We're committed to protecting your personal information and ensuring transparency 
+              We&apos;re committed to protecting your personal information and ensuring transparency 
               in how we handle your data.
             </p>
           </div>

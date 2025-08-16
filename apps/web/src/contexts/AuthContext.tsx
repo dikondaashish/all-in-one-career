@@ -54,16 +54,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithEmail = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (error: any) {
-      console.error('Email sign in error:', error);
-      if (error.code === 'auth/invalid-credential') {
-        throw new Error('Incorrect email or password');
-      } else if (error.code === 'auth/user-not-found') {
-        throw new Error('No account found with this email');
-      } else if (error.code === 'auth/wrong-password') {
-        throw new Error('Incorrect password');
-      } else if (error.code === 'auth/too-many-requests') {
-        throw new Error('Too many failed attempts. Please try again later');
+    } catch (err: unknown) {
+      console.error('Email sign in error:', err);
+      if (err instanceof Error && 'code' in err) {
+        const errorCode = (err as { code: string }).code;
+        if (errorCode === 'auth/invalid-credential') {
+          throw new Error('Incorrect email or password');
+        } else if (errorCode === 'auth/user-not-found') {
+          throw new Error('No account found with this email');
+        } else if (errorCode === 'auth/wrong-password') {
+          throw new Error('Incorrect password');
+        } else if (errorCode === 'auth/too-many-requests') {
+          throw new Error('Too many failed attempts. Please try again later');
+        } else {
+          throw new Error('Failed to sign in. Please try again');
+        }
       } else {
         throw new Error('Failed to sign in. Please try again');
       }
@@ -73,14 +78,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUpWithEmail = async (email: string, password: string) => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-    } catch (error: any) {
-      console.error('Email sign up error:', error);
-      if (error.code === 'auth/email-already-in-use') {
-        throw new Error('An account with this email already exists');
-      } else if (error.code === 'auth/weak-password') {
-        throw new Error('Password should be at least 6 characters');
-      } else if (error.code === 'auth/invalid-email') {
-        throw new Error('Please enter a valid email address');
+    } catch (err: unknown) {
+      console.error('Email sign up error:', err);
+      if (err instanceof Error && 'code' in err) {
+        const errorCode = (err as { code: string }).code;
+        if (errorCode === 'auth/email-already-in-use') {
+          throw new Error('An account with this email already exists');
+        } else if (errorCode === 'auth/weak-password') {
+          throw new Error('Password should be at least 6 characters');
+        } else if (errorCode === 'auth/invalid-email') {
+          throw new Error('Please enter a valid email address');
+        } else {
+          throw new Error('Failed to create account. Please try again');
+        }
       } else {
         throw new Error('Failed to create account. Please try again');
       }
@@ -90,12 +100,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const sendPasswordReset = async (email: string) => {
     try {
       await sendPasswordResetEmail(auth, email);
-    } catch (error: any) {
-      console.error('Password reset error:', error);
-      if (error.code === 'auth/user-not-found') {
-        throw new Error('No account found with this email');
-      } else if (error.code === 'auth/invalid-email') {
-        throw new Error('Please enter a valid email address');
+    } catch (err: unknown) {
+      console.error('Password reset error:', err);
+      if (err instanceof Error && 'code' in err) {
+        const errorCode = (err as { code: string }).code;
+        if (errorCode === 'auth/user-not-found') {
+          throw new Error('No account found with this email');
+        } else if (errorCode === 'auth/invalid-email') {
+          throw new Error('Please enter a valid email address');
+        } else {
+          throw new Error('Failed to send reset email. Please try again');
+        }
       } else {
         throw new Error('Failed to send reset email. Please try again');
       }

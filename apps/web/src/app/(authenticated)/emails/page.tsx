@@ -63,11 +63,11 @@ export default function EmailsPage() {
     setResult(null);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/emails/generate`, {
+      const response = await fetch('/api/emails', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await user.getIdToken()}`,
+          'Authorization': `Bearer ${user ? await user.getIdToken() : ''}`,
         },
         body: JSON.stringify(form),
       });
