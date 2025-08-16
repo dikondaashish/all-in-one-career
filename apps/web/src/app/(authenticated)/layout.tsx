@@ -5,7 +5,7 @@
  * - Manages sidebar collapsed/expanded state
  * - Responsive main content area that adjusts to sidebar state
  * - Smooth transitions and animations
- * - Proper state management between Sidebar and Topbar components
+ * - Proper state management between Sidebar, Topbar, and Layout components
  */
 
 'use client';
@@ -19,7 +19,8 @@ export default function AuthenticatedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Set default state to collapsed
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   return (
     <div className="min-h-screen bg-[#F0F2F5]">

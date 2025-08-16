@@ -35,8 +35,6 @@ import {
   LogOut,
   Download,
   Smartphone,
-  ChevronLeft,
-  ChevronRight,
   Menu
 } from 'lucide-react';
 
@@ -98,30 +96,14 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       } lg:translate-x-0 ${
         isCollapsed ? '-translate-x-0' : 'lg:translate-x-0'
       }`}>
-        {/* Logo Section */}
-        <div className={`h-18 flex items-center justify-center border-b border-gray-100 ${
-          isCollapsed ? 'px-2' : 'px-4'
-        }`}>
-          <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xl">C</span>
-          </div>
-          {!isCollapsed && (
-            <span className="ml-3 text-xl font-bold text-gray-900">Climbly.ai</span>
-          )}
-        </div>
-
         {/* Toggle Button */}
-        <div className="flex justify-end p-2 border-b border-gray-100">
+        <div className="flex justify-end p-4 border-b border-gray-100">
           <button
             onClick={toggleSidebar}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
             title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {isCollapsed ? (
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-            ) : (
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
-            )}
+            <Menu className="w-5 h-5 text-gray-600" />
           </button>
         </div>
 
