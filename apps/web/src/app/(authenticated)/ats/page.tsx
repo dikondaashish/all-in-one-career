@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 interface ScanResult {
@@ -16,7 +14,6 @@ interface TailorResult {
 }
 
 export default function ATSPage() {
-  const { user, loading } = useAuth();
   const router = useRouter();
   const [resumeText, setResumeText] = useState('');
   const [jdText, setJdText] = useState('');
@@ -24,226 +21,128 @@ export default function ATSPage() {
   const [tailorResult, setTailorResult] = useState<TailorResult | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isTailoring, setIsTailoring] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
 
   const handleScan = async () => {
-    if (!resumeText.trim() || !jdText.trim()) {
-      setError('Please enter both resume and job description text');
-      return;
-    }
-
+    if (!resumeText.trim()) return;
+    
     setIsScanning(true);
-    setError('');
-    setScanResult(null);
-    setTailorResult(null);
-
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ats/scan`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await user.getIdToken()}`,
-        },
-        body: JSON.stringify({ resumeText, jdText }),
+    // Simulate API call
+    setTimeout(() => {
+      setScanResult({
+        score: 85,
+        feedback: [
+          'Keywords "React" and "TypeScript" found - good match',
+          'Consider adding more quantifiable achievements',
+          'Action verbs are strong and specific'
+        ]
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to scan resume');
-      }
-
-      const result = await response.json();
-      setScanResult(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
       setIsScanning(false);
-    }
+    }, 2000);
   };
 
   const handleTailor = async () => {
-    if (!resumeText.trim() || !jdText.trim()) {
-      setError('Please enter both resume and job description text');
-      return;
-    }
-
+    if (!resumeText.trim() || !jdText.trim()) return;
+    
     setIsTailoring(true);
-    setError('');
-    setTailorResult(null);
-
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ats/tailor`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await user.getIdToken()}`,
-        },
-        body: JSON.stringify({ resumeText, jdText }),
+    // Simulate API call
+    setTimeout(() => {
+      setTailorResult({
+        tailoredResume: 'Tailored resume content would appear here...'
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to tailor resume');
-      }
-
-      const result = await response.json();
-      setTailorResult(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
       setIsTailoring(false);
-    }
+    }, 2000);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="space-y-8">
       {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center py-6">
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="mr-4 p-2 text-gray-600 hover:text-gray-900"
-            >
-              <ArrowLeftIcon className="h-6 w-6" />
-            </button>
-            <h1 className="text-3xl font-bold text-gray-900">
-              ATS Scanner & Tailor
-            </h1>
-          </div>
+      <div className="flex items-center space-x-4">
+        <button
+          onClick={() => router.back()}
+          className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <ArrowLeftIcon className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">ATS Scanner</h1>
+          <p className="text-gray-600">Optimize your resume for Applicant Tracking Systems</p>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Input Section */}
-            <div className="space-y-6">
-              <div>
-                <label htmlFor="resume" className="block text-sm font-medium text-gray-700 mb-2">
-                  Resume Text
-                </label>
-                <textarea
-                  id="resume"
-                  rows={12}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Paste your resume text here..."
-                  value={resumeText}
-                  onChange={(e) => setResumeText(e.target.value)}
-                />
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Resume Input */}
+        <div className="backdrop-blur-lg bg-white/30 rounded-[16px] shadow-xl border border-white/50 p-6">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Resume Text</h3>
+          <textarea
+            value={resumeText}
+            onChange={(e) => setResumeText(e.target.value)}
+            placeholder="Paste your resume text here..."
+            className="w-full h-64 p-4 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+          />
+        </div>
 
-              <div>
-                <label htmlFor="jd" className="block text-sm font-medium text-gray-700 mb-2">
-                  Job Description
-                </label>
-                <textarea
-                  id="jd"
-                  rows={8}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Paste the job description here..."
-                  value={jdText}
-                  onChange={(e) => setJdText(e.target.value)}
-                />
-              </div>
+        {/* Job Description Input */}
+        <div className="backdrop-blur-lg bg-white/30 rounded-[16px] shadow-xl border border-white/50 p-6">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Job Description</h3>
+          <textarea
+            value={jdText}
+            onChange={(e) => setJdText(e.target.value)}
+            placeholder="Paste the job description here..."
+            className="w-full h-64 p-4 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+          />
+        </div>
+      </div>
 
-              <div className="flex space-x-4">
-                <button
-                  onClick={handleScan}
-                  disabled={isScanning}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-md font-medium"
-                >
-                  {isScanning ? 'Scanning...' : 'Scan Resume'}
-                </button>
-                <button
-                  onClick={handleTailor}
-                  disabled={isTailoring}
-                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-md font-medium"
-                >
-                  {isTailoring ? 'Tailoring...' : 'Tailor Resume'}
-                </button>
-              </div>
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-4 justify-center">
+        <button
+          onClick={handleScan}
+          disabled={!resumeText.trim() || isScanning}
+          className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-3 rounded-lg font-medium hover:shadow-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isScanning ? 'Scanning...' : 'Scan Resume'}
+        </button>
+        
+        <button
+          onClick={handleTailor}
+          disabled={!resumeText.trim() || !jdText.trim() || isTailoring}
+          className="bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-3 rounded-lg font-medium hover:shadow-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isTailoring ? 'Tailoring...' : 'Tailor Resume'}
+        </button>
+      </div>
 
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-                  {error}
-                </div>
-              )}
-            </div>
-
-            {/* Results Section */}
-            <div className="space-y-6">
-              {/* Scan Results */}
-              {scanResult && (
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Scan Results</h3>
-                  <div className="mb-4">
-                    <span className="text-sm font-medium text-gray-700">Match Score:</span>
-                    <div className="mt-2">
-                      <div className="w-full bg-gray-200 rounded-full h-4">
-                        <div
-                          className="bg-blue-600 h-4 rounded-full transition-all duration-300"
-                          style={{ width: `${scanResult.score}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm text-gray-600 ml-2">{scanResult.score}%</span>
-                    </div>
-                  </div>
-                  {scanResult.feedback && scanResult.feedback.length > 0 && (
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">Feedback:</span>
-                      <ul className="mt-2 space-y-1">
-                        {scanResult.feedback.map((item, index) => (
-                          <li key={index} className="text-sm text-gray-600 flex items-start">
-                            <span className="text-blue-500 mr-2">•</span>
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tailor Results */}
-              {tailorResult && (
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Tailored Resume</h3>
-                  <textarea
-                    rows={16}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    value={tailorResult.tailoredResume}
-                    readOnly
-                  />
-                  <button
-                    onClick={() => navigator.clipboard.writeText(tailorResult.tailoredResume)}
-                    className="mt-3 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                  >
-                    Copy to Clipboard
-                  </button>
-                </div>
-              )}
-            </div>
+      {/* Results */}
+      {scanResult && (
+        <div className="backdrop-blur-lg bg-white/30 rounded-[16px] shadow-xl border border-white/50 p-6">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Scan Results</h3>
+          <div className="mb-4">
+            <div className="text-3xl font-bold text-green-600 mb-2">{scanResult.score}%</div>
+            <div className="text-gray-600">ATS Compatibility Score</div>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-2">Feedback:</h4>
+            <ul className="space-y-2">
+              {scanResult.feedback.map((item, index) => (
+                <li key={index} className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <span className="text-gray-700">{item}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
-      </main>
+      )}
+
+      {tailorResult && (
+        <div className="backdrop-blur-lg bg-white/30 rounded-[16px] shadow-xl border border-white/50 p-6">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Tailored Resume</h3>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <pre className="whitespace-pre-wrap text-gray-700">{tailorResult.tailoredResume}</pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

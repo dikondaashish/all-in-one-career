@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 interface PortfolioResult {
   portfolioUrl?: string;
@@ -12,30 +11,11 @@ interface PortfolioResult {
 }
 
 export default function PortfolioPage() {
-  const { user, loading } = useAuth();
   const router = useRouter();
   const [resumeText, setResumeText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<PortfolioResult | null>(null);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
 
   const handleGenerate = async () => {
     if (!resumeText.trim()) {
@@ -47,128 +27,97 @@ export default function PortfolioPage() {
     setError('');
     setResult(null);
 
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/portfolio/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await user.getIdToken()}`,
-        },
-        body: JSON.stringify({ resumeText }),
+    // Simulate API call
+    setTimeout(() => {
+      setResult({
+        portfolioUrl: 'https://example.com/portfolio/ashish',
+        htmlContent: '<div>Generated portfolio HTML would appear here...</div>',
+        message: 'Portfolio generated successfully!'
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate portfolio');
-      }
-
-      const result = await response.json();
-      setResult(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+    }, 2000);
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Portfolio Generator</h1>
-      
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center space-x-4">
+        <button
+          onClick={() => router.back()}
+          className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <ArrowLeftIcon className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Portfolio Generator</h1>
+          <p className="text-gray-600">Create a professional portfolio from your resume</p>
+        </div>
+      </div>
+
+      {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Input Section */}
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="resume" className="block text-sm font-medium text-gray-700 mb-2">
-              Resume Text
-            </label>
-            <textarea
-              id="resume"
-              rows={15}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Paste your resume text here to generate a portfolio..."
-              value={resumeText}
-              onChange={(e) => setResumeText(e.target.value)}
-            />
-          </div>
-
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-md font-medium transition-colors"
-          >
-            {isGenerating ? 'Generating Portfolio...' : 'Generate Portfolio'}
-          </button>
-
+        {/* Resume Input */}
+        <div className="backdrop-blur-lg bg-white/30 rounded-[16px] shadow-xl border border-white/50 p-6">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Resume Text</h3>
+          <textarea
+            value={resumeText}
+            onChange={(e) => setResumeText(e.target.value)}
+            placeholder="Paste your resume text here to generate a portfolio..."
+            className="w-full h-80 p-4 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+          />
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-              {error}
-            </div>
+            <p className="text-red-600 text-sm mt-2">{error}</p>
           )}
         </div>
 
-        {/* Results Section */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-900">Generated Portfolio</h2>
-          
-          {!result ? (
-            <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-              <p className="text-gray-500">
-                Your portfolio will appear here after generation
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {result.portfolioUrl && (
-                <div className="bg-white p-4 rounded-lg border">
-                  <h3 className="font-medium text-gray-900 mb-2">Portfolio URL</h3>
+        {/* Portfolio Preview */}
+        <div className="backdrop-blur-lg bg-white/30 rounded-[16px] shadow-xl border border-white/50 p-6">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Portfolio Preview</h3>
+          <div className="h-80 bg-gray-50 rounded-lg p-4 border-2 border-dashed border-gray-300 flex items-center justify-center">
+            {result ? (
+              <div className="text-center">
+                <div className="text-green-600 text-lg font-semibold mb-2">✅ {result.message}</div>
+                {result.portfolioUrl && (
                   <a
                     href={result.portfolioUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 break-all"
+                    className="text-blue-600 hover:text-blue-800 underline"
                   >
-                    {result.portfolioUrl}
+                    View Portfolio
                   </a>
-                  <button
-                    onClick={() => copyToClipboard(result.portfolioUrl!)}
-                    className="ml-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
-                  >
-                    Copy
-                  </button>
-                </div>
-              )}
-
-              {result.htmlContent && (
-                <div className="bg-white p-4 rounded-lg border">
-                  <h3 className="font-medium text-gray-900 mb-2">HTML Content</h3>
-                  <textarea
-                    rows={10}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
-                    value={result.htmlContent}
-                    readOnly
-                  />
-                  <button
-                    onClick={() => copyToClipboard(result.htmlContent!)}
-                    className="mt-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
-                  >
-                    Copy to Clipboard
-                  </button>
-                </div>
-              )}
-
-              {result.message && (
-                <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md">
-                  {result.message}
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            ) : (
+              <div className="text-center text-gray-500">
+                <div className="text-4xl mb-2">📄</div>
+                <p>Your portfolio will appear here</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Action Button */}
+      <div className="flex justify-center">
+        <button
+          onClick={handleGenerate}
+          disabled={!resumeText.trim() || isGenerating}
+          className="bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-3 rounded-lg font-medium hover:shadow-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isGenerating ? 'Generating...' : 'Generate Portfolio'}
+        </button>
+      </div>
+
+      {/* Generated Content */}
+      {result && result.htmlContent && (
+        <div className="backdrop-blur-lg bg-white/30 rounded-[16px] shadow-xl border border-white/50 p-6">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Generated HTML</h3>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <pre className="whitespace-pre-wrap text-gray-700 text-sm">{result.htmlContent}</pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

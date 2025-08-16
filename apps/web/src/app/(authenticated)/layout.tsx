@@ -1,4 +1,7 @@
-import NavBar from '@/components/NavBar';
+'use client';
+
+import Sidebar from '@/components/Sidebar';
+import Topbar from '@/components/Topbar';
 
 export default function AuthenticatedLayout({
   children,
@@ -6,9 +9,14 @@ export default function AuthenticatedLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
-      <NavBar />
-      <div className="p-6">{children}</div>
-    </>
+    <div className="min-h-screen bg-[#F0F2F5]">
+      <Sidebar />
+      <Topbar />
+      <main className="ml-60 pt-18 min-h-screen">
+        <div className="p-8">
+          {children}
+        </div>
+      </main>
+    </div>
   );
 }

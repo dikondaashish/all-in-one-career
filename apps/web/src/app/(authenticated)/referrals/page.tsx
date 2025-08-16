@@ -17,7 +17,7 @@ interface ReferralSuggestion {
 }
 
 export default function ReferralsPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, hasSkippedAuth } = useAuth();
   const router = useRouter();
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
@@ -26,10 +26,10 @@ export default function ReferralsPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
+    if (!loading && !user && !hasSkippedAuth()) {
+      router.push('/');
     }
-  }, [user, loading, router]);
+  }, [user, loading, hasSkippedAuth, router]);
 
   if (loading) {
     return (
@@ -39,7 +39,7 @@ export default function ReferralsPage() {
     );
   }
 
-  if (!user) {
+  if (!user && !hasSkippedAuth()) {
     return null;
   }
 

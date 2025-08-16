@@ -7,7 +7,7 @@ import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { signIn, signInWithEmail } = useAuth();
+  const { signIn, signInWithEmail, setRememberMe } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -15,6 +15,50 @@ export default function LandingPage() {
     rememberMe: false
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  // Slider data
+  const slides = [
+    {
+      title: "Transform Data into Cool Insights",
+      subtitle: "Unlock the power of your data with our advanced analytics platform. Get real-time insights and make data-driven decisions.",
+      cards: [
+        { icon: "📊", label: "Analytics Dashboard", value: "Real-time metrics" },
+        { icon: "📈", label: "Performance Tracking", value: "Growth insights" },
+        { icon: "🎯", label: "Goal Setting", value: "Smart objectives" },
+        { icon: "🚀", label: "Action Items", value: "Next steps" }
+      ]
+    },
+    {
+      title: "Career Growth Made Simple",
+      subtitle: "Your all-in-one platform for job searching, skill development, and professional networking. Take control of your career journey.",
+      cards: [
+        { icon: "💼", label: "Job Tracker", value: "Application status" },
+        { icon: "📝", label: "ATS Optimizer", value: "Resume scanning" },
+        { icon: "🎨", label: "Portfolio Builder", value: "Showcase work" },
+        { icon: "📧", label: "AI Email Writer", value: "Professional outreach" }
+      ]
+    },
+    {
+      title: "AI-Powered Career Tools",
+      subtitle: "Leverage artificial intelligence to optimize your resume, craft compelling emails, and discover the best opportunities in your field.",
+      cards: [
+        { icon: "🤖", label: "Smart Scanning", value: "AI analysis" },
+        { icon: "✍️", label: "Content Generation", value: "AI writing" },
+        { icon: "🔍", label: "Opportunity Finder", value: "AI matching" },
+        { icon: "📊", label: "Market Insights", value: "AI trends" }
+      ]
+    }
+  ];
+
+  // Auto-rotate slides
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [slides.length]);
 
   // Load remember me state from localStorage
   useEffect(() => {
@@ -24,6 +68,7 @@ export default function LandingPage() {
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    setError(''); // Clear error when user types
     
     // Save remember me state to localStorage
     if (field === 'rememberMe') {
@@ -34,40 +79,47 @@ export default function LandingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
     
     try {
       if (formData.email && formData.password) {
+        // Set persistence based on remember me
+        await setRememberMe(formData.rememberMe);
         await signInWithEmail(formData.email, formData.password);
+        router.push('/dashboard');
       } else {
-        await signIn(); // Fallback to Google auth
+        setError('Please enter both email and password');
       }
-      router.push('/dashboard');
-    } catch (error) {
-      console.error('Sign in error:', error);
+    } catch (error: any) {
+      setError(error.message || 'Failed to sign in');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSkip = () => {
+    // Store skip flag in localStorage to bypass auth guard
+    localStorage.setItem('climbly_skip_guest', 'true');
     router.push('/dashboard');
   };
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
+    setError('');
+    
     try {
       await signIn();
       router.push('/dashboard');
-    } catch (error) {
-      console.error('Google sign in error:', error);
+    } catch (error: any) {
+      setError('Failed to sign in with Google. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleAppleSignIn = () => {
-    // Apple Sign In implementation would go here
-    console.log('Apple Sign In clicked');
+    // Apple Sign In is disabled
+    return;
   };
 
   const handleForgotPassword = () => {
@@ -84,6 +136,10 @@ export default function LandingPage() {
 
   const handleTerms = () => {
     router.push('/terms');
+  };
+
+  const goToSlide = (index: number) => {
+    setCurrentSlide(index);
   };
 
   return (
@@ -147,6 +203,13 @@ export default function LandingPage() {
               </div>
             </div>
 
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
             {/* Remember Me & Forgot Password */}
             <div className="flex items-center justify-between">
               <label className="flex items-center">
@@ -187,7 +250,7 @@ export default function LandingPage() {
                 <span className="px-2 bg-white text-gray-500">or login with</span>
               </div>
             </div>
-          </div>
+        </div>
 
           {/* Social Login Buttons */}
           <div className="grid grid-cols-2 gap-3">
@@ -220,7 +283,7 @@ export default function LandingPage() {
             <button
               onClick={handleAppleSignIn}
               disabled={true}
-              className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-gray-400 bg-gray-50 cursor-not-allowed opacity-50"
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
@@ -275,67 +338,64 @@ export default function LandingPage() {
 
       {/* Right Panel - Dark Dashboard Preview (42% width) */}
       <div className="w-[42%] bg-gradient-to-b from-[#0E1129] to-[#1D233A] rounded-tr-xl rounded-br-xl relative overflow-hidden">
-        {/* Dashboard Preview Content */}
-        <div className="p-8 h-full flex flex-col">
-          {/* Analytics Cards */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            {/* Card 1 */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 shadow-lg">
-              <div className="w-12 h-12 bg-blue-500/20 rounded-lg mb-3"></div>
-              <div className="h-3 bg-white/20 rounded w-3/4 mb-2"></div>
-              <div className="h-2 bg-white/10 rounded w-1/2"></div>
-            </div>
-            
-            {/* Card 2 */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 shadow-lg">
-              <div className="w-12 h-12 bg-green-500/20 rounded-lg mb-3"></div>
-              <div className="h-3 bg-white/20 rounded w-2/3 mb-2"></div>
-              <div className="h-2 bg-white/10 rounded w-3/4"></div>
-            </div>
-            
-            {/* Card 3 */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 shadow-lg">
-              <div className="w-12 h-12 bg-purple-500/20 rounded-lg mb-3"></div>
-              <div className="h-3 bg-white/20 rounded w-4/5 mb-2"></div>
-              <div className="h-2 bg-white/10 rounded w-1/2"></div>
-            </div>
-            
-            {/* Card 4 */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 shadow-lg">
-              <div className="w-12 h-12 bg-orange-500/20 rounded-lg mb-3"></div>
-              <div className="h-3 bg-white/20 rounded w-2/3 mb-2"></div>
-              <div className="h-2 bg-white/10 rounded w-3/5"></div>
-            </div>
-          </div>
+        {/* Slider Container */}
+        <div className="relative h-full">
+          {slides.map((slide, index) => (
+            <div
+              key={index}
+              className={`absolute inset-0 transition-all duration-700 ease-in-out ${
+                index === currentSlide ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
+              }`}
+            >
+              {/* Dashboard Preview Content */}
+              <div className="p-8 h-full flex flex-col">
+                {/* Analytics Cards */}
+                <div className="grid grid-cols-2 gap-4 mb-8">
+                  {slide.cards.map((card, cardIndex) => (
+                    <div key={cardIndex} className="bg-white/10 backdrop-blur-sm rounded-lg p-4 shadow-lg">
+                      <div className="text-2xl mb-3">{card.icon}</div>
+                      <div className="h-3 bg-white/20 rounded w-3/4 mb-2"></div>
+                      <div className="h-2 bg-white/10 rounded w-1/2"></div>
+                    </div>
+                  ))}
+                </div>
 
-          {/* Chart Placeholder */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-8 flex-1">
-            <div className="h-4 bg-white/20 rounded w-1/3 mb-4"></div>
-            <div className="space-y-3">
-              <div className="h-2 bg-white/15 rounded w-full"></div>
-              <div className="h-2 bg-white/15 rounded w-5/6"></div>
-              <div className="h-2 bg-white/15 rounded w-4/5"></div>
-              <div className="h-2 bg-white/15 rounded w-3/4"></div>
-              <div className="h-2 bg-white/15 rounded w-2/3"></div>
-            </div>
-          </div>
+                {/* Chart Placeholder */}
+                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-8 flex-1">
+                  <div className="h-4 bg-white/20 rounded w-1/3 mb-4"></div>
+                  <div className="space-y-3">
+                    <div className="h-2 bg-white/15 rounded w-full"></div>
+                    <div className="h-2 bg-white/15 rounded w-5/6"></div>
+                    <div className="h-2 bg-white/15 rounded w-4/5"></div>
+                    <div className="h-2 bg-white/15 rounded w-3/4"></div>
+                    <div className="h-2 bg-white/15 rounded w-2/3"></div>
+                  </div>
+                </div>
 
-          {/* Bottom Content */}
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-white mb-3">
-              Transform Data into Cool Insights
-            </h2>
-            <p className="text-[#9CA3AF] text-sm mb-4 max-w-xs mx-auto">
-              Unlock the power of your data with our advanced analytics platform. 
-              Get real-time insights and make data-driven decisions.
-            </p>
-            
-            {/* Pagination Dots */}
-            <div className="flex items-center justify-center space-x-2">
-              <div className="w-2 h-2 bg-white rounded-full"></div>
-              <div className="w-2 h-2 bg-white/30 rounded-full"></div>
-              <div className="w-2 h-2 bg-white/30 rounded-full"></div>
+                {/* Bottom Content */}
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold text-white mb-3">
+                    {slide.title}
+                  </h2>
+                  <p className="text-[#9CA3AF] text-sm mb-4 max-w-xs mx-auto">
+                    {slide.subtitle}
+                  </p>
+                </div>
+              </div>
             </div>
+          ))}
+          
+          {/* Pagination Dots */}
+          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center space-x-2">
+            {slides.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => goToSlide(index)}
+                className={`w-3 h-3 rounded-full transition-all duration-200 ${
+                  index === currentSlide ? 'bg-white' : 'bg-white/30 hover:bg-white/50'
+                }`}
+              />
+            ))}
           </div>
         </div>
       </div>

@@ -24,7 +24,7 @@ interface ApplicationForm {
 }
 
 export default function TrackerPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, hasSkippedAuth } = useAuth();
   const router = useRouter();
   const [applications, setApplications] = useState<Application[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,10 +40,10 @@ export default function TrackerPage() {
   });
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
+    if (!loading && !user && !hasSkippedAuth()) {
+      router.push('/');
     }
-  }, [user, loading, router]);
+  }, [user, loading, hasSkippedAuth, router]);
 
   useEffect(() => {
     if (user) {
@@ -59,7 +59,7 @@ export default function TrackerPage() {
     );
   }
 
-  if (!user) {
+  if (!user && !hasSkippedAuth()) {
     return null;
   }
 

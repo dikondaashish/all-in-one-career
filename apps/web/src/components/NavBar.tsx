@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffect, useState } from "react";
 
 const links = [
   { href: "/dashboard", label: "Dashboard" },
@@ -16,7 +17,12 @@ const links = [
 
 export default function NavBar() {
   const pathname = usePathname();
-  const { user, signOutUser } = useAuth();
+  const { user, signOutUser, hasSkippedAuth, clearSkipFlag } = useAuth();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   return (
     <nav className="w-full bg-gray-900 text-white px-6 py-3 flex items-center justify-between">
@@ -34,18 +40,37 @@ export default function NavBar() {
         ))}
       </div>
       
-      {user && (
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-300">
-            {user.displayName || user.email}
-          </span>
-          <button
-            onClick={signOutUser}
-            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
-          >
-            Logout
-          </button>
-        </div>
+      {isClient && (
+        <>
+          {user ? (
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-300">
+                {user.displayName || user.email}
+              </span>
+              <button
+                onClick={signOutUser}
+                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          ) : hasSkippedAuth() ? (
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-300">
+                Guest User
+              </span>
+              <button
+                onClick={() => {
+                  clearSkipFlag();
+                  window.location.href = '/';
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors"
+              >
+                Sign In
+              </button>
+            </div>
+          ) : null}
+        </>
       )}
     </nav>
   );
