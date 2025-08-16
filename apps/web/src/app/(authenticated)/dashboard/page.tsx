@@ -163,10 +163,18 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
           <h3 className="text-xl font-bold text-gray-900 mb-6">Project Analytics</h3>
           <div className="flex items-end justify-between h-32">
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-              <div key={day} className="flex flex-col items-center">
-                <div className="text-xs text-gray-500 mb-2">{day}</div>
-                <div className="w-8 bg-[#006B53] rounded-t-sm" style={{ height: `${Math.random() * 60 + 20}px` }}></div>
+            {[
+              { day: 'S', height: 65 },
+              { day: 'M', height: 45 },
+              { day: 'T', height: 55 },
+              { day: 'W', height: 75 },
+              { day: 'T', height: 35 },
+              { day: 'F', height: 60 },
+              { day: 'S', height: 50 }
+            ].map((item, index) => (
+              <div key={index} className="flex flex-col items-center">
+                <div className="text-xs text-gray-500 mb-2">{item.day}</div>
+                <div className="w-8 bg-[#006B53] rounded-t-sm" style={{ height: `${item.height}px` }}></div>
                 {index === 3 && <div className="text-xs text-[#006B53] font-medium mt-1">74%</div>}
               </div>
             ))}
