@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, FileText, Briefcase, Mail, Users, Building, Calendar, Filter, X } from 'lucide-react';
+import { Search, FileText, Briefcase, Mail, Users, Building, Calendar, Filter, X, MessageCircle } from 'lucide-react';
 
 interface SearchResult {
   type: 'Application' | 'ATS' | 'Portfolio' | 'Email' | 'Referral' | 'Task' | 'Job Description';
@@ -24,6 +24,12 @@ interface SearchResponse {
   totalResults: number;
 }
 
+interface AskResponse {
+  type: 'answer' | 'results' | 'both';
+  answer?: string;
+  results?: SearchResult[];
+}
+
 interface SearchFilters {
   model: string;
   dateRange: string;
@@ -40,17 +46,26 @@ export default function SmartSearch() {
     model: 'all',
     dateRange: 'all'
   });
+  const [aiResponse, setAiResponse] = useState<AskResponse | null>(null);
   const router = useRouter();
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Check if query is a question
+  const isQuestion = (text: string) => text.trim().endsWith('?');
 
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       if (query.trim().length > 2) {
-        performSearch(query.trim());
+        if (isQuestion(query.trim())) {
+          performAIQuestion(query.trim());
+        } else {
+          performSearch(query.trim());
+        }
       } else {
         setResults([]);
+        setAiResponse(null);
         setShowDropdown(false);
       }
     }, 300);
@@ -74,6 +89,7 @@ export default function SmartSearch() {
   const performSearch = async (searchQuery: string) => {
     setIsLoading(true);
     setError(null);
+    setAiResponse(null);
     
     try {
       // Build query parameters
@@ -107,9 +123,49 @@ export default function SmartSearch() {
     }
   };
 
+  const performAIQuestion = async (question: string) => {
+    setIsLoading(true);
+    setError(null);
+    setResults([]);
+    
+    try {
+      const response = await fetch('/api/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('AI Q&A failed');
+      }
+      
+      const data: AskResponse = await response.json();
+      setAiResponse(data);
+      
+      // Show dropdown if we have any content
+      if (data.answer || (data.results && data.results.length > 0)) {
+        setShowDropdown(true);
+      }
+      
+      // Set results if available
+      if (data.results) {
+        setResults(data.results);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'AI Q&A failed');
+      setAiResponse(null);
+      setShowDropdown(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleResultClick = (result: SearchResult) => {
     setShowDropdown(false);
     setQuery('');
+    setAiResponse(null);
     router.push(result.link);
   };
 
@@ -182,14 +238,21 @@ export default function SmartSearch() {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Search applications, portfolios, emails..."
+          placeholder={isQuestion(query) ? "Ask me anything about your career data..." : "Search applications, portfolios, emails..."}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => {
-            if (results.length > 0) setShowDropdown(true);
+            if (results.length > 0 || aiResponse) setShowDropdown(true);
           }}
           className="w-full pl-12 pr-20 py-3 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#006B53] focus:border-transparent text-sm transition-all duration-200"
         />
+        
+        {/* AI Q&A Indicator */}
+        {isQuestion(query) && (
+          <div className="absolute right-20 top-1/2 transform -translate-y-1/2">
+            <MessageCircle className="w-4 h-4 text-[#006B53]" />
+          </div>
+        )}
         
         {/* Advanced Filter Button */}
         <button
@@ -266,7 +329,9 @@ export default function SmartSearch() {
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
           <div className="flex items-center justify-center">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#006B53]"></div>
-            <span className="ml-2 text-sm text-gray-600">Searching...</span>
+            <span className="text-sm text-gray-600">
+              {isQuestion(query) ? 'Thinking...' : 'Searching...'}
+            </span>
           </div>
         </div>
       )}
@@ -280,8 +345,63 @@ export default function SmartSearch() {
         </div>
       )}
 
+      {/* AI Q&A Response */}
+      {showDropdown && aiResponse?.answer && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50">
+          <div className="p-4">
+            {/* AI Answer Bubble */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <div className="flex items-start space-x-3">
+                <MessageCircle className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-blue-800 mb-2">AI Career Coach</div>
+                  <div className="text-sm text-blue-700 italic leading-relaxed">
+                    {aiResponse.answer}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Results if available */}
+            {aiResponse.results && aiResponse.results.length > 0 && (
+              <>
+                <div className="text-xs text-gray-500 px-2 py-2 border-b border-gray-100 mb-2">
+                  Related items found
+                </div>
+                {aiResponse.results.map((result) => (
+                  <button
+                    key={`${result.type}-${result.id}`}
+                    onClick={() => handleResultClick(result)}
+                    className="w-full text-left p-3 hover:bg-gray-50 rounded-lg transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#006B53] focus:ring-opacity-50 mb-2"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 mt-1">
+                        {getTypeIcon(result.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getTypeColor(result.type)}`}>
+                            {result.type}
+                          </span>
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 truncate">
+                          {result.title}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {result.subInfo}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Search Results Dropdown */}
-      {showDropdown && results.length > 0 && (
+      {showDropdown && !aiResponse?.answer && results.length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50">
           <div className="p-2">
             <div className="text-xs text-gray-500 px-3 py-2 border-b border-gray-100">
@@ -318,10 +438,13 @@ export default function SmartSearch() {
       )}
 
       {/* No Results */}
-      {showDropdown && !isLoading && results.length === 0 && query.trim().length > 2 && (
+      {showDropdown && !isLoading && results.length === 0 && !aiResponse?.answer && query.trim().length > 2 && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
           <div className="text-center text-sm text-gray-500">
-            No matches found for &quot;{query}&quot;
+            {isQuestion(query) 
+              ? "Sorry, I couldn't understand your question. Try rephrasing it."
+              : `No matches found for "${query}"`
+            }
           </div>
         </div>
       )}

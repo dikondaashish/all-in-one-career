@@ -13,6 +13,7 @@ import storageRouter from './routes/storage';
 import profileRouter from './routes/profile';
 import adminRouter from './routes/admin';
 import searchRouter from './routes/search';
+import askRouter from './routes/ask';
 
 const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
@@ -44,6 +45,7 @@ app.use('/storage', storageRouter(prisma, logger));
 app.use('/me', profileRouter(prisma, logger));
 app.use('/admin', adminRouter(prisma, logger));
 app.use('/search', searchRouter(prisma, logger));
+app.use('/ask', askRouter(prisma, logger));
 
 const PORT = Number(process.env.PORT || 4000);
 app.listen(PORT, () => logger.info(`API running on port ${PORT}`));
