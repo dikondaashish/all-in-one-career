@@ -9,6 +9,14 @@ interface SearchResult {
   subInfo: string;
   id: string;
   link: string;
+  relevanceScore: number;
+  createdAt: Date;
+}
+
+interface SearchFilters {
+  model?: 'applications' | 'portfolio' | 'referrals' | 'job-descriptions' | 'all';
+  status?: 'SAVED' | 'APPLIED' | 'INTERVIEW' | 'OFFER' | 'REJECTED';
+  dateRange?: number; // days
 }
 
 export default function searchRouter(prisma: PrismaClient, logger: pino.Logger): Router {
@@ -16,10 +24,31 @@ export default function searchRouter(prisma: PrismaClient, logger: pino.Logger):
 
   r.get('/', async (req: any, res) => {
     try {
-      const { query } = req.query;
+      const { query, model, status, dateRange } = req.query;
       
       if (!query || typeof query !== 'string') {
         return res.status(400).json({ error: 'Query parameter is required' });
+      }
+
+      // Parse and validate filters
+      const filters: SearchFilters = {};
+      if (model && typeof model === 'string') {
+        const modelValue = model as SearchFilters['model'];
+        if (modelValue) {
+          filters.model = modelValue;
+        }
+      }
+      if (status && typeof status === 'string') {
+        const statusValue = status as SearchFilters['status'];
+        if (statusValue) {
+          filters.status = statusValue;
+        }
+      }
+      if (dateRange && typeof dateRange === 'string') {
+        const days = parseInt(dateRange);
+        if (!isNaN(days) && days > 0) {
+          filters.dateRange = days;
+        }
       }
 
       // Use Gemini to extract keywords and intent
@@ -31,123 +60,217 @@ export default function searchRouter(prisma: PrismaClient, logger: pino.Logger):
         query
       );
 
-      logger.info(`Search query: "${query}", Extracted keywords: "${extractedKeywords}"`);
+      console.log(`Search query: "${query}", Extracted keywords: "${extractedKeywords}", Filters:`, JSON.stringify(filters));
 
       // Search across multiple models
       const searchResults: SearchResult[] = [];
 
-      // Search applications
-      const applications = await prisma.application.findMany({
-        where: {
+      // Helper function to calculate relevance score
+      const calculateRelevanceScore = (text: string, type: string, createdAt: Date): number => {
+        let score = 0;
+        const keywords = extractedKeywords.toLowerCase().split(' ');
+        const textLower = text.toLowerCase();
+        
+        // Boost for title matches
+        keywords.forEach(keyword => {
+          if (textLower.includes(keyword)) {
+            score += 10; // High boost for title matches
+          }
+        });
+        
+        // Boost for exact phrase matches
+        if (textLower.includes(extractedKeywords.toLowerCase())) {
+          score += 15; // Very high boost for exact phrase
+        }
+        
+        // Boost for newer content
+        const daysSinceCreation = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSinceCreation <= 7) score += 5;
+        else if (daysSinceCreation <= 30) score += 3;
+        else if (daysSinceCreation <= 90) score += 1;
+        
+        // Type priority
+        const typePriority = { 'Application': 3, 'Job Description': 2, 'Portfolio': 1, 'Referral': 1 };
+        score += typePriority[type as keyof typeof typePriority] || 0;
+        
+        return score;
+      };
+
+      // Helper function to apply date filter
+      const applyDateFilter = (dateFilter: Date | undefined) => {
+        if (!filters.dateRange || !dateFilter) return true;
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - filters.dateRange);
+        return dateFilter >= cutoffDate;
+      };
+
+      // Search applications (if model filter allows)
+      if (!filters.model || filters.model === 'applications' || filters.model === 'all') {
+        const whereClause: any = {
           OR: [
             { company: { contains: extractedKeywords, mode: 'insensitive' } },
             { role: { contains: extractedKeywords, mode: 'insensitive' } },
             { notes: { contains: extractedKeywords, mode: 'insensitive' } }
           ]
-        },
-        take: 5,
-        include: {
-          user: { select: { email: true } }
+        };
+
+        // Apply status filter if specified
+        if (filters.status) {
+          whereClause.status = filters.status;
         }
-      });
 
-      applications.forEach(app => {
-        searchResults.push({
-          type: 'Application',
-          title: `${app.role} at ${app.company}`,
-          subInfo: `Status: ${app.status} • ${app.user.email}`,
-          id: app.id,
-          link: `/applications/${app.id}`
+        const applications = await prisma.application.findMany({
+          where: whereClause,
+          take: 10,
+          include: {
+            user: { select: { email: true } }
+          },
+          orderBy: { createdAt: 'desc' }
         });
-      });
 
-      // Search referral requests
-      const referrals = await prisma.referralRequest.findMany({
-        where: {
-          OR: [
-            { company: { contains: extractedKeywords, mode: 'insensitive' } },
-            { role: { contains: extractedKeywords, mode: 'insensitive' } },
-            { notes: { contains: extractedKeywords, mode: 'insensitive' } }
-          ]
-        },
-        take: 5,
-        include: {
-          user: { select: { email: true } }
-        }
-      });
-
-      referrals.forEach(ref => {
-        searchResults.push({
-          type: 'Referral',
-          title: `${ref.role} at ${ref.company}`,
-          subInfo: `Status: ${ref.status} • ${ref.user.email}`,
-          id: ref.id,
-          link: `/referrals/${ref.id}`
+        applications.forEach((app: any) => {
+          if (applyDateFilter(app.createdAt)) {
+            const relevanceScore = calculateRelevanceScore(
+              `${app.role} ${app.company} ${app.notes || ''}`,
+              'Application',
+              app.createdAt
+            );
+            
+            searchResults.push({
+              type: 'Application',
+              title: `${app.role} at ${app.company}`,
+              subInfo: `Status: ${app.status} • ${app.user.email}`,
+              id: app.id,
+              link: `/applications/${app.id}`,
+              relevanceScore,
+              createdAt: app.createdAt
+            });
+          }
         });
-      });
+      }
 
-      // Search portfolio sites
-      const portfolios = await prisma.portfolioSite.findMany({
-        where: {
-          OR: [
-            { slug: { contains: extractedKeywords, mode: 'insensitive' } },
-            { theme: { contains: extractedKeywords, mode: 'insensitive' } }
-          ]
-        },
-        take: 5,
-        include: {
-          user: { select: { email: true } }
-        }
-      });
-
-      portfolios.forEach(portfolio => {
-        searchResults.push({
-          type: 'Portfolio',
-          title: `Portfolio: ${portfolio.slug}`,
-          subInfo: `Theme: ${portfolio.theme} • ${portfolio.user.email}`,
-          id: portfolio.id,
-          link: `/portfolio/${portfolio.slug}`
+      // Search referral requests (if model filter allows)
+      if (!filters.model || filters.model === 'referrals' || filters.model === 'all') {
+        const referrals = await prisma.referralRequest.findMany({
+          where: {
+            OR: [
+              { company: { contains: extractedKeywords, mode: 'insensitive' } },
+              { role: { contains: extractedKeywords, mode: 'insensitive' } },
+              { notes: { contains: extractedKeywords, mode: 'insensitive' } }
+            ]
+          },
+          take: 10,
+          include: {
+            user: { select: { email: true } }
+          },
+          orderBy: { createdAt: 'desc' }
         });
-      });
 
-      // Search job descriptions (for applications)
-      const jobDescriptions = await prisma.jobDescription.findMany({
-        where: {
-          OR: [
-            { title: { contains: extractedKeywords, mode: 'insensitive' } },
-            { company: { contains: extractedKeywords, mode: 'insensitive' } },
-            { content: { contains: extractedKeywords, mode: 'insensitive' } }
-          ]
-        },
-        take: 5
-      });
-
-      jobDescriptions.forEach(jd => {
-        searchResults.push({
-          type: 'Job Description',
-          title: `${jd.title} at ${jd.company}`,
-          subInfo: `Posted: ${jd.createdAt.toLocaleDateString()}`,
-          id: jd.id,
-          link: `/job-descriptions/${jd.id}`
+        referrals.forEach((ref: any) => {
+          if (applyDateFilter(ref.createdAt)) {
+            const relevanceScore = calculateRelevanceScore(
+              `${ref.role} ${ref.company} ${ref.notes || ''}`,
+              'Referral',
+              ref.createdAt
+            );
+            
+            searchResults.push({
+              type: 'Referral',
+              title: `${ref.role} at ${ref.company}`,
+              subInfo: `Status: ${ref.status} • ${ref.user.email}`,
+              id: ref.id,
+              link: `/referrals/${ref.id}`,
+              relevanceScore,
+              createdAt: ref.createdAt
+            });
+          }
         });
-      });
+      }
 
-      // Sort results by relevance (simple scoring based on type and content)
+      // Search portfolio sites (if model filter allows)
+      if (!filters.model || filters.model === 'portfolio' || filters.model === 'all') {
+        const portfolios = await prisma.portfolioSite.findMany({
+          where: {
+            OR: [
+              { slug: { contains: extractedKeywords, mode: 'insensitive' } },
+              { theme: { contains: extractedKeywords, mode: 'insensitive' } }
+            ]
+          },
+          take: 10,
+          include: {
+            user: { select: { email: true } }
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        portfolios.forEach((portfolio: any) => {
+          if (applyDateFilter(portfolio.createdAt)) {
+            const relevanceScore = calculateRelevanceScore(
+              `${portfolio.slug} ${portfolio.theme}`,
+              'Portfolio',
+              portfolio.createdAt
+            );
+            
+            searchResults.push({
+              type: 'Portfolio',
+              title: `Portfolio: ${portfolio.slug}`,
+              subInfo: `Theme: ${portfolio.theme} • ${portfolio.user.email}`,
+              id: portfolio.id,
+              link: `/portfolio/${portfolio.slug}`,
+              relevanceScore,
+              createdAt: portfolio.createdAt
+            });
+          }
+        });
+      }
+
+      // Search job descriptions (if model filter allows)
+      if (!filters.model || filters.model === 'job-descriptions' || filters.model === 'all') {
+        const jobDescriptions = await prisma.jobDescription.findMany({
+          where: {
+            OR: [
+              { title: { contains: extractedKeywords, mode: 'insensitive' } },
+              { company: { contains: extractedKeywords, mode: 'insensitive' } },
+              { content: { contains: extractedKeywords, mode: 'insensitive' } }
+            ]
+          },
+          take: 10,
+          orderBy: { createdAt: 'desc' }
+        });
+
+        jobDescriptions.forEach((jd: any) => {
+          if (applyDateFilter(jd.createdAt)) {
+            const relevanceScore = calculateRelevanceScore(
+              `${jd.title} ${jd.company} ${jd.content}`,
+              'Job Description',
+              jd.createdAt
+            );
+            
+            searchResults.push({
+              type: 'Job Description',
+              title: `${jd.title} at ${jd.company}`,
+              subInfo: `Posted: ${jd.createdAt.toLocaleDateString()}`,
+              id: jd.id,
+              link: `/job-descriptions/${jd.id}`,
+              relevanceScore,
+              createdAt: jd.createdAt
+            });
+          }
+        });
+      }
+
+      // Sort results by relevance score and return top 5
       const sortedResults = searchResults
-        .sort((a, b) => {
-          // Prioritize applications and job descriptions
-          const typePriority = { 'Application': 3, 'Job Description': 2, 'Portfolio': 1, 'Referral': 1 };
-          const aScore = typePriority[a.type] || 0;
-          const bScore = typePriority[b.type] || 0;
-          return bScore - aScore;
-        })
-        .slice(0, 5); // Return top 5 results
+        .sort((a, b) => b.relevanceScore - a.relevanceScore)
+        .slice(0, 5)
+        .map(({ relevanceScore, createdAt, ...result }) => result); // Remove internal fields from response
 
-      logger.info(`Search completed. Found ${sortedResults.length} results for query: "${query}"`);
+      console.log(`Search completed. Found ${sortedResults.length} results for query: "${query}" with filters:`, JSON.stringify(filters));
       
       res.json({
         query,
         extractedKeywords,
+        filters,
         results: sortedResults,
         totalResults: searchResults.length
       });

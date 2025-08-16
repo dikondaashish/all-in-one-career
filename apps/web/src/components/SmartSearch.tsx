@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, FileText, Briefcase, Mail, Users, Building, Calendar } from 'lucide-react';
+import { Search, FileText, Briefcase, Mail, Users, Building, Calendar, Filter, X } from 'lucide-react';
 
 interface SearchResult {
   type: 'Application' | 'ATS' | 'Portfolio' | 'Email' | 'Referral' | 'Task' | 'Job Description';
@@ -15,8 +15,18 @@ interface SearchResult {
 interface SearchResponse {
   query: string;
   extractedKeywords: string;
+  filters: {
+    model?: string;
+    status?: string;
+    dateRange?: number;
+  };
   results: SearchResult[];
   totalResults: number;
+}
+
+interface SearchFilters {
+  model: string;
+  dateRange: string;
 }
 
 export default function SmartSearch() {
@@ -24,7 +34,12 @@ export default function SmartSearch() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<SearchFilters>({
+    model: 'all',
+    dateRange: 'all'
+  });
   const router = useRouter();
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -41,13 +56,14 @@ export default function SmartSearch() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, filters]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowDropdown(false);
+        setShowFilters(false);
       }
     };
 
@@ -60,7 +76,20 @@ export default function SmartSearch() {
     setError(null);
     
     try {
-      const response = await fetch(`/api/search?query=${encodeURIComponent(searchQuery)}`);
+      // Build query parameters
+      const params = new URLSearchParams({
+        query: searchQuery
+      });
+      
+      if (filters.model !== 'all') {
+        params.append('model', filters.model);
+      }
+      
+      if (filters.dateRange !== 'all') {
+        params.append('dateRange', filters.dateRange);
+      }
+      
+      const response = await fetch(`/api/search?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error('Search failed');
@@ -82,6 +111,20 @@ export default function SmartSearch() {
     setShowDropdown(false);
     setQuery('');
     router.push(result.link);
+  };
+
+  const handleFilterChange = (filterType: keyof SearchFilters, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      model: 'all',
+      dateRange: 'all'
+    });
   };
 
   const getTypeIcon = (type: string) => {
@@ -118,6 +161,19 @@ export default function SmartSearch() {
     }
   };
 
+  const getFilterDisplayText = () => {
+    const parts = [];
+    if (filters.model !== 'all') {
+      parts.push(filters.model.charAt(0).toUpperCase() + filters.model.slice(1));
+    }
+    if (filters.dateRange !== 'all') {
+      parts.push(`Last ${filters.dateRange}d`);
+    }
+    return parts.length > 0 ? parts.join(' • ') : null;
+  };
+
+  const hasActiveFilters = filters.model !== 'all' || filters.dateRange !== 'all';
+
   return (
     <div className="relative" ref={searchRef}>
       {/* Search Input */}
@@ -134,10 +190,76 @@ export default function SmartSearch() {
           }}
           className="w-full pl-12 pr-20 py-3 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#006B53] focus:border-transparent text-sm transition-all duration-200"
         />
+        
+        {/* Advanced Filter Button */}
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`absolute right-16 top-1/2 transform -translate-y-1/2 p-1.5 rounded-full transition-all duration-200 ${
+            hasActiveFilters 
+              ? 'bg-[#006B53] text-white' 
+              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+          }`}
+          title="Advanced filters"
+        >
+          <Filter className="w-4 h-4" />
+        </button>
+        
         <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
           <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs rounded-full font-medium">⌘ F</span>
         </div>
       </div>
+
+      {/* Active Filter Tags */}
+      {hasActiveFilters && (
+        <div className="mt-2 flex items-center space-x-2">
+          <span className="text-xs text-gray-500">Filters:</span>
+          <span className="inline-flex items-center px-2 py-1 bg-[#006B53]/10 text-[#006B53] text-xs rounded-full font-medium">
+            {getFilterDisplayText()}
+            <button
+              onClick={clearFilters}
+              className="ml-1 hover:bg-[#006B53]/20 rounded-full p-0.5 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        </div>
+      )}
+
+      {/* Advanced Filters Dropdown */}
+      {showFilters && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Model Type</label>
+              <select
+                value={filters.model}
+                onChange={(e) => handleFilterChange('model', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#006B53] focus:border-transparent text-sm"
+              >
+                <option value="all">All Models</option>
+                <option value="applications">Applications</option>
+                <option value="portfolio">Portfolio</option>
+                <option value="referrals">Referrals</option>
+                <option value="job-descriptions">Job Descriptions</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+              <select
+                value={filters.dateRange}
+                onChange={(e) => handleFilterChange('dateRange', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#006B53] focus:border-transparent text-sm"
+              >
+                <option value="all">All Time</option>
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="90">Last 90 days</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading Indicator */}
       {isLoading && (
