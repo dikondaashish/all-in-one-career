@@ -160,7 +160,9 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               </h3>
             )}
             <ul className="space-y-2">
-              {generalItems.map((item) => (
+              {generalItems
+                .filter(item => !isCollapsed || item.label === 'Settings' || item.label === 'Help') // Hide Profile and Logout when collapsed
+                .map((item) => (
                 <li key={item.href}>
                   <button
                     onClick={item.action}
