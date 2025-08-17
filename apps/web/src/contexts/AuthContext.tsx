@@ -17,6 +17,8 @@ import { auth, provider } from '@/lib/firebase';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isAuthenticated: boolean;
+  isGuest: boolean;
   signIn: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
@@ -25,6 +27,10 @@ interface AuthContextType {
   setRememberMe: (remember: boolean) => Promise<void>;
   hasSkippedAuth: () => boolean;
   clearSkipFlag: () => void;
+  setGuestMode: (isGuest: boolean) => void;
+  getAuthToken: () => string | null;
+  setAuthToken: (token: string) => void;
+  clearAuthToken: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,10 +38,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setUser(user);
+      setIsAuthenticated(!!user);
       setLoading(false);
     });
 
@@ -132,8 +141,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOutUser = async () => {
     try {
       await signOut(auth);
+      clearAuthToken();
+      setGuestMode(false);
     } catch (error) {
       console.error('Sign out error:', error);
+      // Force clear even if Firebase signOut fails
+      clearAuthToken();
+      setGuestMode(false);
     }
   };
 
@@ -147,6 +161,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('climbly_skip_guest');
   };
 
+  // JWT Token management
+  const getAuthToken = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('token');
+  };
+
+  const setAuthToken = (token: string): void => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('token', token);
+    setIsAuthenticated(true);
+    setIsGuest(false);
+  };
+
+  const clearAuthToken = (): void => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('token');
+    setIsAuthenticated(false);
+    setIsGuest(false);
+  };
+
+  // Guest mode management
+  const setGuestMode = (guest: boolean): void => {
+    setIsGuest(guest);
+    setIsAuthenticated(false);
+    if (guest) {
+      localStorage.setItem('climbly_skip_guest', 'true');
+    } else {
+      localStorage.removeItem('climbly_skip_guest');
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -158,7 +203,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOutUser,
       setRememberMe,
       hasSkippedAuth,
-      clearSkipFlag
+      clearSkipFlag,
+      isAuthenticated,
+      isGuest,
+      getAuthToken,
+      setAuthToken,
+      clearAuthToken,
+      setGuestMode
     }}>
       {children}
     </AuthContext.Provider>

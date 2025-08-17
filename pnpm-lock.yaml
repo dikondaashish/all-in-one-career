@@ -24,6 +24,9 @@ importers:
       '@prisma/client':
         specifier: ^6.14.0
         version: 6.14.0(prisma@6.14.0(typescript@5.9.2))(typescript@5.9.2)
+      '@types/jsonwebtoken':
+        specifier: ^9.0.10
+        version: 9.0.10
       cors:
         specifier: ^2.8.5
         version: 2.8.5
@@ -36,6 +39,9 @@ importers:
       firebase-admin:
         specifier: ^13.4.0
         version: 13.4.0
+      jsonwebtoken:
+        specifier: ^9.0.2
+        version: 9.0.2
       multer:
         specifier: ^2.0.2
         version: 2.0.2

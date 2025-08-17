@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { User, Camera, Save } from 'lucide-react';
+import RouteGuard from '@/components/RouteGuard';
 
 // Environment-based API configuration
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
@@ -17,6 +18,14 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
+  return (
+    <RouteGuard restrictedForGuests={true} redirectTo="/">
+      <ProfileContent />
+    </RouteGuard>
+  );
+}
+
+function ProfileContent() {
   const { user, hasSkippedAuth } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null);

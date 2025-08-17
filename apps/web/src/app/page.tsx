@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import GlobalLoader from '@/components/GlobalLoader';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { signIn, signInWithEmail, setRememberMe } = useAuth();
+  const { signIn, signInWithEmail, setRememberMe, setGuestMode } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -17,6 +18,30 @@ export default function LandingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Check for existing JWT token on component mount
+  useEffect(() => {
+    const checkAuthStatus = () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          // Valid token exists, redirect to dashboard
+          console.log('JWT token found, redirecting to dashboard');
+          router.push('/dashboard');
+        } else {
+          // No token, show login page
+          console.log('No JWT token found, showing login page');
+          setIsCheckingAuth(false);
+        }
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+        setIsCheckingAuth(false);
+      }
+    };
+
+    checkAuthStatus();
+  }, [router]);
 
   // Slider data
   const slides = [
@@ -99,8 +124,8 @@ export default function LandingPage() {
   };
 
   const handleSkip = () => {
-    // Store skip flag in localStorage to bypass auth guard
-    localStorage.setItem('climbly_skip_guest', 'true');
+    // Set guest mode in AuthContext
+    setGuestMode(true);
     router.push('/dashboard');
   };
 
@@ -145,6 +170,9 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#E5E5E5] flex font-['Inter'] tracking-normal">
+      {/* Show loading while checking auth */}
+      {isCheckingAuth && <GlobalLoader message="Checking authentication..." />}
+
       {/* Left Panel - White Login (58% width) */}
       <div className="w-[58%] bg-white flex items-center justify-center px-16">
         <div className="w-full max-w-md">

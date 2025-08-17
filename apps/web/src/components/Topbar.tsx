@@ -23,7 +23,7 @@ interface TopbarProps {
 }
 
 export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProps) {
-  const { user, signOutUser, hasSkippedAuth } = useAuth();
+  const { user, signOutUser, isGuest } = useAuth();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState('User');
@@ -39,7 +39,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
       if (user) {
         setUserDisplayName(user.displayName || user.email?.split('@')[0] || 'User');
         setUserEmail(user.email || 'user@example.com');
-      } else if (hasSkippedAuth()) {
+      } else if (isGuest) {
         setUserDisplayName('Guest User');
         setUserEmail('guest@climbly.ai');
       } else {
@@ -47,7 +47,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
         setUserEmail('user@example.com');
       }
     }
-  }, [user, hasSkippedAuth, isClient]);
+  }, [user, isGuest, isClient]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -64,8 +64,8 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
 
   const handleLogout = async () => {
     try {
-      if (hasSkippedAuth()) {
-        // Clear skip flag and redirect to login
+      if (isGuest) {
+        // Clear guest mode and redirect to login
         localStorage.removeItem('climbly_skip_guest');
         router.push('/');
       } else {
