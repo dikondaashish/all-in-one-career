@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import Toast, { ToastType } from './Toast';
 
 interface RouteGuardProps {
   children: React.ReactNode;
@@ -17,12 +18,17 @@ export default function RouteGuard({
 }: RouteGuardProps) {
   const { isGuest, loading } = useAuth();
   const router = useRouter();
+  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
     if (!loading && restrictedForGuests && isGuest) {
       // Guest user trying to access restricted route
       console.log('Guest user redirected from restricted route');
-      router.push(redirectTo);
+      setShowToast(true);
+      // Redirect after showing toast
+      setTimeout(() => {
+        router.push(redirectTo);
+      }, 2000);
     }
   }, [isGuest, loading, restrictedForGuests, redirectTo, router]);
 
@@ -40,7 +46,18 @@ export default function RouteGuard({
 
   // If route is restricted for guests and user is guest, don't render children
   if (restrictedForGuests && isGuest) {
-    return null;
+    return (
+      <>
+        {showToast && (
+          <Toast
+            message="Please login or signup to access this feature."
+            type="warning"
+            duration={2000}
+            onClose={() => setShowToast(false)}
+          />
+        )}
+      </>
+    );
   }
 
   return <>{children}</>;

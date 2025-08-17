@@ -53,7 +53,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async () => {
     try {
-      await signInWithPopup(auth, provider);
+      // STEP 2: Google Firebase authentication first
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      // Get Firebase ID token
+      const firebaseToken = await user.getIdToken();
+      
+      // Call backend to get JWT token
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firebaseToken,
+          email: user.email,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to authenticate with backend');
+      }
+
+      const { token } = await response.json();
+      
+      // Store JWT token in localStorage
+      setAuthToken(token);
+      
+      console.log('Google login successful, JWT token stored');
+      
     } catch (error) {
       console.error('Google sign in error:', error);
       throw error;
@@ -62,7 +91,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // STEP 2: Firebase authentication first
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Get Firebase ID token
+      const firebaseToken = await user.getIdToken();
+      
+      // Call backend to get JWT token
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firebaseToken,
+          email: user.email,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to authenticate with backend');
+      }
+
+      const { token } = await response.json();
+      
+      // Store JWT token in localStorage
+      setAuthToken(token);
+      
+      console.log('Login successful, JWT token stored');
+      
     } catch (err: unknown) {
       console.error('Email sign in error:', err);
       if (err instanceof Error && 'code' in err) {
@@ -86,7 +144,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      // STEP 2: Firebase account creation first
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Get Firebase ID token
+      const firebaseToken = await user.getIdToken();
+      
+      // Call backend to get JWT token
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firebaseToken,
+          email: user.email,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to authenticate with backend');
+      }
+
+      const { token } = await response.json();
+      
+      // Store JWT token in localStorage
+      setAuthToken(token);
+      
+      console.log('Signup successful, JWT token stored');
+      
     } catch (err: unknown) {
       console.error('Email sign up error:', err);
       if (err instanceof Error && 'code' in err) {
@@ -140,6 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOutUser = async () => {
     try {
+      // STEP 5: Sign out from Firebase and clear all auth state
       await signOut(auth);
       clearAuthToken();
       setGuestMode(false);

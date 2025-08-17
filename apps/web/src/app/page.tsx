@@ -20,15 +20,16 @@ export default function LandingPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // Check for existing JWT token on component mount
+  // STEP 1: Splash Logic - Check for existing JWT token on component mount
   useEffect(() => {
     const checkAuthStatus = () => {
       try {
         const token = localStorage.getItem('token');
         if (token) {
-          // Valid token exists, redirect to dashboard
+          // Valid token exists, redirect to dashboard immediately
           console.log('JWT token found, redirecting to dashboard');
           router.push('/dashboard');
+          return; // Exit early to prevent any rendering
         } else {
           // No token, show login page
           console.log('No JWT token found, showing login page');
@@ -40,6 +41,7 @@ export default function LandingPage() {
       }
     };
 
+    // Execute immediately to prevent any flash
     checkAuthStatus();
   }, [router]);
 
@@ -124,7 +126,7 @@ export default function LandingPage() {
   };
 
   const handleSkip = () => {
-    // Set guest mode in AuthContext
+    // STEP 3: Set guest mode in AuthContext (no JWT token stored)
     setGuestMode(true);
     router.push('/dashboard');
   };

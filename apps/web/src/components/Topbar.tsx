@@ -65,11 +65,11 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   const handleLogout = async () => {
     try {
       if (isGuest) {
-        // Clear guest mode and redirect to login
+        // STEP 5: Clear guest mode and redirect to login
         localStorage.removeItem('climbly_skip_guest');
         router.push('/');
       } else {
-        // Sign out from Firebase and redirect to login
+        // STEP 5: Sign out from Firebase and redirect to login
         await signOutUser();
         router.push('/');
       }

@@ -18,6 +18,7 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
+  // STEP 4: Protect Profile route from guest users
   return (
     <RouteGuard restrictedForGuests={true} redirectTo="/">
       <ProfileContent />

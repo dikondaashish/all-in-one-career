@@ -5,6 +5,7 @@ import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
 import { initFirebase, verifyIdToken } from './lib/firebase';
 import { geminiGenerate } from './lib/gemini';
+import { authenticateToken, optionalAuth } from './middleware/auth';
 import atsRouter from './routes/ats';
 import referralsRouter from './routes/referrals';
 import portfolioRouter from './routes/portfolio';
@@ -16,6 +17,7 @@ import adminRouter from './routes/admin';
 import searchRouter from './routes/search';
 import askRouter from './routes/ask';
 import searchInsightsRouter from './routes/search-insights';
+import authRouter from './routes/auth';
 
 const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
@@ -337,17 +339,19 @@ IMPORTANT:
   }
 });
 
-app.use('/ats', atsRouter(prisma, logger));
-app.use('/referrals', referralsRouter(prisma, logger));
-app.use('/portfolio', portfolioRouter(prisma, logger));
-app.use('/emails', emailsRouter(prisma, logger));
-app.use('/applications', applicationsRouter(prisma, logger));
-app.use('/storage', storageRouter(prisma, logger));
-app.use('/me', profileRouter(prisma, logger));
-app.use('/admin', adminRouter(prisma, logger));
-app.use('/search', searchRouter(prisma, logger));
-app.use('/ask', askRouter(prisma, logger));
-app.use('/search-insights', searchInsightsRouter(prisma, logger));
+// STEP 7: Apply authentication middleware to protected routes
+app.use('/ats', authenticateToken, atsRouter(prisma, logger));
+app.use('/referrals', authenticateToken, referralsRouter(prisma, logger));
+app.use('/portfolio', authenticateToken, portfolioRouter(prisma, logger));
+app.use('/emails', authenticateToken, emailsRouter(prisma, logger));
+app.use('/applications', authenticateToken, applicationsRouter(prisma, logger));
+app.use('/storage', authenticateToken, storageRouter(prisma, logger));
+app.use('/me', authenticateToken, profileRouter(prisma, logger));
+app.use('/admin', authenticateToken, adminRouter(prisma, logger));
+app.use('/search', optionalAuth, searchRouter(prisma, logger));
+app.use('/ask', optionalAuth, askRouter(prisma, logger));
+app.use('/search-insights', optionalAuth, searchInsightsRouter(prisma, logger));
+app.use('/auth', authRouter());
 
 // Add profile routes at root level for frontend compatibility
 app.use('/api/profile', profileRouter(prisma, logger));

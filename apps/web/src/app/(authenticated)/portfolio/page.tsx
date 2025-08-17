@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 interface PortfolioResult {
   portfolioUrl?: string;
@@ -11,6 +12,15 @@ interface PortfolioResult {
 }
 
 export default function PortfolioPage() {
+  // STEP 6: Wrap Portfolio page with ProtectedRoute to prevent flashing
+  return (
+    <ProtectedRoute>
+      <PortfolioContent />
+    </ProtectedRoute>
+  );
+}
+
+function PortfolioContent() {
   const router = useRouter();
   const [resumeText, setResumeText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
