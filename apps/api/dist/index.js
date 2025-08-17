@@ -57,7 +57,13 @@ app.get('/api/search', async (req, res) => {
             }
         }
         // Use Gemini to extract keywords and intent
-        const systemPrompt = `You are a search assistant. Analyze the user's search query and extract relevant keywords and intent for searching through job applications, portfolios, emails, referrals, and tasks. Return only the most relevant keywords separated by spaces.`;
+        const systemPrompt = `You are a search assistant. Analyze the user's search query and extract relevant keywords and intent for searching through job applications, portfolios, emails, referrals, and tasks. 
+
+IMPORTANT: 
+- Preserve email addresses completely (e.g., "dikondaashish@gmail.com" should remain as "dikondaashish@gmail.com")
+- Keep domain names intact (e.g., "google.com" should remain as "google.com")
+- Return only the most relevant keywords separated by spaces
+- Do not strip important identifiers or email addresses`;
         let extractedKeywords;
         try {
             extractedKeywords = await geminiGenerate('gemini-1.5-flash', systemPrompt, query);
@@ -113,7 +119,8 @@ app.get('/api/search', async (req, res) => {
                 OR: [
                     { company: { contains: extractedKeywords, mode: 'insensitive' } },
                     { role: { contains: extractedKeywords, mode: 'insensitive' } },
-                    { notes: { contains: extractedKeywords, mode: 'insensitive' } }
+                    { notes: { contains: extractedKeywords, mode: 'insensitive' } },
+                    { user: { email: { contains: extractedKeywords, mode: 'insensitive' } } }
                 ]
             };
             // Apply status filter if specified
@@ -229,6 +236,43 @@ app.get('/api/search', async (req, res) => {
             .sort((a, b) => b.relevanceScore - a.relevanceScore)
             .slice(0, 5)
             .map(({ relevanceScore, ...result }) => result);
+        // If no results found with extracted keywords, try with original query as fallback
+        if (sortedResults.length === 0 && extractedKeywords !== query) {
+            console.log(`No results with extracted keywords, trying fallback search with original query: "${query}"`);
+            // Simple fallback search with original query
+            const fallbackApplications = await prisma.application.findMany({
+                where: {
+                    OR: [
+                        { company: { contains: query, mode: 'insensitive' } },
+                        { role: { contains: query, mode: 'insensitive' } },
+                        { notes: { contains: query, mode: 'insensitive' } },
+                        { user: { email: { contains: query, mode: 'insensitive' } } }
+                    ]
+                },
+                take: 5,
+                include: {
+                    user: { select: { email: true } }
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+            fallbackApplications.forEach((app) => {
+                searchResults.push({
+                    type: 'Application',
+                    title: `${app.role} at ${app.company}`,
+                    subInfo: app.notes || `Applied on ${app.createdAt.toLocaleDateString()}`,
+                    id: app.id,
+                    link: `/applications/${app.id}`,
+                    relevanceScore: 1 // Lower score for fallback results
+                });
+            });
+            // Update sorted results with fallback
+            const fallbackResults = searchResults
+                .sort((a, b) => b.relevanceScore - a.relevanceScore)
+                .slice(0, 5)
+                .map(({ relevanceScore, ...result }) => result);
+            console.log(`Fallback search found ${fallbackResults.length} results`);
+            sortedResults.push(...fallbackResults);
+        }
         console.log(`Search completed. Found ${sortedResults.length} results for query: "${query}" with filters:`, JSON.stringify(filters));
         // Record search history
         try {
