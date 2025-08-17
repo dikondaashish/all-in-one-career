@@ -20,10 +20,9 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -31,10 +30,8 @@ import {
   Mail, 
   Users, 
   Clock, 
-  User, 
   Settings, 
   HelpCircle, 
-  LogOut,
   Download
 } from 'lucide-react';
 
@@ -46,7 +43,6 @@ interface SidebarProps {
 export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, signOutUser, hasSkippedAuth } = useAuth();
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -56,34 +52,11 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     { href: '/referrals', label: 'Referrals', icon: Users },
     { href: '/tracker', label: 'Tracker', icon: Clock },
     { href: '/search-insights', label: 'Insights', icon: FileText }, // Changed from BarChart3 to FileText for consistency
-    { href: '/profile', label: 'Profile', icon: User },
   ];
 
   const generalItems = [
     { href: '/settings', label: 'Settings', icon: Settings, action: () => router.push('/settings') },
     { href: '/help', label: 'Help', icon: HelpCircle, action: () => router.push('/help') },
-    { 
-      href: '#', 
-      label: 'Logout', 
-      icon: LogOut, 
-      action: async () => {
-        try {
-          if (hasSkippedAuth()) {
-            // Clear skip flag and redirect to login
-            localStorage.removeItem('climbly_skip_guest');
-            router.push('/');
-          } else {
-            // Sign out from Firebase and redirect to login
-            await signOutUser();
-            router.push('/');
-          }
-        } catch (error) {
-          console.error('Logout error:', error);
-          // Force redirect even if there's an error
-          router.push('/');
-        }
-      }
-    },
   ];
 
   // Auto-collapse sidebar on mobile when navigating
