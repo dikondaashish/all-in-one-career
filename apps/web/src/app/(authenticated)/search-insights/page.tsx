@@ -4,11 +4,16 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BarChart3, TrendingUp, Clock, Search, MessageCircle } from 'lucide-react';
 
+// Environment-based API configuration
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://all-in-one-career-api.onrender.com'
+  : 'http://localhost:4000';
+
 interface SearchInsights {
   totalSearches: number;
   topKeywords: Array<{ keyword: string; count: number }>;
   longestQueries: Array<{ query: string; length: number }>;
-  recentQueries: Array<{ query: string; answer?: string; createdAt: Date }>;
+  recentQueries: Array<{ query: string; answer?: string | null; createdAt: Date }>;
 }
 
 export default function SearchInsightsPage() {
@@ -26,7 +31,7 @@ export default function SearchInsightsPage() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/search-insights', {
+      const response = await fetch(`${API_BASE_URL}/api/search-insights`, {
         headers: {
           'Content-Type': 'application/json',
         },

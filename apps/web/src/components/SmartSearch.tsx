@@ -4,8 +4,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, FileText, Briefcase, Mail, Users, Building, Calendar, Filter, X, MessageCircle } from 'lucide-react';
 
+// Environment-based API configuration
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://all-in-one-career-api.onrender.com'
+  : 'http://localhost:4000';
+
 interface SearchResult {
-  type: 'Application' | 'ATS' | 'Portfolio' | 'Email' | 'Referral' | 'Task' | 'Job Description';
+  type: 'Application' | 'Portfolio' | 'Referral' | 'Job Description';
   title: string;
   subInfo: string;
   id: string;
@@ -106,7 +111,7 @@ export default function SmartSearch() {
       }
       
       console.log(`Searching for: "${searchQuery}" with filters:`, filters);
-      const response = await fetch(`/api/search?${params.toString()}`);
+      const response = await fetch(`${API_BASE_URL}/api/search?${params.toString()}`);
       
       if (!response.ok) {
         const errorData = await response.text();
@@ -134,7 +139,7 @@ export default function SmartSearch() {
     setResults([]);
     
     try {
-      const response = await fetch('/api/ask', {
+      const response = await fetch(`${API_BASE_URL}/api/ask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
