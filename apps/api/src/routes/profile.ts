@@ -8,10 +8,38 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
   // GET /api/profile - Get current user profile
   r.get('/', async (req: any, res) => {
     try {
-      const userId = req.user?.uid;
+      let userId = req.user?.uid;
+      let isGuestMode = false;
       
-      if (!userId) {
+      // Check for guest mode header
+      if (req.headers['x-guest-mode'] === 'true') {
+        isGuestMode = true;
+        // For guest mode, we'll use a default user ID or handle differently
+        userId = 'guest-user';
+      }
+      
+      if (!userId && !isGuestMode) {
         return res.status(401).json({ error: 'Unauthorized - User not authenticated' });
+      }
+
+      if (isGuestMode) {
+        // Return guest profile data
+        const guestProfile = {
+          firstName: 'Guest',
+          lastName: 'User',
+          email: 'guest@climbly.ai',
+          profileImage: null,
+          stats: {
+            atsScans: [],
+            portfolios: [],
+            emails: [],
+            referrals: [],
+            trackerEvents: []
+          }
+        };
+        
+        console.log('Guest profile returned');
+        return res.json(guestProfile);
       }
 
       // Get user profile from database
@@ -68,9 +96,17 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
   // POST /api/profile/update - Update user profile
   r.post('/update', async (req: any, res) => {
     try {
-      const userId = req.user?.uid;
+      let userId = req.user?.uid;
+      let isGuestMode = false;
       
-      if (!userId) {
+      // Check for guest mode header
+      if (req.headers['x-guest-mode'] === 'true') {
+        isGuestMode = true;
+        // For guest mode, we'll use a default user ID or handle differently
+        userId = 'guest-user';
+      }
+      
+      if (!userId && !isGuestMode) {
         return res.status(401).json({ error: 'Unauthorized - User not authenticated' });
       }
 
@@ -78,6 +114,26 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
 
       if (!firstName || !lastName) {
         return res.status(400).json({ error: 'First name and last name are required' });
+      }
+
+      if (isGuestMode) {
+        // For guest mode, just return the updated data without saving to DB
+        const guestProfile = {
+          firstName,
+          lastName,
+          email: 'guest@climbly.ai',
+          profileImage: null,
+          stats: {
+            atsScans: [],
+            portfolios: [],
+            emails: [],
+            referrals: [],
+            trackerEvents: []
+          }
+        };
+        
+        console.log('Guest profile updated (not saved to DB)');
+        return res.json(guestProfile);
       }
 
       // Update user name in database

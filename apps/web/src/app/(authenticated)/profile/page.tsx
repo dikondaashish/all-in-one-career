@@ -35,12 +35,38 @@ export default function ProfilePage() {
       setLoading(true);
       setError(null);
       
+      // Get Firebase ID token for authentication
+      let authToken = '';
+      if (user) {
+        try {
+          authToken = await user.getIdToken();
+          console.log('Firebase ID token obtained');
+        } catch (tokenError) {
+          console.error('Failed to get Firebase ID token:', tokenError);
+          throw new Error('Authentication failed. Please log in again.');
+        }
+      } else if (typeof window !== 'undefined' && localStorage.getItem('climbly_skip_guest') === 'true') {
+        // For guest users, we'll use a special header
+        authToken = 'guest-mode';
+      } else {
+        throw new Error('No user authentication available');
+      }
+      
       console.log('Fetching profile from:', `${API_BASE_URL}/api/profile`);
       
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add authentication header
+      if (authToken === 'guest-mode') {
+        headers['X-Guest-Mode'] = 'true';
+      } else {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
       const response = await fetch(`${API_BASE_URL}/api/profile`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       });
 
       console.log('Profile response status:', response.status);
@@ -106,11 +132,35 @@ export default function ProfilePage() {
       setError(null);
       setSuccess(null);
 
+      // Get Firebase ID token for authentication
+      let authToken = '';
+      if (user) {
+        try {
+          authToken = await user.getIdToken();
+        } catch (tokenError) {
+          console.error('Failed to get Firebase ID token:', tokenError);
+          throw new Error('Authentication failed. Please log in again.');
+        }
+      } else if (typeof window !== 'undefined' && localStorage.getItem('climbly_skip_guest') === 'true') {
+        authToken = 'guest-mode';
+      } else {
+        throw new Error('No user authentication available');
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add authentication header
+      if (authToken === 'guest-mode') {
+        headers['X-Guest-Mode'] = 'true';
+      } else {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/profile/update`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           firstName: editingProfile.firstName,
           lastName: editingProfile.lastName
@@ -118,7 +168,14 @@ export default function ProfilePage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        const errorText = await response.text();
+        console.error('Profile update error:', response.status, errorText);
+        
+        if (response.status === 401) {
+          throw new Error('Authentication required. Please log in again.');
+        } else {
+          throw new Error(`Failed to update profile: ${response.status} ${response.statusText}`);
+        }
       }
 
       const updatedProfile = await response.json();
