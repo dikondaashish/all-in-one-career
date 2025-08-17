@@ -314,6 +314,15 @@ app.use('/admin', adminRouter(prisma, logger));
 app.use('/search', searchRouter(prisma, logger));
 app.use('/ask', askRouter(prisma, logger));
 app.use('/search-insights', searchInsightsRouter(prisma, logger));
+// Add profile routes at root level for frontend compatibility
+app.use('/api/profile', profileRouter(prisma, logger));
+// Add missing routes for sidebar navigation
+app.get('/api/settings', (req, res) => {
+    res.json({ message: 'Settings endpoint - coming soon' });
+});
+app.get('/api/logout', (req, res) => {
+    res.json({ message: 'Logout endpoint - handled by frontend' });
+});
 const PORT = Number(process.env.PORT || 4000);
 app.listen(PORT, () => logger.info(`API running on port ${PORT}`));
 //# sourceMappingURL=index.js.map

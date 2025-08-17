@@ -24,6 +24,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     fetchProfile();
@@ -34,24 +35,58 @@ export default function ProfilePage() {
       setLoading(true);
       setError(null);
       
+      console.log('Fetching profile from:', `${API_BASE_URL}/api/profile`);
+      
       const response = await fetch(`${API_BASE_URL}/api/profile`, {
         headers: {
           'Content-Type': 'application/json',
         },
       });
 
+      console.log('Profile response status:', response.status);
+
       if (!response.ok) {
-        throw new Error('Failed to fetch profile');
+        const errorText = await response.text();
+        console.error('Profile fetch error:', response.status, errorText);
+        
+        if (response.status === 404) {
+          throw new Error('Profile endpoint not found. Please check if the backend is running.');
+        } else if (response.status === 401) {
+          throw new Error('Authentication required. Please log in again.');
+        } else {
+          throw new Error(`Failed to fetch profile: ${response.status} ${response.statusText}`);
+        }
       }
 
       const data = await response.json();
+      console.log('Profile data received:', data);
+      
       setProfile(data);
       setEditingProfile(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch profile');
+      console.error('Profile fetch error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch profile';
+      setError(errorMessage);
+      
+      // Set fallback data for demo purposes
+      if (retryCount === 0) {
+        const fallbackProfile: UserProfile = {
+          firstName: user?.displayName?.split(' ')[0] || 'User',
+          lastName: user?.displayName?.split(' ').slice(1).join(' ') || 'Name',
+          email: user?.email || 'user@example.com',
+          profileImage: undefined
+        };
+        setProfile(fallbackProfile);
+        setEditingProfile(fallbackProfile);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
+    fetchProfile();
   };
 
   const handleInputChange = (field: keyof UserProfile, value: string) => {
@@ -108,8 +143,32 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-[#F0F2F5] pt-18">
         <div className="p-8">
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0E8F6B]"></div>
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Profile Settings</h1>
+              <p className="text-gray-600">Loading your profile information...</p>
+            </div>
+
+            {/* Loading Placeholder */}
+            <div className="bg-white rounded-2xl p-8 shadow-[0px_12px_30px_rgba(0,0,0,0.05)]">
+              <div className="text-center mb-8">
+                <div className="w-24 h-24 rounded-full bg-gray-200 mx-auto mb-4 animate-pulse"></div>
+              </div>
+              
+              <div className="space-y-6">
+                {[1, 2, 3].map((i) => (
+                  <div key={i}>
+                    <div className="w-20 h-4 bg-gray-200 rounded mb-2 animate-pulse"></div>
+                    <div className="w-full h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mt-8 text-center">
+                <div className="w-32 h-12 bg-gray-200 rounded-xl mx-auto animate-pulse"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -120,15 +179,30 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-[#F0F2F5] pt-18">
         <div className="p-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <div className="text-red-600 text-lg font-medium mb-2">Error Loading Profile</div>
-            <div className="text-red-500">{error}</div>
-            <button
-              onClick={fetchProfile}
-              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              Try Again
-            </button>
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center shadow-[0px_12px_30px_rgba(0,0,0,0.05)]">
+              <div className="text-red-600 text-6xl mb-4">⚠️</div>
+              <div className="text-red-600 text-xl font-medium mb-2">Error Loading Profile</div>
+              <div className="text-red-500 mb-6 max-w-md mx-auto">{error}</div>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={handleRetry}
+                  className="px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium"
+                >
+                  Try Again
+                </button>
+                
+                <div className="text-sm text-gray-500">
+                  <p>If the problem persists, try:</p>
+                  <ul className="mt-2 space-y-1">
+                    <li>• Refreshing the page</li>
+                    <li>• Checking your internet connection</li>
+                    <li>• Logging out and back in</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -243,7 +317,25 @@ export default function ProfilePage() {
 
             {error && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-center">
-                <div className="text-red-600 font-medium">{error}</div>
+                <div className="text-red-600 font-medium mb-2">⚠️ Profile Update Issue</div>
+                <div className="text-red-500 text-sm mb-3">{error}</div>
+                <button
+                  onClick={handleRetry}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* Debug Info (only in development) */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                <div className="text-gray-600 text-xs">
+                  <div>Debug: API Base URL: {API_BASE_URL}</div>
+                  <div>User ID: {user?.uid || 'Not available'}</div>
+                  <div>Profile Data: {profile ? 'Loaded' : 'Not loaded'}</div>
+                </div>
               </div>
             )}
           </div>
