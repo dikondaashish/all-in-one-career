@@ -57,7 +57,7 @@ export default function SmartSearch() {
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (query.trim().length > 2) {
+      if (query.trim().length > 0) {
         if (isQuestion(query.trim())) {
           performAIQuestion(query.trim());
         } else {
@@ -105,16 +105,21 @@ export default function SmartSearch() {
         params.append('dateRange', filters.dateRange);
       }
       
+      console.log(`Searching for: "${searchQuery}" with filters:`, filters);
       const response = await fetch(`/api/search?${params.toString()}`);
       
       if (!response.ok) {
-        throw new Error('Search failed');
+        const errorData = await response.text();
+        console.error('Search API error:', response.status, errorData);
+        throw new Error(`Search failed: ${response.status} ${response.statusText}`);
       }
       
       const data: SearchResponse = await response.json();
+      console.log('Search results:', data);
       setResults(data.results);
       setShowDropdown(data.results.length > 0);
     } catch (err) {
+      console.error('Search error:', err);
       setError(err instanceof Error ? err.message : 'Search failed');
       setResults([]);
       setShowDropdown(false);
@@ -438,13 +443,19 @@ export default function SmartSearch() {
       )}
 
       {/* No Results */}
-      {showDropdown && !isLoading && results.length === 0 && !aiResponse?.answer && query.trim().length > 2 && (
+      {showDropdown && !isLoading && results.length === 0 && !aiResponse?.answer && query.trim().length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
           <div className="text-center text-sm text-gray-500">
-            {isQuestion(query) 
-              ? "Sorry, I couldn't understand your question. Try rephrasing it."
-              : `No matches found for "${query}"`
-            }
+            {error ? (
+              <div className="text-red-600">
+                <div className="font-medium mb-1">Search Error</div>
+                <div className="text-xs">{error}</div>
+              </div>
+            ) : isQuestion(query) ? (
+              "Sorry, I couldn't understand your question. Try rephrasing it."
+            ) : (
+              `No matches found for "${query}"`
+            )}
           </div>
         </div>
       )}

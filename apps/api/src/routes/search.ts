@@ -54,11 +54,19 @@ export default function searchRouter(prisma: PrismaClient, logger: pino.Logger):
       // Use Gemini to extract keywords and intent
       const systemPrompt = `You are a search assistant. Analyze the user's search query and extract relevant keywords and intent for searching through job applications, portfolios, emails, referrals, and tasks. Return only the most relevant keywords separated by spaces.`;
       
-      const extractedKeywords = await geminiGenerate(
-        'gemini-1.5-flash',
-        systemPrompt,
-        query
-      );
+      let extractedKeywords: string;
+      try {
+        extractedKeywords = await geminiGenerate(
+          'gemini-1.5-flash',
+          systemPrompt,
+          query
+        );
+        console.log(`Gemini extracted keywords: "${extractedKeywords}"`);
+      } catch (geminiError) {
+        console.log('Gemini API failed, using fallback search:', geminiError);
+        // Fallback: use the original query as keywords
+        extractedKeywords = query;
+      }
 
       console.log(`Search query: "${query}", Extracted keywords: "${extractedKeywords}", Filters:`, JSON.stringify(filters));
 
@@ -288,9 +296,11 @@ export default function searchRouter(prisma: PrismaClient, logger: pino.Logger):
       });
 
     } catch (error) {
+      console.error('Search error:', error);
       res.status(500).json({ 
         error: 'Search failed', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query.query
       });
     }
   });
