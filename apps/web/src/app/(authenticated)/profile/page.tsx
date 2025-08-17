@@ -53,6 +53,9 @@ export default function ProfilePage() {
       }
       
       console.log('Fetching profile from:', `${API_BASE_URL}/api/profile`);
+      console.log('Full API URL:', `${API_BASE_URL}/api/profile`);
+      console.log('Environment:', process.env.NODE_ENV);
+      console.log('API_BASE_URL value:', API_BASE_URL);
       
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -65,18 +68,26 @@ export default function ProfilePage() {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
       
+      console.log('Request headers:', headers);
+      console.log('Making fetch request to:', `${API_BASE_URL}/api/profile`);
+      
       const response = await fetch(`${API_BASE_URL}/api/profile`, {
         headers,
       });
 
       console.log('Profile response status:', response.status);
+      console.log('Profile response headers:', Object.fromEntries(response.headers.entries()));
+      console.log('Profile response URL:', response.url);
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Profile fetch error:', response.status, errorText);
+        console.error('Response URL:', response.url);
+        console.error('Response headers:', Object.fromEntries(response.headers.entries()));
+        console.error('Request URL that was called:', `${API_BASE_URL}/api/profile`);
         
         if (response.status === 404) {
-          throw new Error('Profile endpoint not found. Please check if the backend is running.');
+          throw new Error(`Profile endpoint not found at: ${response.url}. Please check if the backend is running.`);
         } else if (response.status === 401) {
           throw new Error('Authentication required. Please log in again.');
         } else {
