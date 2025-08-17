@@ -20,24 +20,22 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
-import {
-  LayoutDashboard,
-  FileText,
-  Briefcase,
-  Mail,
-  Users,
-  ClipboardList,
-  User,
-  Settings,
-  HelpCircle,
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { 
+  LayoutDashboard, 
+  FileText, 
+  Briefcase, 
+  Mail, 
+  Users, 
+  Clock, 
+  User, 
+  Settings, 
+  HelpCircle, 
   LogOut,
-  Download,
-  Smartphone,
-  Menu,
-  BarChart3
+  Download
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -47,6 +45,8 @@ interface SidebarProps {
 
 export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, signOutUser, hasSkippedAuth } = useAuth();
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -54,15 +54,36 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     { href: '/portfolio', label: 'Portfolio', icon: Briefcase },
     { href: '/emails', label: 'Emails', icon: Mail },
     { href: '/referrals', label: 'Referrals', icon: Users },
-    { href: '/tracker', label: 'Tracker', icon: ClipboardList },
-    { href: '/search-insights', label: 'Insights', icon: BarChart3 },
+    { href: '/tracker', label: 'Tracker', icon: Clock },
+    { href: '/search-insights', label: 'Insights', icon: FileText }, // Changed from BarChart3 to FileText for consistency
     { href: '/profile', label: 'Profile', icon: User },
   ];
 
   const generalItems = [
-    { href: '/settings', label: 'Settings', icon: Settings },
-    { href: '/help', label: 'Help', icon: HelpCircle },
-    { href: '/logout', label: 'Logout', icon: LogOut },
+    { href: '/settings', label: 'Settings', icon: Settings, action: () => router.push('/settings') },
+    { href: '/help', label: 'Help', icon: HelpCircle, action: () => router.push('/help') },
+    { 
+      href: '#', 
+      label: 'Logout', 
+      icon: LogOut, 
+      action: async () => {
+        try {
+          if (hasSkippedAuth()) {
+            // Clear skip flag and redirect to login
+            localStorage.removeItem('climbly_skip_guest');
+            router.push('/');
+          } else {
+            // Sign out from Firebase and redirect to login
+            await signOutUser();
+            router.push('/');
+          }
+        } catch (error) {
+          console.error('Logout error:', error);
+          // Force redirect even if there's an error
+          router.push('/');
+        }
+      }
+    },
   ];
 
   // Auto-collapse sidebar on mobile when navigating
@@ -85,7 +106,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           onClick={() => onToggle(!isCollapsed)}
           className="p-2 bg-white rounded-lg shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
         >
-          <Menu className="w-5 h-5 text-gray-700" />
+          {/* Menu icon */}
         </button>
       </div>
 
@@ -141,9 +162,9 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             <ul className="space-y-2">
               {generalItems.map((item) => (
                 <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={`flex items-center px-2 py-3 rounded-xl transition-all duration-200 group text-gray-600 hover:bg-gray-50 hover:text-gray-900 ${
+                  <button
+                    onClick={item.action}
+                    className={`w-full flex items-center px-2 py-3 rounded-xl transition-all duration-200 group text-gray-600 hover:bg-gray-50 hover:text-gray-900 ${
                       isCollapsed ? 'justify-center' : ''
                     }`}
                     title={isCollapsed ? item.label : undefined}
@@ -154,7 +175,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                     {!isCollapsed && (
                       <span className="font-medium">{item.label}</span>
                     )}
-                  </Link>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -170,8 +191,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
                 <div className="relative z-10">
                   <div className="flex items-center mb-3">
-                    <Smartphone className="w-6 h-6 text-[#006B53] mr-2" />
-                    <h4 className="font-semibold text-lg">Download our Mobile App</h4>
+                    {/* Smartphone icon */}
                   </div>
                   <p className="text-gray-300 text-sm mb-4">Get easy in another way</p>
                   <button className="bg-[#006B53] hover:bg-[#005A47] text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">

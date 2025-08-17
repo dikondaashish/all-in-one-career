@@ -321,7 +321,23 @@ app.get('/api/settings', (req, res) => {
     res.json({ message: 'Settings endpoint - coming soon' });
 });
 app.get('/api/logout', (req, res) => {
-    res.json({ message: 'Logout endpoint - handled by frontend' });
+    try {
+        // Log the logout attempt
+        console.log('Logout request received from:', req.user?.uid || 'guest user');
+        // For now, just return success - Firebase handles the actual logout
+        // In the future, you could add server-side session invalidation here
+        res.json({
+            message: 'Logout successful',
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({
+            error: 'Logout failed',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
 });
 const PORT = Number(process.env.PORT || 4000);
 app.listen(PORT, () => logger.info(`API running on port ${PORT}`));
