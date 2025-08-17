@@ -42,9 +42,14 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         return res.json(guestProfile);
       }
 
-      // Get user profile from database
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
+      // Get user profile from database by Firebase UID
+      const user = await prisma.user.findFirst({
+        where: { 
+          OR: [
+            { id: userId || '' }, // Try direct ID match first
+            { email: req.user?.email } // Fallback to email match
+          ]
+        },
         select: {
           id: true,
           email: true,
@@ -59,7 +64,8 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
       });
 
       if (!user) {
-        return res.status(404).json({ error: 'User not found' });
+        console.log(`User not found for Firebase UID: ${userId}, email: ${req.user?.email}`);
+        return res.status(404).json({ error: 'User not found in database' });
       }
 
       // Parse name into firstName and lastName
@@ -81,7 +87,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         }
       };
 
-      console.log(`Profile fetched for user: ${userId}`);
+      console.log(`Profile fetched for user: ${userId} (DB ID: ${user.id})`);
       res.json(profile);
 
     } catch (error) {
@@ -95,9 +101,11 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
 
   // POST /api/profile/update - Update user profile
   r.post('/update', async (req: any, res) => {
+    let userId: string | undefined;
+    let isGuestMode = false;
+    
     try {
-      let userId = req.user?.uid;
-      let isGuestMode = false;
+      userId = req.user?.uid;
       
       // Check for guest mode header
       if (req.headers['x-guest-mode'] === 'true') {
@@ -136,9 +144,25 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         return res.json(guestProfile);
       }
 
-      // Update user name in database
+      // First find the user to get the correct database ID
+      const existingUser = await prisma.user.findFirst({
+        where: { 
+          OR: [
+            { id: userId || '' }, // Try direct ID match first
+            { email: req.user?.email } // Fallback to email match
+          ]
+        },
+        select: { id: true }
+      });
+
+      if (!existingUser) {
+        console.log(`User not found for update - Firebase UID: ${userId}, email: ${req.user?.email}`);
+        return res.status(404).json({ error: 'User not found in database' });
+      }
+
+      // Update user name in database using the found ID
       const updatedUser = await prisma.user.update({
-        where: { id: userId },
+        where: { id: existingUser.id },
         data: {
           name: `${firstName} ${lastName}`.trim()
         },
@@ -179,9 +203,23 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
 
     } catch (error) {
       console.error('Profile update error:', error);
+      console.error('Error details:', {
+        userId,
+        isGuestMode,
+        userEmail: req.user?.email,
+        requestBody: req.body,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : 'No stack trace'
+      });
+      
       res.status(500).json({ 
         error: 'Failed to update profile', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        debug: {
+          userId,
+          isGuestMode,
+          userEmail: req.user?.email
+        }
       });
     }
   });
