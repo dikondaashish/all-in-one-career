@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { auth } from 'firebase-admin';
+import { getAuth } from 'firebase-admin/auth';
 export default function authRouter() {
     const r = Router();
     // STEP 2: Login endpoint that returns JWT token
@@ -11,7 +11,7 @@ export default function authRouter() {
                 return res.status(400).json({ error: 'Firebase token and email are required' });
             }
             // Verify Firebase token
-            const decodedToken = await auth().verifyIdToken(firebaseToken);
+            const decodedToken = await getAuth().verifyIdToken(firebaseToken);
             if (decodedToken.email !== email) {
                 return res.status(401).json({ error: 'Email mismatch' });
             }
