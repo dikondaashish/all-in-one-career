@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { auth } from 'firebase-admin';
+import admin from 'firebase-admin';
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -18,7 +18,7 @@ export const authenticateToken = async (req: AuthenticatedRequest, res: Response
 
   try {
     // Verify Firebase ID token
-    const decodedToken = await auth().verifyIdToken(token);
+    const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email || ''
@@ -37,7 +37,7 @@ export const optionalAuth = async (req: AuthenticatedRequest, res: Response, nex
   if (token) {
     try {
       // Verify Firebase ID token
-      const decodedToken = await auth().verifyIdToken(token);
+      const decodedToken = await admin.auth().verifyIdToken(token);
       req.user = {
         uid: decodedToken.uid,
         email: decodedToken.email || ''
