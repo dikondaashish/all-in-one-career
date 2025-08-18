@@ -61,7 +61,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const firebaseToken = await user.getIdToken();
       
       // Call backend to get JWT token
-      const response = await fetch('/api/auth/login', {
+      const API_BASE_URL = process.env.NODE_ENV === 'production' 
+        ? 'https://all-in-one-career-api.onrender.com'
+        : 'http://localhost:4000';
+        
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -73,7 +77,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to authenticate with backend');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Backend auth error:', response.status, errorData);
+        throw new Error(`Failed to authenticate with backend: ${response.status}`);
       }
 
       const { token } = await response.json();
@@ -99,7 +105,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const firebaseToken = await user.getIdToken();
       
       // Call backend to get JWT token
-      const response = await fetch('/api/auth/login', {
+      const API_BASE_URL = process.env.NODE_ENV === 'production' 
+        ? 'https://all-in-one-career-api.onrender.com'
+        : 'http://localhost:4000';
+        
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -111,7 +121,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to authenticate with backend');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Backend auth error:', response.status, errorData);
+        throw new Error(`Failed to authenticate with backend: ${response.status}`);
       }
 
       const { token } = await response.json();
@@ -152,7 +164,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const firebaseToken = await user.getIdToken();
       
       // Call backend to get JWT token
-      const response = await fetch('/api/auth/login', {
+      const API_BASE_URL = process.env.NODE_ENV === 'production' 
+        ? 'https://all-in-one-career-api.onrender.com'
+        : 'http://localhost:4000';
+        
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -164,7 +180,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to authenticate with backend');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Backend auth error:', response.status, errorData);
+        throw new Error(`Failed to authenticate with backend: ${response.status}`);
       }
 
       const { token } = await response.json();

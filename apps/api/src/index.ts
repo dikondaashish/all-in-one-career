@@ -351,7 +351,7 @@ app.use('/admin', authenticateToken, adminRouter(prisma, logger));
 app.use('/search', optionalAuth, searchRouter(prisma, logger));
 app.use('/ask', optionalAuth, askRouter(prisma, logger));
 app.use('/search-insights', optionalAuth, searchInsightsRouter(prisma, logger));
-app.use('/auth', authRouter());
+app.use('/api/auth', authRouter());
 
 // Add profile routes at root level for frontend compatibility
 app.use('/api/profile', profileRouter(prisma, logger));
