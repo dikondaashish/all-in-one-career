@@ -1,4 +1,5 @@
 import useSWR from 'swr';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 export interface Notification {
@@ -7,6 +8,8 @@ export interface Notification {
   title: string;
   message: string;
   isRead: boolean;
+  archived?: boolean;
+  metadata?: { actionType?: 'reply' | 'accept' | 'open'; href?: string } | null;
   createdAt: string;
 }
 
@@ -87,9 +90,10 @@ export function useNotifications() {
 
   // Only fetch if user is authenticated (not guest)
   const shouldFetch = !isGuest && token;
+  const [showArchived, setShowArchived] = useState(false);
 
   const { data, error, mutate, isLoading } = useSWR<NotificationsResponse>(
-    shouldFetch ? ['/api/notifications', token] : null,
+    shouldFetch ? [`/api/notifications?show=${showArchived ? 'archived' : 'active'}`, token] : null,
     ([url, authToken]: [string, string | null]) => fetcher(url, authToken),
     {
       refreshInterval: 30000, // Refresh every 30 seconds
@@ -147,5 +151,7 @@ export function useNotifications() {
     markAllAsRead: handleMarkAllAsRead,
     markAsRead: handleMarkAsRead,
     refresh: mutate,
+    showArchived,
+    setShowArchived,
   };
 }
