@@ -11,7 +11,7 @@
 
 'use client';
 
-import { Bell, User, Mail, Menu, Settings, LogOut } from 'lucide-react';
+import { Bell, User as UserIcon, Menu, LogOut, ChevronDown, ChevronRight, Palette, FileText, Lightbulb } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -29,6 +29,26 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   const [userDisplayName, setUserDisplayName] = useState('User');
   const [userEmail, setUserEmail] = useState('user@example.com');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showThemeSubmenu, setShowThemeSubmenu] = useState(false);
+  const [plan, setPlan] = useState<'free' | 'premium'>('free');
+  const isPremium = plan === 'premium';
+  const SUGGEST_FEATURE_URL = 'https://forms.gle/';
+
+  // Theme handling (light/dark/system)
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
+    if (typeof window === 'undefined') return 'system';
+    return (localStorage.getItem('theme') as 'light' | 'dark' | 'system') || 'system';
+  });
+
+  const applyTheme = (next: 'light' | 'dark' | 'system') => {
+    setTheme(next);
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('theme', next);
+    const root = document.documentElement;
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const shouldDark = next === 'dark' || (next === 'system' && prefersDark);
+    root.classList.toggle('dark', shouldDark);
+  };
 
   useEffect(() => {
     setIsClient(true);
@@ -60,6 +80,18 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close on ESC
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowDropdown(false);
+        setShowThemeSubmenu(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
   }, []);
 
   const handleLogout = async () => {
@@ -108,80 +140,123 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
           <SmartSearch />
         </div>
 
-        {/* Right - Notifications & User */}
-        <div className="flex items-center space-x-4">
-          {/* Messages */}
-          <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors">
-            <Mail className="w-5 h-5" />
-          </button>
+        {/* Right - Upgrade, Notifications, User */}
+        <div className="flex items-center space-x-3">
+          {/* Upgrade badge - only for non-premium */}
+          {!isPremium && (
+            <button
+              onClick={() => router.push('/pricing')}
+              className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-indigo-600 to-blue-600 shadow-sm hover:opacity-95"
+              title="Upgrade"
+            >
+              <span className="text-white">UPGRADE</span>
+            </button>
+          )}
 
           {/* Notifications */}
-          <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors">
+          <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors" aria-label="Notifications">
             <Bell className="w-5 h-5" />
           </button>
 
-          {/* User Avatar */}
-          <div className="relative">
+          {/* User Avatar + Chevron */}
+          <div className="relative user-dropdown">
             <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              onClick={() => setShowDropdown((s) => !s)}
+              className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-haspopup="menu"
+              aria-expanded={showDropdown}
             >
               <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center overflow-hidden">
                 {profileImageUrl ? (
-                  <img
-                    src={profileImageUrl}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
                 ) : user?.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={user.photoURL as string} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-white font-medium text-sm">
-                    {userDisplayName.charAt(0).toUpperCase()}
-                  </span>
+                  <span className="text-white font-medium text-sm">{userDisplayName.charAt(0).toUpperCase()}</span>
                 )}
               </div>
-              <div className="text-right">
-                <div className="text-sm font-medium text-gray-900">{userDisplayName}</div>
-                <div className="text-xs text-gray-500">{userEmail}</div>
-              </div>
+              <ChevronDown className="w-4 h-4 text-gray-600" />
             </button>
 
             {/* Dropdown Menu */}
             {showDropdown && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50 user-dropdown">
-                <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
-                  {user ? (
-                    <div>
-                      <div className="font-medium">{userDisplayName}</div>
-                      <div className="text-gray-500 text-xs">{userEmail}</div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="font-medium">{userDisplayName}</div>
-                      <div className="text-gray-500 text-xs">{userEmail}</div>
+              <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.12)] border border-gray-100 py-2 z-50">
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <div className="text-sm font-semibold text-gray-900 truncate">{userEmail}</div>
+                  <div className="mt-1 text-[12px] text-gray-500">
+                    {isPremium ? (
+                      <span>Premium</span>
+                    ) : (
+                      <>
+                        <span>Free Plan </span>
+                        <button onClick={() => router.push('/billing/upgrade')} className="text-[#3575E2] font-medium hover:underline">Upgrade</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Menu items */}
+                <button
+                  onClick={() => { setShowDropdown(false); router.push('/profile'); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-800 hover:bg-gray-50"
+                >
+                  <UserIcon className="w-5 h-5 text-gray-500" />
+                  <span className="font-medium text-[14px]">Account</span>
+                </button>
+
+                <button
+                  onClick={() => { window.open(SUGGEST_FEATURE_URL, '_blank', 'noopener,noreferrer'); setShowDropdown(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-800 hover:bg-gray-50"
+                >
+                  <Lightbulb className="w-5 h-5 text-gray-500" />
+                  <span className="font-medium">Suggest Feature</span>
+                </button>
+
+                <button
+                  onClick={() => { setShowDropdown(false); router.push('/help'); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-800 hover:bg-gray-50"
+                >
+                  <FileText className="w-5 h-5 text-gray-500" />
+                  <span className="font-medium">User Guides</span>
+                </button>
+
+                {/* Theme with submenu */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowThemeSubmenu((s) => !s)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-[14px] text-gray-800 hover:bg-gray-50"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Palette className="w-5 h-5 text-gray-500" />
+                      <span className="font-medium">Theme</span>
+                    </span>
+                    <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${showThemeSubmenu ? 'rotate-90' : ''}`} />
+                  </button>
+
+                  {showThemeSubmenu && (
+                    <div className="absolute top-0 left-full ml-2 w-48 bg-white rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.12)] border border-gray-100 py-2 z-50">
+                      {(['light','dark','system'] as const).map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() => { applyTheme(opt); setShowDropdown(false); setShowThemeSubmenu(false); }}
+                          className={`w-full text-left px-4 py-2 text-[14px] hover:bg-gray-50 ${theme === opt ? 'font-semibold text-gray-900' : 'text-gray-800'}`}
+                        >
+                          {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
-                
-                <button 
-                  onClick={() => router.push('/profile')}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                >
-                  <Settings size={16} />
-                  <span>Profile</span>
-                </button>
-                
+
+                <div className="my-2 border-t border-gray-100" />
+
                 <button
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                  onClick={async () => { setShowDropdown(false); await handleLogout(); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-800 hover:bg-gray-50"
                 >
-                  <LogOut size={16} />
-                  <span>Logout</span>
+                  <LogOut className="w-5 h-5 text-gray-500" />
+                  <span className="font-medium">Log out</span>
                 </button>
               </div>
             )}
