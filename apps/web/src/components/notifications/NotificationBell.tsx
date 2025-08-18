@@ -48,7 +48,7 @@ export default function NotificationBell() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { notifications, unreadCount, isLoading, markAllAsRead, markAsRead, showArchived, setShowArchived, refresh } = useNotifications();
-  const { connectionStatus, browserNotificationPermission, requestNotificationPermission } = useRealtimeNotifications();
+  const { connectionStatus } = useRealtimeNotifications();
   const { getAuthToken } = useAuth();
   const token = getAuthToken();
   const API_URL = process.env.NODE_ENV === 'production' ? 'https://all-in-one-career-api.onrender.com' : 'http://localhost:4000';
@@ -87,12 +87,7 @@ export default function NotificationBell() {
     }
   };
 
-  const handleBellClick = async () => {
-    // Request notification permission on first click if not granted
-    if (browserNotificationPermission === 'default') {
-      await requestNotificationPermission();
-    }
-    
+  const handleBellClick = () => {
     setIsOpen(!isOpen);
   };
 

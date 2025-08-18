@@ -3,77 +3,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from './useNotifications';
 import { auth } from '@/lib/firebase';
 
-interface RealtimeNotification {
-  id: string;
-  type: 'MESSAGE' | 'TASK' | 'SYSTEM' | 'FEATURE';
-  title: string;
-  message: string;
-  isRead: boolean;
-  archived?: boolean;
-  metadata?: { actionType?: 'reply' | 'accept' | 'open'; href?: string } | null;
-  createdAt: string;
-}
-
 export function useRealtimeNotifications() {
-  const { getAuthToken, isGuest } = useAuth();
-  const { notifications, unreadCount, refresh, showArchived, setShowArchived } = useNotifications();
+  const { isGuest } = useAuth();
+  const { refresh } = useNotifications();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 3;
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'polling'>('disconnected');
-  const [browserNotificationPermission, setBrowserNotificationPermission] = useState<NotificationPermission>('default');
-
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'polling'>('polling');
   const API_URL = process.env.NODE_ENV === 'production' 
     ? 'https://all-in-one-career-api.onrender.com' 
     : 'http://localhost:4000';
-
-  // Request browser notification permission
-  const requestNotificationPermission = useCallback(async () => {
-    if (!('Notification' in window)) {
-      console.log('Browser notifications not supported');
-      return;
-    }
-
-    if (Notification.permission === 'default') {
-      const permission = await Notification.requestPermission();
-      setBrowserNotificationPermission(permission);
-      return permission;
-    }
-
-    setBrowserNotificationPermission(Notification.permission);
-    return Notification.permission;
-  }, []);
-
-  // Show browser notification
-  const showBrowserNotification = useCallback((notification: RealtimeNotification) => {
-    if (Notification.permission !== 'granted') return;
-
-    const icon = '/favicon.ico'; // Use app favicon
-    
-    const browserNotification = new Notification(notification.title, {
-      body: notification.message,
-      icon,
-      tag: notification.id, // Prevent duplicate notifications
-      requireInteraction: false,
-      silent: false
-    });
-
-    // Handle notification click
-    browserNotification.onclick = () => {
-      window.focus();
-      browserNotification.close();
-      
-      // Navigate to relevant page if metadata contains href
-      if (notification.metadata?.href) {
-        window.location.href = notification.metadata.href;
-      }
-    };
-
-    // Auto-close after 5 seconds
-    setTimeout(() => browserNotification.close(), 5000);
-  }, []);
 
   // Connect to WebSocket
   const connectWebSocket = useCallback(async () => {
@@ -124,15 +65,7 @@ export function useRealtimeNotifications() {
         } else if (message.type === 'notification') {
           console.log('📨 Real-time notification received:', message.data);
           
-          // Add new notification to the top of the list
-          const newNotification = message.data;
-          
-          // Show browser notification if permission granted
-          if (Notification.permission === 'granted') {
-            showBrowserNotification(newNotification);
-          }
-          
-          // Refresh notifications list
+          // Refresh notifications list to show new notification in UI
           refresh();
         }
       } catch (error) {
@@ -177,7 +110,7 @@ export function useRealtimeNotifications() {
       console.error('Failed to create WebSocket connection:', error);
       setConnectionStatus('disconnected');
     }
-  }, [isGuest, API_URL, refresh, showBrowserNotification]);
+  }, [isGuest, API_URL, refresh]);
 
   // Start polling fallback
   const startPolling = useCallback(() => {
@@ -209,13 +142,10 @@ export function useRealtimeNotifications() {
     setConnectionStatus('disconnected');
   }, []);
 
-  // Initialize connection and permissions
+  // Initialize connection
   useEffect(() => {
     if (isGuest) return;
 
-    // Request notification permission on first use
-    requestNotificationPermission();
-    
     // Connect to WebSocket (handle async)
     const initConnection = async () => {
       await connectWebSocket();
@@ -225,7 +155,7 @@ export function useRealtimeNotifications() {
     return () => {
       disconnectWebSocket();
     };
-  }, [isGuest, connectWebSocket, disconnectWebSocket, requestNotificationPermission]);
+  }, [isGuest, connectWebSocket, disconnectWebSocket]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -236,8 +166,6 @@ export function useRealtimeNotifications() {
 
   return {
     connectionStatus,
-    browserNotificationPermission,
-    requestNotificationPermission,
     connectWebSocket,
     disconnectWebSocket
   };
