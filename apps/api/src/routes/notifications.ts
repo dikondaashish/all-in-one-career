@@ -12,6 +12,33 @@ interface AuthenticatedRequest extends Request {
 export function notificationsRouter(prisma: PrismaClient): Router {
   const router = Router();
 
+  // Map preference string types to NotificationType enum
+  const preferenceToEnum: Record<string, 'SYSTEM' | 'TASK' | 'FEATURE' | 'MESSAGE'> = {
+    system: 'SYSTEM',
+    task: 'TASK',
+    promotion: 'FEATURE',
+    activity: 'MESSAGE',
+  };
+
+  const enumToPreference: Record<'SYSTEM' | 'TASK' | 'FEATURE' | 'MESSAGE', string> = {
+    SYSTEM: 'system',
+    TASK: 'task',
+    FEATURE: 'promotion',
+    MESSAGE: 'activity',
+  };
+
+  async function getDisabledEnumTypes(userId: string): Promise<Array<'SYSTEM' | 'TASK' | 'FEATURE' | 'MESSAGE'>> {
+    const prefs = await prisma.notificationPreference.findMany({
+      where: { userId },
+      select: { type: true, enabled: true }
+    });
+    // Default behavior: if no preference saved for a type, it's enabled
+    return prefs
+      .filter(p => !p.enabled)
+      .map(p => preferenceToEnum[p.type]!)
+      .filter(Boolean);
+  }
+
   // GET /api/notifications - Get latest 20 notifications for user
   router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -22,8 +49,15 @@ export function notificationsRouter(prisma: PrismaClient): Router {
 
       console.log(`Fetching notifications for user: ${userId}`);
 
+      const disabledTypes = await getDisabledEnumTypes(userId);
+
+      const whereClause: any = { userId };
+      if (disabledTypes.length > 0) {
+        whereClause.type = { notIn: disabledTypes };
+      }
+
       const notifications = await prisma.notification.findMany({
-        where: { userId },
+        where: whereClause,
         orderBy: { createdAt: 'desc' },
         take: 20,
         select: {
@@ -45,6 +79,73 @@ export function notificationsRouter(prisma: PrismaClient): Router {
     } catch (error) {
       console.error('Error fetching notifications:', error);
       res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+  });
+
+  // GET /api/notifications/preferences - Get user's notification preferences
+  router.get('/preferences', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const prefs = await prisma.notificationPreference.findMany({
+        where: { userId },
+        select: { type: true, enabled: true }
+      });
+
+      // Ensure all categories are represented with defaults (enabled)
+      const categories = ['system', 'task', 'promotion', 'activity'] as const;
+      const map: Record<(typeof categories)[number], boolean> = {
+        system: true,
+        task: true,
+        promotion: true,
+        activity: true,
+      };
+      prefs.forEach(p => {
+        const key = p.type as keyof typeof map;
+        if (map[key] !== undefined) map[key] = p.enabled;
+      });
+
+      res.json({
+        preferences: categories.map((c) => ({ type: c, enabled: map[c] }))
+      });
+    } catch (error) {
+      console.error('Error fetching notification preferences:', error);
+      res.status(500).json({ error: 'Failed to fetch preferences' });
+    }
+  });
+
+  // POST /api/notifications/preferences/update - Upsert a preference
+  router.post('/preferences/update', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const { type, enabled } = req.body as { type?: string; enabled?: boolean };
+      if (!type || typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'Missing or invalid fields: type, enabled' });
+      }
+
+      const normalizedType = String(type).toLowerCase();
+      if (!['system','task','promotion','activity'].includes(normalizedType)) {
+        return res.status(400).json({ error: 'Invalid preference type' });
+      }
+
+      const pref = await prisma.notificationPreference.upsert({
+        where: { userId_type: { userId, type: normalizedType } },
+        update: { enabled },
+        create: { userId, type: normalizedType, enabled },
+        select: { type: true, enabled: true }
+      });
+
+      res.json({ success: true, preference: pref });
+    } catch (error) {
+      console.error('Error updating notification preference:', error);
+      res.status(500).json({ error: 'Failed to update preference' });
     }
   });
 
@@ -161,9 +262,12 @@ export function notificationsRouter(prisma: PrismaClient): Router {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
-      console.log(`Seeding test notifications for user: ${userId}`);
+      const { type } = req.query as { type?: string };
+      const mapped = type ? preferenceToEnum[String(type).toLowerCase()] : undefined;
 
-      const result = await seedTestNotifications(userId);
+      console.log(`Seeding test notifications for user: ${userId}${mapped ? ` of type ${mapped}` : ''}`);
+
+      const result = await seedTestNotifications(userId, mapped);
 
       res.json({ 
         success: true, 

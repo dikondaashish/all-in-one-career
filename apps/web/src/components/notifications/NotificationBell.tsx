@@ -42,6 +42,7 @@ const formatTimeAgo = (dateString: string) => {
 
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'SYSTEM' | 'TASK' | 'FEATURE' | 'MESSAGE'>('ALL');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { notifications, unreadCount, isLoading, markAllAsRead, markAsRead } = useNotifications();
 
@@ -116,6 +117,29 @@ export default function NotificationBell() {
             )}
           </div>
 
+          {/* Category Filter Chips */}
+          <div className="px-3 pt-2 pb-1 border-b border-gray-100 flex flex-wrap gap-2">
+            {([
+              { key: 'ALL', label: 'All' },
+              { key: 'SYSTEM', label: 'System' },
+              { key: 'TASK', label: 'Task' },
+              { key: 'FEATURE', label: 'Promotion' },
+              { key: 'MESSAGE', label: 'Activity' },
+            ] as const).map((chip) => (
+              <button
+                key={chip.key}
+                onClick={() => setActiveFilter(chip.key)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  activeFilter === chip.key
+                    ? 'bg-[#0E8F6B] text-white border-[#0E8F6B]'
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+
           {/* Content */}
           <div className="max-h-80 overflow-y-auto">
             {isLoading ? (
@@ -130,7 +154,10 @@ export default function NotificationBell() {
               </div>
             ) : (
               <div className="py-1">
-                {notifications.map((notification) => (
+                {(activeFilter === 'ALL' 
+                  ? notifications 
+                  : notifications.filter(n => n.type === activeFilter)
+                ).map((notification) => (
                   <div
                     key={notification.id}
                     onClick={() => handleNotificationClick(notification)}
