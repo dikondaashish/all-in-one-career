@@ -26,7 +26,8 @@ const logger = pino({ transport: { target: 'pino-pretty' } });
 const prisma = new PrismaClient();
 
 // Create HTTP server for WebSocket integration
-const server = require('http').createServer(app);
+import { createServer } from 'http';
+const server = createServer(app);
 
 initFirebase();
 
