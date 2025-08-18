@@ -2,6 +2,12 @@ import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { seedTestNotifications, cleanupTestNotifications } from '../utils/seedNotifications';
 
+// WebSocket server reference (will be set by main index.ts)
+let wsNotificationServer: any = null;
+export function setWebSocketServer(wsServer: any) {
+  wsNotificationServer = wsServer;
+}
+
 interface AuthenticatedRequest extends Request {
   user?: {
     uid: string;
@@ -336,6 +342,15 @@ export function notificationsRouter(prisma: PrismaClient): Router {
       console.log(`Created notification ${notification.id} for user ${userId}`);
 
       res.json({ success: true, notification });
+      
+      // Push real-time notification if WebSocket is available
+      if (wsNotificationServer && req.user?.uid) {
+        try {
+          await wsNotificationServer.pushNotificationToUser(req.user.uid, notification);
+        } catch (wsError) {
+          console.log('WebSocket push failed (fallback to polling):', wsError);
+        }
+      }
     } catch (error) {
       console.error('Error creating notification:', error);
       res.status(500).json({ error: 'Failed to create notification' });
