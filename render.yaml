@@ -27,3 +27,6 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: ADMIN_SECRET
+        value: climbly_admin_secret_2024
+        sync: false

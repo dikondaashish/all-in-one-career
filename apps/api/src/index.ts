@@ -370,6 +370,93 @@ app.use('/search', optionalAuth, searchRouter(prisma, logger));
 app.use('/ask', optionalAuth, askRouter(prisma, logger));
 app.use('/search-insights', optionalAuth, searchInsightsRouter(prisma, logger));
 app.use('/api/auth', authRouter(prisma));
+
+// Admin announcement endpoint - bypasses authentication, uses admin secret instead
+// MUST be registered BEFORE the wildcard /api/notifications route
+app.post('/api/notifications/announce', async (req: any, res) => {
+  try {
+    // Check admin authentication via secret
+    const adminSecret = req.headers['x-admin-secret'] as string;
+    const expectedSecret = process.env.ADMIN_SECRET || 'climbly_admin_secret_2024';
+    
+    console.log('Admin auth check:', {
+      adminSecret: adminSecret ? `"${adminSecret}"` : 'missing',
+      expectedSecret: expectedSecret ? `"${expectedSecret}"` : 'missing',
+      adminSecretLength: adminSecret?.length || 0,
+      expectedSecretLength: expectedSecret?.length || 0,
+      matches: adminSecret === expectedSecret,
+      adminSecretTrimmed: adminSecret ? `"${adminSecret.trim()}"` : 'missing',
+      expectedSecretTrimmed: expectedSecret ? `"${expectedSecret.trim()}"` : 'missing'
+    });
+    
+    if (!adminSecret || adminSecret !== expectedSecret) {
+      return res.status(401).json({ error: 'Admin authentication required' });
+    }
+
+    const { type, title, message } = req.body;
+
+    if (!type || !title || !message) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: type, title, message' 
+      });
+    }
+
+    console.log(`Admin creating global announcement: ${title}`);
+
+    // Get all users
+    const users = await prisma.user.findMany({
+      select: { id: true }
+    });
+
+    if (users.length === 0) {
+      return res.status(400).json({ error: 'No users found in database' });
+    }
+
+    const notifications = [];
+    for (const user of users) {
+      const notification = await prisma.notification.create({
+        data: {
+          userId: user.id,
+          type,
+          title,
+          message,
+        },
+        select: {
+          id: true,
+          type: true,
+          title: true,
+          message: true,
+          isRead: true,
+          createdAt: true,
+        }
+      });
+      
+      notifications.push(notification);
+      
+      // Push real-time notification if WebSocket is available
+      if (wsNotificationServer) {
+        try {
+          await wsNotificationServer.pushNotificationToUser(user.id, notification);
+        } catch (wsError) {
+          console.log(`WebSocket push failed for user ${user.id}:`, wsError);
+        }
+      }
+    }
+
+    console.log(`Created ${notifications.length} global announcements`);
+    res.json({ 
+      success: true, 
+      message: `Announcement sent to ${notifications.length} users`,
+      sentTo: notifications.length,
+      announcement: { type, title, message }
+    });
+
+  } catch (error) {
+    console.error('Error creating global announcement:', error);
+    res.status(500).json({ error: 'Failed to create global announcement' });
+  }
+});
+
 const notificationsRouterInstance = notificationsRouter(prisma);
 app.use('/api/notifications', authenticateToken, notificationsRouterInstance);
 
