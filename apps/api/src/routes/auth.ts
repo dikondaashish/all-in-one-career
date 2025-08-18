@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { getAuth } from 'firebase-admin/auth';
+import admin from 'firebase-admin';
 
 export default function authRouter(): Router {
   const r = Router();
@@ -15,7 +15,7 @@ export default function authRouter(): Router {
       }
 
       // Verify Firebase token
-      const decodedToken = await getAuth().verifyIdToken(firebaseToken);
+      const decodedToken = await admin.auth().verifyIdToken(firebaseToken);
       
       if (decodedToken.email !== email) {
         return res.status(401).json({ error: 'Email mismatch' });
