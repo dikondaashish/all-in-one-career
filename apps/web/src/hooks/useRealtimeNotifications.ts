@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from './useNotifications';
+import { auth } from '@/lib/firebase';
 
 interface RealtimeNotification {
   id: string;
@@ -75,23 +76,31 @@ export function useRealtimeNotifications() {
   }, []);
 
   // Connect to WebSocket
-  const connectWebSocket = useCallback(() => {
-    if (isGuest || !getAuthToken()) return;
+  const connectWebSocket = useCallback(async () => {
+    if (isGuest) return;
 
-    const token = getAuthToken();
-    // Convert HTTP/HTTPS to WS/WSS for WebSocket connections
-    const wsUrl = API_URL.replace(/^https?:\/\//, (match) => 
-      match === 'https://' ? 'wss://' : 'ws://'
-    );
-    const ws = new WebSocket(`${wsUrl}?token=${token}`);
+    // Get current Firebase user and ID token
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.log('No Firebase user, skipping WebSocket connection');
+      return;
+    }
+
+    try {
+      const firebaseToken = await currentUser.getIdToken();
+      // Convert HTTP/HTTPS to WS/WSS for WebSocket connections
+      const wsUrl = API_URL.replace(/^https?:\/\//, (match) => 
+        match === 'https://' ? 'wss://' : 'ws://'
+      );
+      const ws = new WebSocket(`${wsUrl}?token=${firebaseToken}`);
     
-    // Add connection timeout
-    const connectionTimeout = setTimeout(() => {
-      if (ws.readyState === WebSocket.CONNECTING) {
-        console.log('WebSocket connection timeout, closing connection');
-        ws.close();
-      }
-    }, 10000); // 10 second timeout
+      // Add connection timeout
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          console.log('WebSocket connection timeout, closing connection');
+          ws.close();
+        }
+      }, 10000); // 10 second timeout
 
     ws.onopen = () => {
       console.log('🔌 WebSocket connected');
@@ -157,13 +166,18 @@ export function useRealtimeNotifications() {
       console.log('WebSocket connection details:', {
         url: wsUrl,
         readyState: ws.readyState,
-        token: token ? 'present' : 'missing'
+        firebaseUser: currentUser?.uid ? 'present' : 'missing'
       });
       setConnectionStatus('disconnected');
     };
 
     wsRef.current = ws;
-  }, [isGuest, getAuthToken, API_URL, refresh, showBrowserNotification]);
+    
+    } catch (error) {
+      console.error('Failed to create WebSocket connection:', error);
+      setConnectionStatus('disconnected');
+    }
+  }, [isGuest, API_URL, refresh, showBrowserNotification]);
 
   // Start polling fallback
   const startPolling = useCallback(() => {
@@ -202,8 +216,11 @@ export function useRealtimeNotifications() {
     // Request notification permission on first use
     requestNotificationPermission();
     
-    // Connect to WebSocket
-    connectWebSocket();
+    // Connect to WebSocket (handle async)
+    const initConnection = async () => {
+      await connectWebSocket();
+    };
+    initConnection();
 
     return () => {
       disconnectWebSocket();
