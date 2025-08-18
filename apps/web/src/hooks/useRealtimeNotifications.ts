@@ -79,11 +79,23 @@ export function useRealtimeNotifications() {
     if (isGuest || !getAuthToken()) return;
 
     const token = getAuthToken();
-    const wsUrl = API_URL.replace('http', 'ws');
+    // Convert HTTP/HTTPS to WS/WSS for WebSocket connections
+    const wsUrl = API_URL.replace(/^https?:\/\//, (match) => 
+      match === 'https://' ? 'wss://' : 'ws://'
+    );
     const ws = new WebSocket(`${wsUrl}?token=${token}`);
+    
+    // Add connection timeout
+    const connectionTimeout = setTimeout(() => {
+      if (ws.readyState === WebSocket.CONNECTING) {
+        console.log('WebSocket connection timeout, closing connection');
+        ws.close();
+      }
+    }, 10000); // 10 second timeout
 
     ws.onopen = () => {
       console.log('🔌 WebSocket connected');
+      clearTimeout(connectionTimeout); // Clear connection timeout
       setConnectionStatus('connected');
       reconnectAttemptsRef.current = 0;
       
@@ -121,6 +133,7 @@ export function useRealtimeNotifications() {
 
     ws.onclose = (event) => {
       console.log('🔌 WebSocket disconnected:', event.code, event.reason);
+      clearTimeout(connectionTimeout); // Clear connection timeout
       setConnectionStatus('disconnected');
       
       // Attempt to reconnect if not a clean close
@@ -141,6 +154,11 @@ export function useRealtimeNotifications() {
 
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
+      console.log('WebSocket connection details:', {
+        url: wsUrl,
+        readyState: ws.readyState,
+        token: token ? 'present' : 'missing'
+      });
       setConnectionStatus('disconnected');
     };
 
