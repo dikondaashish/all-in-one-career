@@ -54,6 +54,50 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
     setIsClient(true);
   }, []);
 
+  // Ensure theme is applied on mount and reacts to system changes when in 'system' mode
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!isClient) return;
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+
+    type LegacyMediaQueryList = MediaQueryList & {
+      addListener?: (listener: (this: MediaQueryList, ev: MediaQueryListEvent) => void) => void;
+      removeListener?: (listener: (this: MediaQueryList, ev: MediaQueryListEvent) => void) => void;
+    };
+
+    const applyFromCurrentSetting = () => {
+      const stored = (localStorage.getItem('theme') as 'light' | 'dark' | 'system') || theme || 'system';
+      const shouldDark = stored === 'dark' || (stored === 'system' && media.matches);
+      document.documentElement.classList.toggle('dark', shouldDark);
+    };
+
+    applyFromCurrentSetting();
+
+    const handleSystemChange = (e: MediaQueryListEvent) => {
+      const current = (localStorage.getItem('theme') as 'light' | 'dark' | 'system') || theme || 'system';
+      if (current === 'system') {
+        document.documentElement.classList.toggle('dark', e.matches);
+      }
+    };
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', handleSystemChange);
+    } else {
+      const legacy = media as LegacyMediaQueryList;
+      legacy.addListener?.(handleSystemChange);
+    }
+
+    return () => {
+      if (typeof media.removeEventListener === 'function') {
+        media.removeEventListener('change', handleSystemChange);
+      } else {
+        const legacy = media as LegacyMediaQueryList;
+        legacy.removeListener?.(handleSystemChange);
+      }
+    };
+  }, [isClient, theme]);
+
   useEffect(() => {
     if (isClient) {
       if (user) {
