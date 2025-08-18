@@ -1,1 +1,0 @@
-{"version":3,"file":"storage.d.ts","sourceRoot":"","sources":["../../src/routes/storage.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,MAAM,EAAE,MAAM,SAAS,CAAC;AACjC,OAAO,KAAK,EAAE,YAAY,EAAE,MAAM,gBAAgB,CAAC;AACnD,OAAO,KAAK,IAAI,MAAM,MAAM,CAAC;AAS7B,MAAM,CAAC,OAAO,UAAU,aAAa,CAAC,OAAO,EAAE,YAAY,EAAE,OAAO,EAAE,IAAI,CAAC,MAAM,GAAG,MAAM,CA+DzF"}
