@@ -13,10 +13,28 @@ interface AuthenticatedRequest extends Request {
     uid: string;
     email?: string;
   };
+  isAdmin?: boolean;
 }
 
 export function notificationsRouter(prisma: PrismaClient): Router {
   const router = Router();
+
+  // Helper function to check admin authentication
+  function checkAdminAuth(req: AuthenticatedRequest): boolean {
+    const adminSecret = req.headers['x-admin-secret'] as string;
+    const expectedSecret = process.env.ADMIN_SECRET;
+    
+    if (!expectedSecret) {
+      console.error('ADMIN_SECRET environment variable not set');
+      return false;
+    }
+    
+    if (!adminSecret || adminSecret !== expectedSecret) {
+      return false;
+    }
+    
+    return true;
+  }
 
   // Map preference string types to NotificationType enum
   const preferenceToEnum: Record<string, 'SYSTEM' | 'TASK' | 'FEATURE' | 'MESSAGE'> = {
@@ -312,11 +330,74 @@ export function notificationsRouter(prisma: PrismaClient): Router {
   // POST /api/notifications/create - Create a new notification (for testing/admin)
   router.post('/create', async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { userId, type, title, message } = req.body;
+      const { userId, type, title, message, sendToAll } = req.body;
 
-      if (!userId || !type || !title || !message) {
+      // Check if this is an admin request
+      const isAdmin = checkAdminAuth(req);
+      
+      if (!isAdmin && !req.user?.uid) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      if (!type || !title || !message) {
         return res.status(400).json({ 
-          error: 'Missing required fields: userId, type, title, message' 
+          error: 'Missing required fields: type, title, message' 
+        });
+      }
+
+      // If admin and sendToAll is true, send to all users
+      if (isAdmin && sendToAll) {
+        console.log(`Admin creating global notification: ${title}`);
+        
+        // Get all users
+        const users = await prisma.user.findMany({
+          select: { id: true }
+        });
+
+        const notifications = [];
+        for (const user of users) {
+          const notification = await prisma.notification.create({
+            data: {
+              userId: user.id,
+              type,
+              title,
+              message,
+            },
+            select: {
+              id: true,
+              type: true,
+              title: true,
+              message: true,
+              isRead: true,
+              createdAt: true,
+            }
+          });
+          
+          notifications.push(notification);
+          
+          // Push real-time notification if WebSocket is available
+          if (wsNotificationServer) {
+            try {
+              await wsNotificationServer.pushNotificationToUser(user.id, notification);
+            } catch (wsError) {
+              console.log(`WebSocket push failed for user ${user.id}:`, wsError);
+            }
+          }
+        }
+
+        console.log(`Created ${notifications.length} global notifications`);
+        res.json({ 
+          success: true, 
+          message: `Sent to ${notifications.length} users`,
+          notifications 
+        });
+        return;
+      }
+
+      // Single user notification (existing behavior)
+      if (!userId) {
+        return res.status(400).json({ 
+          error: 'Missing required field: userId (or use sendToAll: true for admin)' 
         });
       }
 
@@ -354,6 +435,78 @@ export function notificationsRouter(prisma: PrismaClient): Router {
     } catch (error) {
       console.error('Error creating notification:', error);
       res.status(500).json({ error: 'Failed to create notification' });
+    }
+  });
+
+  // POST /api/notifications/announce - Admin endpoint for global announcements
+  router.post('/announce', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      // Check admin authentication
+      if (!checkAdminAuth(req)) {
+        return res.status(401).json({ error: 'Admin authentication required' });
+      }
+
+      const { type, title, message } = req.body;
+
+      if (!type || !title || !message) {
+        return res.status(400).json({ 
+          error: 'Missing required fields: type, title, message' 
+        });
+      }
+
+      console.log(`Admin creating global announcement: ${title}`);
+
+      // Get all users
+      const users = await prisma.user.findMany({
+        select: { id: true }
+      });
+
+      if (users.length === 0) {
+        return res.status(400).json({ error: 'No users found in database' });
+      }
+
+      const notifications = [];
+      for (const user of users) {
+        const notification = await prisma.notification.create({
+          data: {
+            userId: user.id,
+            type,
+            title,
+            message,
+          },
+          select: {
+            id: true,
+            type: true,
+            title: true,
+            message: true,
+            isRead: true,
+            createdAt: true,
+          }
+        });
+        
+        notifications.push(notification);
+        
+        // Push real-time notification if WebSocket is available
+        if (wsNotificationServer) {
+          try {
+            await wsNotificationServer.pushNotificationToUser(user.id, notification);
+          } catch (wsError) {
+            console.log(`WebSocket push failed for user ${user.id}:`, wsError);
+          }
+        }
+      }
+
+      console.log(`Created ${notifications.length} global announcements`);
+      res.json({ 
+        success: true, 
+        message: `Announcement sent to ${notifications.length} users`,
+        sentTo: notifications.length,
+        announcement: { type, title, message }
+      });
+
+    } catch (error) {
+      console.error('Error creating global announcement:', error);
+      res.status(500).json({ error: 'Failed to create global announcement' });
     }
   });
 
