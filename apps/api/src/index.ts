@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { initFirebase, verifyIdToken } from './lib/firebase';
 import { geminiGenerate } from './lib/gemini';
 import { authenticateToken, optionalAuth } from './middleware/auth';
+import { NotificationWebSocketServer } from './websocket/notificationServer';
 import atsRouter from './routes/ats';
 import referralsRouter from './routes/referrals';
 import portfolioRouter from './routes/portfolio';
@@ -24,7 +25,13 @@ const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
 const prisma = new PrismaClient();
 
+// Create HTTP server for WebSocket integration
+const server = require('http').createServer(app);
+
 initFirebase();
+
+// Initialize WebSocket notification server
+const wsNotificationServer = new NotificationWebSocketServer(server, prisma);
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
@@ -352,7 +359,12 @@ app.use('/search', optionalAuth, searchRouter(prisma, logger));
 app.use('/ask', optionalAuth, askRouter(prisma, logger));
 app.use('/search-insights', optionalAuth, searchInsightsRouter(prisma, logger));
 app.use('/api/auth', authRouter(prisma));
-app.use('/api/notifications', authenticateToken, notificationsRouter(prisma));
+const notificationsRouterInstance = notificationsRouter(prisma);
+app.use('/api/notifications', authenticateToken, notificationsRouterInstance);
+
+// Set WebSocket server reference in notifications router
+import { setWebSocketServer } from './routes/notifications';
+setWebSocketServer(wsNotificationServer);
 
 // Add profile routes at root level for frontend compatibility
 app.use('/api/profile', optionalAuth, profileRouter(prisma, logger));
@@ -383,4 +395,4 @@ app.get('/api/logout', (req: any, res) => {
 });
 
 const PORT = Number(process.env.PORT || 4000);
-app.listen(PORT, () => logger.info(`API running on port ${PORT}`));
+server.listen(PORT, () => logger.info(`API running on port ${PORT}`));
