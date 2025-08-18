@@ -126,8 +126,18 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
               onClick={() => setShowDropdown(!showDropdown)}
               className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center overflow-hidden">
+                {user?.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-white font-medium text-sm">
+                    {userDisplayName.charAt(0).toUpperCase()}
+                  </span>
+                )}
               </div>
               <div className="text-right">
                 <div className="text-sm font-medium text-gray-900">{userDisplayName}</div>

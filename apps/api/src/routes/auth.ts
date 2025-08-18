@@ -9,7 +9,7 @@ export default function authRouter(prisma: PrismaClient): Router {
   // STEP 1: Signup endpoint that creates user in database
   r.post('/signup', async (req: any, res) => {
     try {
-      const { firebaseToken, email, name } = req.body;
+      const { firebaseToken, email, name, profileImage } = req.body;
 
       if (!firebaseToken || !email) {
         return res.status(400).json({ error: 'Firebase token and email are required' });
@@ -39,6 +39,7 @@ export default function authRouter(prisma: PrismaClient): Router {
             id: decodedToken.uid, // Use Firebase UID as database ID
             email: email,
             name: name || email.split('@')[0], // Default name from email if not provided
+            profileImage: profileImage || null, // Store profile image if provided
             atsScans: 0,
             portfolios: 0,
             emails: 0,
@@ -70,7 +71,8 @@ export default function authRouter(prisma: PrismaClient): Router {
         user: {
           uid: decodedToken.uid,
           email: decodedToken.email,
-          name: existingUser.name
+          name: existingUser.name,
+          profileImage: existingUser.profileImage
         }
       });
 
@@ -83,7 +85,7 @@ export default function authRouter(prisma: PrismaClient): Router {
   // STEP 2: Login endpoint that handles existing users
   r.post('/login', async (req: any, res) => {
     try {
-      const { firebaseToken, email } = req.body;
+      const { firebaseToken, email, photoURL } = req.body;
 
       if (!firebaseToken || !email) {
         return res.status(400).json({ error: 'Firebase token and email are required' });
@@ -113,6 +115,7 @@ export default function authRouter(prisma: PrismaClient): Router {
             id: decodedToken.uid,
             email: email,
             name: email.split('@')[0],
+            profileImage: photoURL || null, // Store Google profile photo if available
             atsScans: 0,
             portfolios: 0,
             emails: 0,
@@ -122,6 +125,32 @@ export default function authRouter(prisma: PrismaClient): Router {
         });
         
         console.log(`User auto-created during login: ${email} (ID: ${existingUser.id})`);
+      } else if (photoURL && !existingUser.profileImage) {
+        // Update existing user's profile image if they don't have one and Google provides one
+        existingUser = await prisma.user.update({
+          where: { id: existingUser.id },
+          data: { profileImage: photoURL },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            profileImage: true,
+            atsScans: true,
+            portfolios: true,
+            emails: true,
+            referrals: true,
+            trackerEvents: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        });
+        
+        console.log(`Profile image updated for existing user: ${email}`);
+      }
+
+      // Ensure existingUser is not null before proceeding
+      if (!existingUser) {
+        return res.status(500).json({ error: 'Failed to create or retrieve user' });
       }
 
       // Generate JWT token
@@ -142,7 +171,8 @@ export default function authRouter(prisma: PrismaClient): Router {
         user: {
           uid: decodedToken.uid,
           email: decodedToken.email,
-          name: existingUser.name
+          name: existingUser.name,
+          profileImage: existingUser.profileImage
         }
       });
 
