@@ -378,6 +378,7 @@ import { setWebSocketServer } from './routes/notifications';
 setWebSocketServer(wsNotificationServer);
 
 // Add profile routes at root level for frontend compatibility
+// Profile routes - most endpoints use optional auth, but upload-avatar requires full auth
 app.use('/api/profile', optionalAuth, profileRouter(prisma, logger));
 
 // Add missing routes for sidebar navigation

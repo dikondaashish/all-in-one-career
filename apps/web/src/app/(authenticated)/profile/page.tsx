@@ -173,6 +173,8 @@ function ProfileContent() {
       const formData = new FormData();
       formData.append('file', file);
 
+      console.log('Uploading avatar with token:', authToken ? 'present' : 'missing');
+      
       // Upload avatar
       const response = await fetch(`${API_BASE_URL}/api/profile/upload-avatar`, {
         method: 'POST',
@@ -182,9 +184,12 @@ function ProfileContent() {
         body: formData,
       });
 
+      console.log('Upload response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Upload failed. Please try again.');
+        console.error('Upload failed with status:', response.status, 'Error:', errorData);
+        throw new Error(errorData.error || `Upload failed with status ${response.status}. Please try again.`);
       }
 
       const { avatarUrl } = await response.json();

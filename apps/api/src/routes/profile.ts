@@ -285,7 +285,13 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
     try {
       let userId = req.user?.uid;
       
+      // Check for valid authentication
       if (!userId) {
+        console.log('Upload avatar - No user ID found:', { 
+          headers: req.headers, 
+          user: req.user,
+          authHeader: req.headers.authorization 
+        });
         return res.status(401).json({ error: 'Unauthorized - User not authenticated' });
       }
 
