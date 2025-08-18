@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ? 'https://all-in-one-career-api.onrender.com'
         : 'http://localhost:4000';
         
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -176,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           firebaseToken,
           email: user.email,
+          name: user.displayName || user.email?.split('@')[0] || 'User'
         }),
       });
 
