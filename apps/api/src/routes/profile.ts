@@ -308,6 +308,26 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         return res.status(400).json({ error: 'File size must be less than 5MB' });
       }
 
+      // First, find the user in the database using the same logic as profile fetch
+      const user = await prisma.user.findFirst({
+        where: { 
+          OR: [
+            { id: userId || '' }, // Try direct ID match first
+            { email: req.user?.email } // Fallback to email match
+          ]
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true
+        }
+      });
+
+      if (!user) {
+        console.log(`User not found for avatar upload - Firebase UID: ${userId}, email: ${req.user?.email}`);
+        return res.status(404).json({ error: 'User not found in database' });
+      }
+
       // For now, we'll convert the image to a data URL and store it directly
       // In production, you'd want to upload to Firebase Storage, Cloudinary, or similar
       const imageBuffer = req.file.buffer;
@@ -315,9 +335,9 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
       const mimeType = req.file.mimetype;
       const dataUrl = `data:${mimeType};base64,${base64Image}`;
 
-      // Update user's profile image in database
+      // Update user's profile image in database using the actual database ID
       const updatedUser = await prisma.user.update({
-        where: { id: userId },
+        where: { id: user.id },
         data: { profileImage: dataUrl },
         select: {
           id: true,
@@ -336,6 +356,18 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
 
     } catch (error) {
       console.error('Avatar upload error:', error);
+      console.error('Error details:', {
+        firebaseUid: req.user?.uid,
+        userEmail: req.user?.email,
+        fileInfo: req.file ? {
+          originalname: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size
+        } : 'No file',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : 'No stack trace'
+      });
+      
       res.status(500).json({ 
         error: 'Upload failed. Please try again.',
         details: error instanceof Error ? error.message : 'Unknown error'
