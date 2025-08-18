@@ -1,40 +1,40 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, NotificationType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function seedTestNotifications(userId: string) {
+export async function seedTestNotifications(userId: string, onlyType?: 'SYSTEM' | 'TASK' | 'FEATURE' | 'MESSAGE') {
   const notifications = [
     {
       userId,
-      type: 'SYSTEM' as const,
+      type: 'SYSTEM' as NotificationType,
       title: 'Welcome to Climbly.ai!',
       message: 'Your account has been successfully created. Start by uploading your resume for ATS scanning.',
       isRead: false,
     },
     {
       userId,
-      type: 'FEATURE' as const,
+      type: 'FEATURE' as NotificationType,
       title: 'New AI Search Feature',
       message: 'You can now ask questions like "What was my highest ATS score?" in the search bar.',
       isRead: false,
     },
     {
       userId,
-      type: 'TASK' as const,
+      type: 'TASK' as NotificationType,
       title: 'Resume Analysis Complete',
       message: 'Your resume has been analyzed for the Software Engineer position at Google. Score: 92%',
       isRead: true,
     },
     {
       userId,
-      type: 'MESSAGE' as const,
+      type: 'MESSAGE' as NotificationType,
       title: 'New Referral Request',
       message: 'John from Microsoft has responded to your referral request for the Frontend Developer role.',
       isRead: false,
     },
     {
       userId,
-      type: 'SYSTEM' as const,
+      type: 'SYSTEM' as NotificationType,
       title: 'Weekly Summary Ready',
       message: 'Your weekly job application summary is ready. You applied to 5 positions this week.',
       isRead: true,
@@ -45,6 +45,7 @@ export async function seedTestNotifications(userId: string) {
     console.log(`Creating ${notifications.length} test notifications for user: ${userId}`);
     
     for (const notification of notifications) {
+      if (onlyType && notification.type !== onlyType) continue;
       await prisma.notification.create({
         data: notification,
       });
