@@ -1,9 +1,25 @@
 import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
+import multer from 'multer';
 
 export default function profileRouter(prisma: PrismaClient, logger: pino.Logger): Router {
   const r = Router();
+
+  // Configure multer for file uploads
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only image files are allowed'));
+      }
+    }
+  });
 
   // GET /api/profile - Get current user profile
   r.get('/', async (req: any, res) => {
@@ -260,6 +276,63 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
           isGuestMode,
           userEmail: req.user?.email
         }
+      });
+    }
+  });
+
+  // POST /api/profile/upload-avatar - Upload profile avatar
+  r.post('/upload-avatar', upload.single('file'), async (req: any, res) => {
+    try {
+      let userId = req.user?.uid;
+      
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized - User not authenticated' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      // Validate file type and size
+      if (!req.file.mimetype.startsWith('image/')) {
+        return res.status(400).json({ error: 'Only image files are allowed' });
+      }
+
+      if (req.file.size > 5 * 1024 * 1024) {
+        return res.status(400).json({ error: 'File size must be less than 5MB' });
+      }
+
+      // For now, we'll convert the image to a data URL and store it directly
+      // In production, you'd want to upload to Firebase Storage, Cloudinary, or similar
+      const imageBuffer = req.file.buffer;
+      const base64Image = imageBuffer.toString('base64');
+      const mimeType = req.file.mimetype;
+      const dataUrl = `data:${mimeType};base64,${base64Image}`;
+
+      // Update user's profile image in database
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { profileImage: dataUrl },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          profileImage: true
+        }
+      });
+
+      console.log(`Avatar uploaded for user: ${userId}`);
+
+      res.json({ 
+        avatarUrl: updatedUser.profileImage,
+        message: 'Avatar uploaded successfully'
+      });
+
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      res.status(500).json({ 
+        error: 'Upload failed. Please try again.',
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
