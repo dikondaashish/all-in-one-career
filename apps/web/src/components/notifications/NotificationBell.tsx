@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Bell, MessageSquare, CheckSquare, Settings, Zap, Clock, CheckCheck, MoreVertical, RotateCcw, Archive, Reply } from 'lucide-react';
+import { Bell, MessageSquare, CheckSquare, Settings, Zap, Clock, CheckCheck, MoreVertical, RotateCcw, Archive, Reply, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { useNotifications, type Notification } from '@/hooks/useNotifications';
+import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 
 const getNotificationIcon = (type: Notification['type']) => {
@@ -47,6 +48,7 @@ export default function NotificationBell() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { notifications, unreadCount, isLoading, markAllAsRead, markAsRead, showArchived, setShowArchived, refresh } = useNotifications();
+  const { connectionStatus, browserNotificationPermission, requestNotificationPermission } = useRealtimeNotifications();
   const { getAuthToken } = useAuth();
   const token = getAuthToken();
   const API_URL = process.env.NODE_ENV === 'production' ? 'https://all-in-one-career-api.onrender.com' : 'http://localhost:4000';
@@ -85,6 +87,15 @@ export default function NotificationBell() {
     }
   };
 
+  const handleBellClick = async () => {
+    // Request notification permission on first click if not granted
+    if (browserNotificationPermission === 'default') {
+      await requestNotificationPermission();
+    }
+    
+    setIsOpen(!isOpen);
+  };
+
   const handleMarkAllRead = async () => {
     await markAllAsRead();
   };
@@ -93,7 +104,7 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       {/* Bell Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleBellClick}
         className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
         aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ''}`}
       >
@@ -103,6 +114,34 @@ export default function NotificationBell() {
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
+        
+        {/* Connection Status Indicator */}
+        <div className="absolute -bottom-1 -right-1">
+          {connectionStatus === 'connected' && (
+            <div className="relative group">
+              <Wifi className="w-3 h-3 text-green-500" />
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                Real-time connected
+              </div>
+            </div>
+          )}
+          {connectionStatus === 'reconnecting' && (
+            <div className="relative group">
+              <RefreshCw className="w-3 h-3 text-yellow-500 animate-spin" />
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                Reconnecting...
+              </div>
+            </div>
+          )}
+          {connectionStatus === 'polling' && (
+            <div className="relative group">
+              <WifiOff className="w-3 h-3 text-gray-400" />
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                Using polling fallback
+              </div>
+            </div>
+          )}
+        </div>
       </button>
 
       {/* Dropdown */}
@@ -110,7 +149,32 @@ export default function NotificationBell() {
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.12)] border border-gray-100 z-50 max-h-96 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+              
+              {/* Connection Status */}
+              <div className="flex items-center gap-1 text-xs">
+                {connectionStatus === 'connected' && (
+                  <span className="flex items-center gap-1 text-green-600">
+                    <Wifi className="w-3 h-3" />
+                    Real-time
+                  </span>
+                )}
+                {connectionStatus === 'reconnecting' && (
+                  <span className="flex items-center gap-1 text-yellow-600">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    Reconnecting...
+                  </span>
+                )}
+                {connectionStatus === 'polling' && (
+                  <span className="flex items-center gap-1 text-gray-500">
+                    <WifiOff className="w-3 h-3" />
+                    Polling
+                  </span>
+                )}
+              </div>
+            </div>
+            
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
                 <button
