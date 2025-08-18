@@ -67,6 +67,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
         ? 'https://all-in-one-career-api.onrender.com'
         : 'http://localhost:4000';
+      
+      console.log('Attempting to connect to backend at:', API_BASE_URL);
+      
+      // Test backend connectivity first
+      try {
+        const healthResponse = await fetch(`${API_BASE_URL}/health`);
+        console.log('Backend health check response:', healthResponse.status);
+      } catch (healthError) {
+        console.error('Backend health check failed:', healthError);
+        throw new Error('Backend server is not accessible. Please try again later.');
+      }
         
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
@@ -95,6 +106,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
     } catch (error) {
       console.error('Google sign in error:', error);
+      
+      // Provide more specific error messages for common issues
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new Error('Cannot connect to server. Please check your internet connection and try again.');
+      }
+      
       throw error;
     }
   };
