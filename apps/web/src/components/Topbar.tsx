@@ -11,11 +11,12 @@
 
 'use client';
 
-import { Bell, User as UserIcon, Menu, LogOut, ChevronDown, ChevronRight, Palette, FileText, Lightbulb } from 'lucide-react';
+import { User as UserIcon, Menu, LogOut, ChevronDown, ChevronRight, Palette, FileText, Lightbulb } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import SmartSearch from './SmartSearch';
+import NotificationBell from './notifications/NotificationBell';
 
 interface TopbarProps {
   sidebarCollapsed: boolean;
@@ -198,9 +199,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
           )}
 
           {/* Notifications */}
-          <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors" aria-label="Notifications">
-            <Bell className="w-5 h-5" />
-          </button>
+          <NotificationBell />
 
           {/* User Avatar + Chevron */}
           <div className="relative user-dropdown">

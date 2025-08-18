@@ -206,7 +206,7 @@ function DashboardContent() {
                 <Play className="w-4 h-4 mr-2" />
                 Start Meeting
               </button>
-            </div>
+                            </div>
           </div>
         </div>
       </div>
