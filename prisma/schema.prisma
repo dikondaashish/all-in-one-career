@@ -17,6 +17,7 @@ model User {
   id            String   @id @default(cuid())
   email        String   @unique
   name         String?
+  profileImage String?  // URL to user's profile photo
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   

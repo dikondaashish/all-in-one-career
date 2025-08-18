@@ -67,7 +67,8 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
           portfolios: true,
           emails: true,
           referrals: true,
-          trackerEvents: true
+          trackerEvents: true,
+          profileImage: true // Added profileImage to select
         }
       });
 
@@ -86,7 +87,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         firstName,
         lastName,
         email: user.email,
-        profileImage: null, // TODO: Add profile image support
+        profileImage: user.profileImage, // Return actual profile image URL
         stats: {
           atsScans: user.atsScans,
           portfolios: user.portfolios,
@@ -127,7 +128,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         return res.status(401).json({ error: 'Unauthorized - User not authenticated' });
       }
 
-      const { firstName, lastName } = req.body;
+      const { firstName, lastName, profileImage } = req.body;
 
       if (!firstName || !lastName) {
         return res.status(400).json({ error: 'First name and last name are required' });
@@ -201,12 +202,14 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
       const updatedUser = await prisma.user.update({
         where: { id: existingUser.id },
         data: {
-          name: `${firstName} ${lastName}`.trim()
+          name: `${firstName} ${lastName}`.trim(),
+          profileImage: profileImage || null // Update profile image if provided
         },
         select: {
           id: true,
           email: true,
           name: true,
+          profileImage: true,
           createdAt: true,
           atsScans: true,
           portfolios: true,
@@ -225,7 +228,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         firstName: updatedFirstName,
         lastName: updatedLastName,
         email: updatedUser.email,
-        profileImage: null, // TODO: Add profile image support
+        profileImage: updatedUser.profileImage, // Include profile image in response
         stats: {
           atsScans: updatedUser.atsScans,
           portfolios: updatedUser.portfolios,

@@ -14,7 +14,8 @@ export default function RegisterPage() {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    profileImage: null as File | null
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -73,7 +74,7 @@ export default function RegisterPage() {
     setError('');
     
     try {
-      await signUpWithEmail(formData.email, formData.password);
+      await signUpWithEmail(formData.email, formData.password, formData.name, formData.profileImage || undefined);
       router.push('/dashboard');
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
@@ -119,6 +120,58 @@ export default function RegisterPage() {
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
                 />
+              </div>
+
+              {/* Profile Photo Upload */}
+              <div>
+                <label htmlFor="profileImage" className="block text-sm font-medium text-gray-700 mb-2">
+                  Profile Photo (Optional)
+                </label>
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                    {formData.profileImage ? (
+                      <img
+                        src={URL.createObjectURL(formData.profileImage)}
+                        alt="Profile preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-gray-500 text-lg">
+                        {formData.name ? formData.name.charAt(0).toUpperCase() : '?'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      id="profileImage"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setFormData(prev => ({ ...prev, profileImage: file }));
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="profileImage"
+                      className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    >
+                      Choose Photo
+                    </label>
+                    {formData.profileImage && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, profileImage: null }))}
+                        className="ml-2 text-sm text-red-600 hover:text-red-800"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Upload a profile photo to personalize your account</p>
               </div>
 
               {/* Email Field */}
