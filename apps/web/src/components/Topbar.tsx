@@ -7,6 +7,7 @@
  * - Includes hamburger menu toggle for sidebar control
  * - Clean, consistent header design with sidebar integration
  * - Integrated SmartSearch component for global search functionality
+ * - Real-time avatar updates with loading states
  */
 
 'use client';
@@ -15,9 +16,9 @@ import { User as UserIcon, Menu, LogOut, ChevronDown, ChevronRight, Palette, Fil
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProfileImageSync } from '@/hooks/useProfileImageSync';
 import SmartSearch from './SmartSearch';
 import NotificationBell from './notifications/NotificationBell';
+import { useProfileImageSync } from '@/hooks/useProfileImageSync';
 
 interface TopbarProps {
   sidebarCollapsed: boolean;
@@ -112,104 +113,75 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
     };
   }, [isClient, theme]);
 
+  // Update user display info when user changes
   useEffect(() => {
-    if (isClient) {
-      if (user) {
-        setUserDisplayName(user.displayName || user.email?.split('@')[0] || 'User');
-        setUserEmail(user.email || 'user@example.com');
-      } else if (isGuest) {
-        setUserDisplayName('Guest User');
-        setUserEmail('guest@climbly.ai');
-      } else {
-        setUserDisplayName('User');
-        setUserEmail('user@example.com');
-      }
+    if (user) {
+      setUserDisplayName(user.displayName || user.email?.split('@')[0] || 'User');
+      setUserEmail(user.email || 'user@example.com');
+    } else if (isGuest) {
+      setUserDisplayName('Guest User');
+      setUserEmail('guest@climbly.ai');
+    } else {
+      setUserDisplayName('User');
+      setUserEmail('user@example.com');
     }
-  }, [user, isGuest, isClient]);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      if (!target.closest('.user-dropdown')) {
-        setShowDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Close on ESC
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setShowDropdown(false);
-        setShowThemeSubmenu(false);
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
+  }, [user, isGuest]);
 
   const handleLogout = async () => {
     try {
-      if (isGuest) {
-        // STEP 5: Clear guest mode and redirect to login
-        localStorage.removeItem('climbly_skip_guest');
-        router.push('/');
-      } else {
-        // STEP 5: Sign out from Firebase and redirect to login
-        await signOutUser();
-        router.push('/');
-      }
+      await signOutUser();
+      router.push('/');
     } catch (error) {
       console.error('Logout error:', error);
-      // Force redirect even if there's an error
+      // Force redirect even if logout fails
       router.push('/');
     }
   };
 
+  if (!isClient) {
+    return (
+      <div className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-50">
+        <div className="flex items-center justify-between h-full px-6">
+          <div className="w-32 h-8 bg-gray-200 rounded animate-pulse"></div>
+          <div className="w-48 h-8 bg-gray-200 rounded animate-pulse"></div>
+          <div className="w-32 h-8 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed top-0 left-0 right-0 h-18 bg-white border-b border-gray-100 z-20 shadow-sm">
-      <div className="flex items-center justify-between h-full px-8">
-        {/* Left - Sidebar Toggle + Logo */}
+    <div className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-50">
+      <div className="flex items-center justify-between h-full px-6">
+        {/* Left: Hamburger Menu + Logo */}
         <div className="flex items-center space-x-4">
-          {/* Sidebar Toggle Button */}
           <button
             onClick={onToggleSidebar}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label="Toggle sidebar"
           >
             <Menu className="w-5 h-5 text-gray-600" />
           </button>
-          
-          {/* Logo */}
+
           <div className="flex items-center">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">C</span>
+            <div className="w-8 h-8 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-lg flex items-center justify-center mr-3">
+              <span className="text-white font-bold text-sm">C</span>
             </div>
-            <span className="ml-3 text-xl font-bold text-gray-900">Climbly.ai</span>
+            <span className="text-xl font-bold text-gray-900">Climbly.ai</span>
           </div>
         </div>
 
-        {/* Center - Smart Search Bar */}
-        <div className="flex-1 max-w-md mx-8">
+        {/* Center: SmartSearch */}
+        <div className="flex-1 max-w-2xl mx-8">
           <SmartSearch />
         </div>
 
-        {/* Right - Upgrade, Notifications, User */}
-        <div className="flex items-center space-x-3">
-          {/* Upgrade badge - only for non-premium */}
-          {!isPremium && (
-            <button
-              onClick={() => router.push('/pricing')}
-              className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-indigo-600 to-blue-600 shadow-sm hover:opacity-95"
-              title="Upgrade"
-            >
-              <span className="text-white">UPGRADE</span>
-            </button>
-          )}
+        {/* Right: Notifications, Upgrade, User */}
+        <div className="flex items-center space-x-4">
+          {/* Upgrade Button */}
+          <button className="bg-[#006B53] text-white px-4 py-2 rounded-lg font-medium hover:bg-[#005A47] transition-colors">
+            UPGRADE
+          </button>
 
           {/* Notifications */}
           <NotificationBell />
