@@ -6,13 +6,16 @@
  * - Spans full width regardless of sidebar state
  * - Includes hamburger menu toggle for sidebar control
  * - Clean, consistent header design with sidebar integration
+ * - Integrated SmartSearch component for global search functionality
  */
 
 'use client';
 
-import { Bell, Search, User, Mail, Menu } from 'lucide-react';
+import { Bell, User, Mail, Menu, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import SmartSearch from './SmartSearch';
 
 interface TopbarProps {
   sidebarCollapsed: boolean;
@@ -20,10 +23,12 @@ interface TopbarProps {
 }
 
 export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProps) {
-  const { user, hasSkippedAuth } = useAuth();
+  const { user, signOutUser, isGuest } = useAuth();
+  const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState('User');
   const [userEmail, setUserEmail] = useState('user@example.com');
+  const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -34,7 +39,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
       if (user) {
         setUserDisplayName(user.displayName || user.email?.split('@')[0] || 'User');
         setUserEmail(user.email || 'user@example.com');
-      } else if (hasSkippedAuth()) {
+      } else if (isGuest) {
         setUserDisplayName('Guest User');
         setUserEmail('guest@climbly.ai');
       } else {
@@ -42,7 +47,38 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
         setUserEmail('user@example.com');
       }
     }
-  }, [user, hasSkippedAuth, isClient]);
+  }, [user, isGuest, isClient]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.user-dropdown')) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      if (isGuest) {
+        // STEP 5: Clear guest mode and redirect to login
+        localStorage.removeItem('climbly_skip_guest');
+        router.push('/');
+      } else {
+        // STEP 5: Sign out from Firebase and redirect to login
+        await signOutUser();
+        router.push('/');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force redirect even if there's an error
+      router.push('/');
+    }
+  };
 
   return (
     <div className="fixed top-0 left-0 right-0 h-18 bg-white border-b border-gray-100 z-20 shadow-sm">
@@ -67,19 +103,9 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
           </div>
         </div>
 
-        {/* Center - Search Bar */}
+        {/* Center - Smart Search Bar */}
         <div className="flex-1 max-w-md mx-8">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search task"
-              className="w-full pl-12 pr-20 py-3 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-[#006B53] focus:border-transparent text-sm"
-            />
-            <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-              <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs rounded-full font-medium">⌘ F</span>
-            </div>
-          </div>
+          <SmartSearch />
         </div>
 
         {/* Right - Notifications & User */}
@@ -95,14 +121,54 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
           </button>
 
           {/* User Avatar */}
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-white" />
-            </div>
-            <div className="text-right">
-              <div className="text-sm font-medium text-gray-900">{userDisplayName}</div>
-              <div className="text-xs text-gray-500">{userEmail}</div>
-            </div>
+          <div className="relative">
+            <button
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center">
+                <User className="w-5 h-5 text-white" />
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-medium text-gray-900">{userDisplayName}</div>
+                <div className="text-xs text-gray-500">{userEmail}</div>
+              </div>
+            </button>
+
+            {/* Dropdown Menu */}
+            {showDropdown && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50 user-dropdown">
+                <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
+                  {user ? (
+                    <div>
+                      <div className="font-medium">{userDisplayName}</div>
+                      <div className="text-gray-500 text-xs">{userEmail}</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="font-medium">{userDisplayName}</div>
+                      <div className="text-gray-500 text-xs">{userEmail}</div>
+                    </div>
+                  )}
+                </div>
+                
+                <button 
+                  onClick={() => router.push('/profile')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                >
+                  <Settings size={16} />
+                  <span>Profile</span>
+                </button>
+                
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                >
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

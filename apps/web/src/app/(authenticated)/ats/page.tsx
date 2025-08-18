@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { useRouter } from 'next/navigation';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 
@@ -14,6 +16,15 @@ interface TailorResult {
 }
 
 export default function ATSPage() {
+  // STEP 6: Wrap ATS page with ProtectedRoute to prevent flashing
+  return (
+    <ProtectedRoute>
+      <ATSContent />
+    </ProtectedRoute>
+  );
+}
+
+function ATSContent() {
   const router = useRouter();
   const [resumeText, setResumeText] = useState('');
   const [jdText, setJdText] = useState('');

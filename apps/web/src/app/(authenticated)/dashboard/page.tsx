@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { 
   Plus, 
   Upload,
@@ -12,7 +14,8 @@ import {
   Clock,
   Play,
   Square,
-  Calendar
+  Calendar,
+  BarChart3
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -38,6 +41,15 @@ interface ProjectItem {
 }
 
 export default function DashboardPage() {
+  // STEP 6: Wrap dashboard with ProtectedRoute to prevent flashing
+  return (
+    <ProtectedRoute>
+      <DashboardContent />
+    </ProtectedRoute>
+  );
+}
+
+function DashboardContent() {
   const [stats] = useState<DashboardStats>({
     atsScans: 24,
     portfolios: 10,
