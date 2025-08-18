@@ -341,6 +341,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateProfileImage = (imageUrl: string): void => {
     setProfileImageUrl(imageUrl);
+    
+    // Also update the Firebase user's photoURL if available
+    if (user && user.photoURL !== imageUrl) {
+      // Update the local user state to reflect the new photo
+      setUser(prevUser => prevUser ? { ...prevUser, photoURL: imageUrl } : null);
+    }
   };
 
   return (

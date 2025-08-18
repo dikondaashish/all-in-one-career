@@ -198,8 +198,11 @@ function ProfileContent() {
       setProfile(prev => prev ? { ...prev, profileImage: avatarUrl } : null);
       setEditingProfile(prev => prev ? { ...prev, profileImage: avatarUrl } : null);
       
-      // Update auth context
+      // Update auth context - this will trigger re-renders in Topbar and other components
       updateProfileImage(avatarUrl);
+      
+      // Force a re-fetch of the profile to ensure consistency
+      await fetchProfile();
       
       setSuccess('Avatar updated successfully!');
       setTimeout(() => setSuccess(null), 3000);
@@ -378,7 +381,12 @@ function ProfileContent() {
             {/* Avatar Section */}
             <div className="text-center mb-8">
               <div className="relative inline-block">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#0E8F6B] to-[#10B981] flex items-center justify-center text-white text-2xl font-bold shadow-lg overflow-hidden">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#0E8F6B] to-[#10B981] flex items-center justify-center text-white text-2xl font-bold shadow-lg overflow-hidden relative">
+                  {uploadingAvatar && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center z-10">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                    </div>
+                  )}
                   {profile?.profileImage ? (
                     <img 
                       src={profile.profileImage} 
