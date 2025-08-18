@@ -47,11 +47,14 @@ export function notificationsRouter(prisma: PrismaClient): Router {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
-      console.log(`Fetching notifications for user: ${userId}`);
+      const showParam = (req.query.show as string | undefined)?.toLowerCase();
+      const showArchived = showParam === 'archived';
+
+      console.log(`Fetching notifications for user: ${userId}, show=${showArchived ? 'archived' : 'active'}`);
 
       const disabledTypes = await getDisabledEnumTypes(userId);
 
-      const whereClause: any = { userId };
+      const whereClause: any = { userId, archived: showArchived };
       if (disabledTypes.length > 0) {
         whereClause.type = { notIn: disabledTypes };
       }
@@ -66,6 +69,8 @@ export function notificationsRouter(prisma: PrismaClient): Router {
           title: true,
           message: true,
           isRead: true,
+          archived: true,
+          metadata: true,
           createdAt: true,
         }
       });
@@ -146,6 +151,89 @@ export function notificationsRouter(prisma: PrismaClient): Router {
     } catch (error) {
       console.error('Error updating notification preference:', error);
       res.status(500).json({ error: 'Failed to update preference' });
+    }
+  });
+
+  // POST /api/notifications/archive - archive single notification
+  router.post('/archive', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.uid;
+      const { id } = req.body as { id?: string };
+      if (!userId) return res.status(401).json({ error: 'User not authenticated' });
+      if (!id) return res.status(400).json({ error: 'Missing id' });
+
+      const result = await prisma.notification.updateMany({
+        where: { id, userId, archived: false },
+        data: { archived: true }
+      });
+      if (result.count === 0) return res.status(404).json({ error: 'Notification not found or already archived' });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error archiving notification:', error);
+      res.status(500).json({ error: 'Failed to archive notification' });
+    }
+  });
+
+  // POST /api/notifications/restore - unarchive single notification
+  router.post('/restore', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.uid;
+      const { id } = req.body as { id?: string };
+      if (!userId) return res.status(401).json({ error: 'User not authenticated' });
+      if (!id) return res.status(400).json({ error: 'Missing id' });
+
+      const result = await prisma.notification.updateMany({
+        where: { id, userId, archived: true },
+        data: { archived: false }
+      });
+      if (result.count === 0) return res.status(404).json({ error: 'Notification not found or not archived' });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error restoring notification:', error);
+      res.status(500).json({ error: 'Failed to restore notification' });
+    }
+  });
+
+  // POST /api/notifications/archive-all - archive by age or all
+  router.post('/archive-all', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.uid;
+      const { olderThanDays } = req.body as { olderThanDays?: number };
+      if (!userId) return res.status(401).json({ error: 'User not authenticated' });
+
+      const where: any = { userId, archived: false };
+      if (olderThanDays && olderThanDays > 0) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - olderThanDays);
+        where.createdAt = { lt: cutoff };
+      }
+
+      const result = await prisma.notification.updateMany({ where, data: { archived: true } });
+      res.json({ success: true, archivedCount: result.count });
+    } catch (error) {
+      console.error('Error archiving notifications:', error);
+      res.status(500).json({ error: 'Failed to archive notifications' });
+    }
+  });
+
+  // POST /api/notifications/action - mock direct action handler
+  router.post('/action', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.uid;
+      const { id, action } = req.body as { id?: string; action?: 'accept' | 'reply' | 'open' };
+      if (!userId) return res.status(401).json({ error: 'User not authenticated' });
+      if (!id || !action) return res.status(400).json({ error: 'Missing id or action' });
+
+      const exists = await prisma.notification.findFirst({ where: { id, userId } });
+      if (!exists) return res.status(404).json({ error: 'Notification not found' });
+
+      console.log(`[notification action] user=${userId} id=${id} action=${action}`);
+      // Optionally set read when action taken
+      await prisma.notification.update({ where: { id }, data: { isRead: true } });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error performing notification action:', error);
+      res.status(500).json({ error: 'Failed to perform action' });
     }
   });
 

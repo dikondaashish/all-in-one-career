@@ -9,6 +9,7 @@ export async function seedTestNotifications(userId: string, onlyType?: 'SYSTEM' 
       type: 'SYSTEM' as NotificationType,
       title: 'Welcome to Climbly.ai!',
       message: 'Your account has been successfully created. Start by uploading your resume for ATS scanning.',
+      metadata: { actionType: 'open', href: '/dashboard' },
       isRead: false,
     },
     {
@@ -16,6 +17,7 @@ export async function seedTestNotifications(userId: string, onlyType?: 'SYSTEM' 
       type: 'FEATURE' as NotificationType,
       title: 'New AI Search Feature',
       message: 'You can now ask questions like "What was my highest ATS score?" in the search bar.',
+      metadata: { actionType: 'open', href: '/help' },
       isRead: false,
     },
     {
@@ -23,6 +25,7 @@ export async function seedTestNotifications(userId: string, onlyType?: 'SYSTEM' 
       type: 'TASK' as NotificationType,
       title: 'Resume Analysis Complete',
       message: 'Your resume has been analyzed for the Software Engineer position at Google. Score: 92%',
+      metadata: { actionType: 'open', href: '/ats' },
       isRead: true,
     },
     {
@@ -30,6 +33,7 @@ export async function seedTestNotifications(userId: string, onlyType?: 'SYSTEM' 
       type: 'MESSAGE' as NotificationType,
       title: 'New Referral Request',
       message: 'John from Microsoft has responded to your referral request for the Frontend Developer role.',
+      metadata: { actionType: 'reply' },
       isRead: false,
     },
     {
@@ -37,6 +41,7 @@ export async function seedTestNotifications(userId: string, onlyType?: 'SYSTEM' 
       type: 'SYSTEM' as NotificationType,
       title: 'Weekly Summary Ready',
       message: 'Your weekly job application summary is ready. You applied to 5 positions this week.',
+      metadata: { actionType: 'open', href: '/dashboard' },
       isRead: true,
     },
   ];
