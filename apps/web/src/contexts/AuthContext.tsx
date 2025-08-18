@@ -21,7 +21,7 @@ interface AuthContextType {
   isGuest: boolean;
   signIn: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name?: string, profileImage?: File) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   signOutUser: () => Promise<void>;
   setRememberMe: (remember: boolean) => Promise<void>;
@@ -73,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           firebaseToken,
           email: user.email,
+          photoURL: user.photoURL, // Send Google profile photo URL
         }),
       });
 
@@ -154,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUpWithEmail = async (email: string, password: string) => {
+  const signUpWithEmail = async (email: string, password: string, name?: string, profileImage?: File) => {
     try {
       // STEP 2: Firebase account creation first
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -162,6 +163,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Get Firebase ID token
       const firebaseToken = await user.getIdToken();
+      
+      // Handle profile image upload if provided
+      let profileImageUrl: string | null = null;
+      if (profileImage) {
+        try {
+          // For now, we'll convert the image to a data URL
+          // In production, you'd want to upload to a cloud storage service
+          const reader = new FileReader();
+          profileImageUrl = await new Promise((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(profileImage);
+          });
+        } catch (uploadError) {
+          console.warn('Failed to process profile image:', uploadError);
+          // Continue without profile image
+        }
+      }
       
       // Call backend to get JWT token
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
@@ -176,7 +195,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           firebaseToken,
           email: user.email,
-          name: user.displayName || user.email?.split('@')[0] || 'User'
+          name: name || user.displayName || user.email?.split('@')[0] || 'User',
+          profileImage: profileImageUrl
         }),
       });
 
