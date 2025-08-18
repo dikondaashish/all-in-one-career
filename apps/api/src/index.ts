@@ -34,7 +34,17 @@ initFirebase();
 // Initialize WebSocket notification server
 const wsNotificationServer = new NotificationWebSocketServer(server, prisma);
 
-app.use(cors());
+// Configure CORS for frontend domains
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://all-in-one-career-web.vercel.app',
+    'https://all-in-one-career-web-git-feature-global-search-dikondaashish.vercel.app'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '5mb' }));
 
 // Optional auth attach (public routes still work)
