@@ -154,7 +154,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
       }
 
       // First find the user to get the correct database ID
-      const existingUser = await prisma.user.findFirst({
+      let existingUser = await prisma.user.findFirst({
         where: { 
           OR: [
             { id: userId || '' }, // Try direct ID match first
@@ -166,7 +166,35 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
 
       if (!existingUser) {
         console.log(`User not found for update - Firebase UID: ${userId}, email: ${req.user?.email}`);
-        return res.status(404).json({ error: 'User not found in database' });
+        
+        // Auto-create user if they don't exist (for users who signed up before this fix)
+        if (userId && req.user?.email) {
+          try {
+            const newUser = await prisma.user.create({
+              data: {
+                id: userId,
+                email: req.user.email,
+                name: `${firstName} ${lastName}`.trim(),
+                atsScans: 0,
+                portfolios: 0,
+                emails: 0,
+                referrals: 0,
+                trackerEvents: 0
+              },
+              select: { id: true }
+            });
+            
+            console.log(`User auto-created during profile update: ${req.user.email} (ID: ${newUser.id})`);
+            
+            // Update the existingUser reference
+            existingUser = newUser;
+          } catch (createError) {
+            console.error('Failed to auto-create user during profile update:', createError);
+            return res.status(500).json({ error: 'Failed to create user profile' });
+          }
+        } else {
+          return res.status(404).json({ error: 'User not found in database' });
+        }
       }
 
       // Update user name in database using the found ID
