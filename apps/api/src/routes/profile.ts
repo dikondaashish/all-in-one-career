@@ -8,17 +8,23 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
   // GET /api/profile - Get current user profile
   r.get('/', async (req: any, res) => {
     try {
+      console.log('Profile request received:', {
+        headers: req.headers,
+        user: req.user,
+        url: req.url
+      });
+
       let userId = req.user?.uid;
       let isGuestMode = false;
       
       // Check for guest mode header
       if (req.headers['x-guest-mode'] === 'true') {
         isGuestMode = true;
-        // For guest mode, we'll use a default user ID or handle differently
-        userId = 'guest-user';
+        console.log('Guest mode detected');
       }
       
       if (!userId && !isGuestMode) {
+        console.log('No user ID and not guest mode - returning 401');
         return res.status(401).json({ error: 'Unauthorized - User not authenticated' });
       }
 
@@ -41,6 +47,8 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         console.log('Guest profile returned');
         return res.json(guestProfile);
       }
+
+      console.log(`Looking for user with Firebase UID: ${userId}, email: ${req.user?.email}`);
 
       // Get user profile from database by Firebase UID
       const user = await prisma.user.findFirst({
@@ -65,6 +73,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
 
       if (!user) {
         console.log(`User not found for Firebase UID: ${userId}, email: ${req.user?.email}`);
+        console.log('Available users in database:', await prisma.user.findMany({ select: { id: true, email: true, name: true } }));
         return res.status(404).json({ error: 'User not found in database' });
       }
 
