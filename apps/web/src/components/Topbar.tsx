@@ -15,6 +15,7 @@ import { User as UserIcon, Menu, LogOut, ChevronDown, ChevronRight, Palette, Fil
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useProfileImageSync } from '@/hooks/useProfileImageSync';
 import SmartSearch from './SmartSearch';
 import NotificationBell from './notifications/NotificationBell';
 
@@ -25,6 +26,8 @@ interface TopbarProps {
 
 export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProps) {
   const { user, signOutUser, isGuest, profileImageUrl } = useAuth();
+  const { getCurrentProfileImage, hasImageChanged } = useProfileImageSync();
+  const [avatarLoading, setAvatarLoading] = useState(false);
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState('User');
@@ -54,6 +57,16 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Monitor profile image changes and show loading state
+  useEffect(() => {
+    if (hasImageChanged()) {
+      setAvatarLoading(true);
+      // Hide loading after a short delay to show the new image
+      const timer = setTimeout(() => setAvatarLoading(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [profileImageUrl, user?.photoURL, hasImageChanged]);
 
   // Ensure theme is applied on mount and reacts to system changes when in 'system' mode
   useEffect(() => {
@@ -209,11 +222,27 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
               aria-haspopup="menu"
               aria-expanded={showDropdown}
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center overflow-hidden">
-                {profileImageUrl ? (
-                  <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+              <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center overflow-hidden relative">
+                {avatarLoading ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : profileImageUrl ? (
+                  <img 
+                    src={profileImageUrl} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    onLoad={() => setAvatarLoading(false)}
+                    onError={() => setAvatarLoading(false)}
+                  />
                 ) : user?.photoURL ? (
-                  <img src={user.photoURL as string} alt="Profile" className="w-full h-full object-cover" />
+                  <img 
+                    src={user.photoURL as string} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    onLoad={() => setAvatarLoading(false)}
+                    onError={() => setAvatarLoading(false)}
+                  />
                 ) : (
                   <span className="text-white font-medium text-sm">{userDisplayName.charAt(0).toUpperCase()}</span>
                 )}
@@ -227,11 +256,27 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
                 {/* Header - Avatar + Name + Email */}
                 <div className="px-4 py-2 border-b border-gray-100">
                   <div className="flex items-center gap-3" style={{ minHeight: 48, maxHeight: 60 }}>
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-[#006B53] to-[#008F6F] flex items-center justify-center">
-                      {profileImageUrl ? (
-                        <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-[#006B53] to-[#008F6F] flex items-center justify-center relative">
+                      {avatarLoading ? (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      ) : profileImageUrl ? (
+                        <img 
+                          src={profileImageUrl} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                          onLoad={() => setAvatarLoading(false)}
+                          onError={() => setAvatarLoading(false)}
+                        />
                       ) : user?.photoURL ? (
-                        <img src={user.photoURL as string} alt="Profile" className="w-full h-full object-cover" />
+                        <img 
+                          src={user.photoURL as string} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                          onLoad={() => setAvatarLoading(false)}
+                          onError={() => setAvatarLoading(false)}
+                        />
                       ) : (
                         <span className="text-white text-xs font-medium">{userDisplayName.charAt(0).toUpperCase()}</span>
                       )}
