@@ -384,6 +384,18 @@ function ProfileContent() {
                   </>
                 )}
               </button>
+              
+              {/* Support Message */}
+              <p className="mt-3 text-sm text-gray-500">
+                If you have any difficulties with your profile information, please reach out to{' '}
+                <a 
+                  href="mailto:support@climbly.ai" 
+                  className="text-[#0E8F6B] hover:text-[#0D7A5A] underline"
+                >
+                  support@climbly.ai
+                </a>{' '}
+                for support.
+              </p>
             </div>
 
             {/* Success/Error Messages */}
