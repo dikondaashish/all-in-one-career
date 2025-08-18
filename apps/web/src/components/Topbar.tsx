@@ -225,18 +225,22 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
             {/* Dropdown Menu */}
             {showDropdown && (
               <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.12)] border border-gray-100 py-2 z-50">
-                {/* Header */}
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <div className="text-sm font-semibold text-gray-900 truncate">{userEmail}</div>
-                  <div className="mt-1 text-[12px] text-gray-500">
-                    {isPremium ? (
-                      <span>Premium</span>
-                    ) : (
-                      <>
-                        <span>Free Plan </span>
-                        <button onClick={() => router.push('/billing/upgrade')} className="text-[#3575E2] font-medium hover:underline">Upgrade</button>
-                      </>
-                    )}
+                {/* Header - Avatar + Name + Email */}
+                <div className="px-4 py-2 border-b border-gray-100">
+                  <div className="flex items-center gap-3" style={{ minHeight: 48, maxHeight: 60 }}>
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-[#006B53] to-[#008F6F] flex items-center justify-center">
+                      {profileImageUrl ? (
+                        <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                      ) : user?.photoURL ? (
+                        <img src={user.photoURL as string} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-white text-xs font-medium">{userDisplayName.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-[#111111] truncate">{userDisplayName}</div>
+                      <div className="text-xs text-[#8F8F8F] truncate">{userEmail}</div>
+                    </div>
                   </div>
                 </div>
 
