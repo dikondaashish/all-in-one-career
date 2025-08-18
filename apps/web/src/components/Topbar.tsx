@@ -23,7 +23,7 @@ interface TopbarProps {
 }
 
 export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProps) {
-  const { user, signOutUser, isGuest } = useAuth();
+  const { user, signOutUser, isGuest, profileImageUrl } = useAuth();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState('User');
@@ -127,7 +127,13 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
               className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center overflow-hidden">
-                {user?.photoURL ? (
+                {profileImageUrl ? (
+                  <img
+                    src={profileImageUrl}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                ) : user?.photoURL ? (
                   <img
                     src={user.photoURL}
                     alt="Profile"
