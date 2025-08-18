@@ -312,14 +312,13 @@ app.use('/portfolio', authenticateToken, portfolioRouter(prisma, logger));
 app.use('/emails', authenticateToken, emailsRouter(prisma, logger));
 app.use('/applications', authenticateToken, applicationsRouter(prisma, logger));
 app.use('/storage', authenticateToken, storageRouter(prisma, logger));
-app.use('/me', authenticateToken, profileRouter(prisma, logger));
 app.use('/admin', authenticateToken, adminRouter(prisma, logger));
 app.use('/search', optionalAuth, searchRouter(prisma, logger));
 app.use('/ask', optionalAuth, askRouter(prisma, logger));
 app.use('/search-insights', optionalAuth, searchInsightsRouter(prisma, logger));
 app.use('/api/auth', authRouter());
 // Add profile routes at root level for frontend compatibility
-app.use('/api/profile', profileRouter(prisma, logger));
+app.use('/api/profile', optionalAuth, profileRouter(prisma, logger));
 // Add missing routes for sidebar navigation
 app.get('/api/settings', (req, res) => {
     res.json({ message: 'Settings endpoint - coming soon' });
