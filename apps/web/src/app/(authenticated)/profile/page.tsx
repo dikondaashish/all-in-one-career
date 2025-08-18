@@ -27,7 +27,7 @@ export default function ProfilePage() {
 }
 
 function ProfileContent() {
-  const { user, hasSkippedAuth } = useAuth();
+  const { user, hasSkippedAuth, updateProfileImage } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +35,7 @@ function ProfileContent() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -134,6 +135,76 @@ function ProfileContent() {
   const handleRetry = () => {
     setRetryCount(prev => prev + 1);
     fetchProfile();
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type and size
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+      setError(null);
+
+      // Get Firebase ID token for authentication
+      let authToken = '';
+      if (user) {
+        try {
+          authToken = await user.getIdToken();
+        } catch (tokenError) {
+          console.error('Failed to get Firebase ID token:', tokenError);
+          throw new Error('Authentication failed. Please log in again.');
+        }
+      } else {
+        throw new Error('No user authentication available');
+      }
+
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Upload avatar
+      const response = await fetch(`${API_BASE_URL}/api/profile/upload-avatar`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Upload failed. Please try again.');
+      }
+
+      const { avatarUrl } = await response.json();
+
+      // Update profile state with new avatar
+      setProfile(prev => prev ? { ...prev, profileImage: avatarUrl } : null);
+      setEditingProfile(prev => prev ? { ...prev, profileImage: avatarUrl } : null);
+      
+      // Update auth context
+      updateProfileImage(avatarUrl);
+      
+      setSuccess('Avatar updated successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+
+    } catch (err) {
+      console.error('Avatar upload error:', err);
+      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const handleInputChange = (field: keyof UserProfile, value: string) => {
@@ -302,7 +373,7 @@ function ProfileContent() {
             {/* Avatar Section */}
             <div className="text-center mb-8">
               <div className="relative inline-block">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#0E8F6B] to-[#10B981] flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#0E8F6B] to-[#10B981] flex items-center justify-center text-white text-2xl font-bold shadow-lg overflow-hidden">
                   {profile?.profileImage ? (
                     <img 
                       src={profile.profileImage} 
@@ -313,10 +384,36 @@ function ProfileContent() {
                     getInitials(profile?.firstName || 'U', profile?.lastName || 'S')
                   )}
                 </div>
-                <button className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full shadow-lg border-2 border-gray-100 flex items-center justify-center hover:bg-gray-50 transition-colors">
-                  <Camera className="w-4 h-4 text-gray-600" />
-                </button>
+                
+                {/* Hidden file input */}
+                <input
+                  type="file"
+                  id="avatar-upload"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                  disabled={uploadingAvatar}
+                />
+                
+                {/* Camera icon button */}
+                <label
+                  htmlFor="avatar-upload"
+                  className={`absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full shadow-lg border-2 border-gray-100 flex items-center justify-center hover:bg-gray-50 transition-colors cursor-pointer ${
+                    uploadingAvatar ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {uploadingAvatar ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#0E8F6B]"></div>
+                  ) : (
+                    <Camera className="w-4 h-4 text-gray-600" />
+                  )}
+                </label>
               </div>
+              
+              {/* Avatar upload status */}
+              {uploadingAvatar && (
+                <p className="text-sm text-gray-500 mt-2">Uploading avatar...</p>
+              )}
             </div>
 
             {/* Form Fields */}

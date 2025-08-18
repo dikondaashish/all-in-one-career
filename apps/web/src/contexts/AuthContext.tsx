@@ -19,6 +19,7 @@ interface AuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
   isGuest: boolean;
+  profileImageUrl: string | null;
   signIn: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name?: string, profileImage?: File) => Promise<void>;
@@ -31,6 +32,7 @@ interface AuthContextType {
   getAuthToken: () => string | null;
   setAuthToken: (token: string) => void;
   clearAuthToken: () => void;
+  updateProfileImage: (imageUrl: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -319,6 +322,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateProfileImage = (imageUrl: string): void => {
+    setProfileImageUrl(imageUrl);
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -336,7 +343,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       getAuthToken,
       setAuthToken,
       clearAuthToken,
-      setGuestMode
+      setGuestMode,
+      updateProfileImage,
+      profileImageUrl
     }}>
       {children}
     </AuthContext.Provider>
