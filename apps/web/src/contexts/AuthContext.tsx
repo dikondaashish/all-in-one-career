@@ -50,6 +50,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(user);
       setIsAuthenticated(!!user);
       setLoading(false);
+
+      // Populate Zustand store on initial auth state (page refresh/restore)
+      if (user) {
+        try {
+          useUserStore.getState().setUser({
+            id: user.uid,
+            name: user.displayName || user.email?.split('@')[0] || 'User',
+            email: user.email || '',
+            avatarUrl: user.photoURL || '',
+            profileImage: user.photoURL || ''
+          });
+        } catch {}
+      } else {
+        try { useUserStore.getState().clearUser(); } catch {}
+      }
     });
 
     return unsubscribe;
@@ -376,6 +391,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateProfileImage = (imageUrl: string): void => {
     setProfileImageUrl(imageUrl);
+
+    // Also update Zustand store for global sync
+    try { useUserStore.getState().updateProfileImage(imageUrl); } catch {}
     
     // Also update the Firebase user's photoURL if available
     if (user && user.photoURL !== imageUrl) {
