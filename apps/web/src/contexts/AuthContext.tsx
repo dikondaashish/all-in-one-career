@@ -13,6 +13,7 @@ import {
   browserSessionPersistence
 } from 'firebase/auth';
 import { auth, provider } from '@/lib/firebase';
+import { useUserStore } from '@/stores/useUserStore';
 
 interface AuthContextType {
   user: User | null;
@@ -102,7 +103,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Store JWT token in localStorage
       setAuthToken(token);
       
-      console.log('Google login successful, JWT token stored');
+      // Populate Zustand store with user data
+      useUserStore.getState().setUser({
+        id: user.uid,
+        name: user.displayName || 'User',
+        email: user.email || '',
+        avatarUrl: user.photoURL || '',
+        profileImage: user.photoURL || ''
+      });
+      
+      console.log('Google login successful, JWT token stored, Zustand store populated');
       
     } catch (error) {
       console.error('Google sign in error:', error);
@@ -152,7 +162,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Store JWT token in localStorage
       setAuthToken(token);
       
-      console.log('Login successful, JWT token stored');
+      // Populate Zustand store with user data
+      useUserStore.getState().setUser({
+        id: user.uid,
+        name: user.displayName || 'User',
+        email: user.email || '',
+        avatarUrl: user.photoURL || '',
+        profileImage: user.photoURL || ''
+      });
+      
+      console.log('Login successful, JWT token stored, Zustand store populated');
       
     } catch (err: unknown) {
       console.error('Email sign in error:', err);
@@ -231,7 +250,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Store JWT token in localStorage
       setAuthToken(token);
       
-      console.log('Signup successful, JWT token stored');
+      // Populate Zustand store with user data
+      useUserStore.getState().setUser({
+        id: user.uid,
+        name: name || user.displayName || user.email?.split('@')[0] || 'User',
+        email: user.email || '',
+        avatarUrl: profileImageUrl || '',
+        profileImage: profileImageUrl || ''
+      });
+      
+      console.log('Signup successful, JWT token stored, Zustand store populated');
       
     } catch (err: unknown) {
       console.error('Email sign up error:', err);
@@ -290,11 +318,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signOut(auth);
       clearAuthToken();
       setGuestMode(false);
+      
+      // Clear Zustand store
+      useUserStore.getState().clearUser();
+      
     } catch (error) {
       console.error('Sign out error:', error);
       // Force clear even if Firebase signOut fails
       clearAuthToken();
       setGuestMode(false);
+      
+      // Clear Zustand store
+      useUserStore.getState().clearUser();
     }
   };
 

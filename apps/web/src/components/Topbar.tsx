@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import SmartSearch from './SmartSearch';
 import NotificationBell from './notifications/NotificationBell';
 import { useProfileImageSync } from '@/hooks/useProfileImageSync';
+import { useUserStore } from '@/stores/useUserStore';
 
 interface TopbarProps {
   sidebarCollapsed: boolean;
@@ -28,6 +29,7 @@ interface TopbarProps {
 export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProps) {
   const { user, signOutUser, isGuest, profileImageUrl } = useAuth();
   const { getCurrentProfileImage, hasImageChanged } = useProfileImageSync();
+  const { user: storeUser } = useUserStore();
   const [avatarLoading, setAvatarLoading] = useState(false);
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
@@ -38,6 +40,9 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   const [plan, setPlan] = useState<'free' | 'premium'>('free');
   const isPremium = plan === 'premium';
   const SUGGEST_FEATURE_URL = 'https://forms.gle/';
+
+  // Get the most up-to-date profile image from the store
+  const currentProfileImage = storeUser?.profileImage || profileImageUrl || user?.photoURL;
 
   // Theme handling (light/dark/system)
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
@@ -61,13 +66,13 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
 
   // Monitor profile image changes and show loading state
   useEffect(() => {
-    if (hasImageChanged()) {
+    if (hasImageChanged() || storeUser?.profileImage !== profileImageUrl) {
       setAvatarLoading(true);
       // Hide loading after a short delay to show the new image
       const timer = setTimeout(() => setAvatarLoading(false), 500);
       return () => clearTimeout(timer);
     }
-  }, [profileImageUrl, user?.photoURL, hasImageChanged]);
+  }, [profileImageUrl, user?.photoURL, hasImageChanged, storeUser?.profileImage]);
 
   // Ensure theme is applied on mount and reacts to system changes when in 'system' mode
   useEffect(() => {
@@ -199,17 +204,9 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   </div>
-                ) : profileImageUrl ? (
+                ) : currentProfileImage ? (
                   <img 
-                    src={profileImageUrl} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
-                    onLoad={() => setAvatarLoading(false)}
-                    onError={() => setAvatarLoading(false)}
-                  />
-                ) : user?.photoURL ? (
-                  <img 
-                    src={user.photoURL as string} 
+                    src={currentProfileImage} 
                     alt="Profile" 
                     className="w-full h-full object-cover"
                     onLoad={() => setAvatarLoading(false)}
@@ -233,17 +230,9 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         </div>
-                      ) : profileImageUrl ? (
+                      ) : currentProfileImage ? (
                         <img 
-                          src={profileImageUrl} 
-                          alt="Profile" 
-                          className="w-full h-full object-cover"
-                          onLoad={() => setAvatarLoading(false)}
-                          onError={() => setAvatarLoading(false)}
-                        />
-                      ) : user?.photoURL ? (
-                        <img 
-                          src={user.photoURL as string} 
+                          src={currentProfileImage} 
                           alt="Profile" 
                           className="w-full h-full object-cover"
                           onLoad={() => setAvatarLoading(false)}
