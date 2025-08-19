@@ -1,9 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { useAuth } from '@/contexts/AuthContext';
+import { Plus, Edit, Eye, Download, Share, Star, Calendar, MapPin, Building, DollarSign, Clock, Users, Award, Target, TrendingUp } from 'lucide-react';
+
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
 
 interface PortfolioResult {
   portfolioUrl?: string;

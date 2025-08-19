@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
+import { Bell, BellOff, Settings, Save, Check } from 'lucide-react';
+
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
 
 const API_URL = process.env.NODE_ENV === 'production'
   ? 'https://all-in-one-career-api.onrender.com'

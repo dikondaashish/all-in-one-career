@@ -16,6 +16,9 @@ import { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 
+// Force dynamic rendering to prevent static generation issues with theme system
+export const dynamic = 'force-dynamic';
+
 export default function AuthenticatedLayout({
   children,
 }: {

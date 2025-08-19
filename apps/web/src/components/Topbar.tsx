@@ -12,13 +12,14 @@
 
 'use client';
 
-import { User as UserIcon, Menu, LogOut, ChevronDown, ChevronRight, Palette, FileText, Lightbulb, WifiOff } from 'lucide-react';
+import { User as UserIcon, Menu, LogOut, ChevronDown, ChevronRight, Palette, FileText, Lightbulb, WifiOff, Sun, Moon, Monitor } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import SmartSearch from './SmartSearch';
 import NotificationBell from './notifications/NotificationBell';
 import { useUserStore } from '@/stores/useUserStore';
+import { useTheme } from '@/contexts/ThemeProvider';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://all-in-one-career-api.onrender.com'
@@ -32,6 +33,7 @@ interface TopbarProps {
 export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProps) {
   const { user, signOutUser, isGuest, isFallbackAuth, retryBackendConnection } = useAuth();
   const { user: storeUser } = useUserStore();
+  const { theme, setTheme } = useTheme();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [dbLoading, setDbLoading] = useState(true);
@@ -42,69 +44,22 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   const [plan, setPlan] = useState<'free' | 'premium'>('free');
   const isPremium = plan === 'premium';
   const SUGGEST_FEATURE_URL = 'https://forms.gle/';
-  // Enhanced theme system with proper initialization and system preference detection
-  const [theme, setTheme] = useState<'LIGHT' | 'DARK' | 'SYSTEM'>('SYSTEM');
-  const [systemPrefersDark, setSystemPrefersDark] = useState(false);
 
   // Fix: ensure client-ready flag is set so header doesn't stay on skeleton
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Helper: apply theme class to <html> and update CSS variables
-  const applyThemeClass = useCallback((t: 'LIGHT'|'DARK'|'SYSTEM') => {
-    const root = document.documentElement;
-    const body = document.body;
+  // Enhanced theme change function with backend sync
+  const changeTheme = useCallback(async (newTheme: 'light' | 'dark' | 'system') => {
+    console.log('Changing theme to:', newTheme);
     
-    // Remove existing theme classes
-    root.classList.remove('dark', 'light');
-    body.classList.remove('dark', 'light');
+    // Apply theme immediately using ThemeProvider
+    setTheme(newTheme);
     
-    // Apply theme
-    if (t === 'DARK') {
-      root.classList.add('dark');
-      body.classList.add('dark');
-      body.style.colorScheme = 'dark';
-    } else if (t === 'LIGHT') {
-      root.classList.add('light');
-      body.classList.add('light');
-      body.style.colorScheme = 'light';
-    } else if (t === 'SYSTEM') {
-      // System preference
-      if (systemPrefersDark) {
-        root.classList.add('dark');
-        body.classList.add('dark');
-        body.style.colorScheme = 'dark';
-      } else {
-        root.classList.add('light');
-        body.classList.add('light');
-        body.style.colorScheme = 'light';
-      }
-    }
-    
-    // Update CSS custom properties for smooth transitions
-    if (t === 'DARK' || (t === 'SYSTEM' && systemPrefersDark)) {
-      document.documentElement.style.setProperty('--background', '#0a0a0a');
-      document.documentElement.style.setProperty('--foreground', '#ededed');
-    } else {
-      document.documentElement.style.setProperty('--background', '#ffffff');
-      document.documentElement.style.setProperty('--foreground', '#171717');
-    }
-  }, [systemPrefersDark]);
-
-  // Enhanced theme change function with immediate feedback
-  const changeTheme = useCallback(async (t: 'LIGHT'|'DARK'|'SYSTEM') => {
-    console.log('Changing theme to:', t);
-    
-    // Apply theme immediately for instant feedback
-    setTheme(t);
-    applyThemeClass(t);
-    
-    // Persist to localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('theme', t);
-      console.log('Theme saved to localStorage:', t);
-    }
+    // Close dropdowns
+    setShowDropdown(false);
+    setShowThemeSubmenu(false);
 
     // Persist to backend (fire-and-forget)
     try {
@@ -116,7 +71,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ theme: t })
+        body: JSON.stringify({ theme: newTheme.toUpperCase() })
       });
       
       if (response.ok) {
@@ -127,43 +82,9 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
     } catch (error) {
       console.error('Error saving theme to backend:', error);
     }
-  }, [applyThemeClass, user]);
+  }, [setTheme, user]);
 
-  // Initialize theme system on mount
-  useEffect(() => {
-    if (!isClient) return;
-    
-    // Set up system preference listener
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleSystemChange = (e: MediaQueryListEvent) => {
-      setSystemPrefersDark(e.matches);
-      // If current theme is SYSTEM, apply the new system preference
-      if (theme === 'SYSTEM') {
-        applyThemeClass('SYSTEM');
-      }
-    };
-    
-    // Set initial system preference
-    setSystemPrefersDark(mediaQuery.matches);
-    
-    // Listen for system preference changes
-    mediaQuery.addEventListener('change', handleSystemChange);
-    
-    // Get theme from localStorage or default to SYSTEM
-    const savedTheme = localStorage.getItem('theme') as 'LIGHT'|'DARK'|'SYSTEM'|null;
-    const initialTheme = savedTheme || 'SYSTEM';
-    
-    console.log('Initializing theme system:', { savedTheme, initialTheme, systemPrefersDark: mediaQuery.matches });
-    
-    setTheme(initialTheme);
-    applyThemeClass(initialTheme);
-    
-    return () => {
-      mediaQuery.removeEventListener('change', handleSystemChange);
-    };
-  }, [isClient, applyThemeClass, theme]);
-
-  // Enhanced DB theme fetching with proper fallback
+  // Fetch DB user once on client to avoid flashing Google avatar and get theme
   useEffect(() => {
     let isMounted = true;
     const run = async () => {
@@ -178,9 +99,8 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
           }
           if (data?.theme && data.theme !== theme) {
             console.log('DB theme found, updating:', data.theme);
-            setTheme(data.theme);
-            localStorage.setItem('theme', data.theme);
-            applyThemeClass(data.theme);
+            const themeLower = data.theme.toLowerCase() as 'light' | 'dark' | 'system';
+            setTheme(themeLower);
           }
         }
       } catch (error) {
@@ -190,7 +110,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
     };
     run();
     return () => { isMounted = false; };
-  }, [user, applyThemeClass, theme]);
+  }, [user, theme, setTheme]);
 
   // Source of truth: after DB fetched, use custom avatar if exists; otherwise fallback
   const resolvedAvatar = !dbLoading
@@ -378,18 +298,25 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
 
                     {showThemeSubmenu && (
                       <div className="w-full bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 mt-1">
-                        {(['LIGHT','DARK','SYSTEM'] as const).map((opt) => (
+                        {([
+                          { value: 'light', icon: Sun, label: 'Light' },
+                          { value: 'dark', icon: Moon, label: 'Dark' },
+                          { value: 'system', icon: Monitor, label: 'System' }
+                        ] as const).map(({ value, icon: Icon, label }) => (
                           <button
-                            key={opt}
-                            onClick={() => { changeTheme(opt); setShowDropdown(false); setShowThemeSubmenu(false); }}
+                            key={value}
+                            onClick={() => { changeTheme(value); }}
                             className={`w-full text-left px-8 py-2.5 text-[14px] hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between ${
-                              theme === opt 
+                              theme === value 
                                 ? 'font-semibold text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700' 
                                 : 'text-gray-700 dark:text-gray-300'
                             }`}
                           >
-                            <span>{opt.charAt(0) + opt.slice(1).toLowerCase()}</span>
-                            {theme === opt && (
+                            <div className="flex items-center gap-3">
+                              <Icon className="w-4 h-4" />
+                              <span>{label}</span>
+                            </div>
+                            {theme === value && (
                               <div className="w-2 h-2 bg-[#006B53] dark:bg-[#00d4aa] rounded-full"></div>
                             )}
                           </button>
