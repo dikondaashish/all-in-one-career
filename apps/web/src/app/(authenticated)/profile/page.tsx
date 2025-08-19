@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { User, Camera, Save } from 'lucide-react';
 import RouteGuard from '@/components/RouteGuard';
 import { useUserStore } from '@/stores/useUserStore';
+import { auth } from '@/lib/firebase';
 
 // Environment-based API configuration
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
@@ -183,19 +184,34 @@ function ProfileContent() {
       console.log('Uploading avatar with token:', authToken ? 'present' : 'missing');
       
       // Upload avatar
-      const response = await fetch(`${API_BASE_URL}/api/profile/upload-avatar`, {
+      let response = await fetch(`${API_BASE_URL}/api/profile/upload-avatar`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-        },
+        headers: { 'Authorization': `Bearer ${authToken}` },
         body: formData,
       });
+
+      // If unauthorized, refresh token once and retry
+      if (response.status === 401 && user) {
+        try {
+          const freshToken = await user.getIdToken(true);
+          response = await fetch(`${API_BASE_URL}/api/profile/upload-avatar`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${freshToken}` },
+            body: formData,
+          });
+        } catch (refreshErr) {
+          console.error('Failed to refresh token:', refreshErr);
+        }
+      }
 
       console.log('Upload response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Upload failed with status:', response.status, 'Error:', errorData);
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please log in again.');
+        }
         throw new Error(errorData.error || `Upload failed with status ${response.status}. Please try again.`);
       }
 
