@@ -18,6 +18,9 @@ import {
   BarChart3
 } from 'lucide-react';
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
+
 interface DashboardStats {
   atsScans: number;
   portfolios: number;

@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { BarChart3, TrendingUp, Clock, Search, MessageCircle } from 'lucide-react';
+import { Search, TrendingUp, BarChart3, PieChart, LineChart, Calendar, Filter, Download, Share, Eye, Clock, Target, Award, Users, Building, MessageCircle } from 'lucide-react';
+
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
 
 // Environment-based API configuration
 const API_BASE_URL = process.env.NODE_ENV === 'production' 

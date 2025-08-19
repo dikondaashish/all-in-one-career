@@ -2,6 +2,9 @@
 
 import { HelpCircle, Search, FileText, Briefcase, Mail, Users, ClipboardList, BarChart3 } from 'lucide-react';
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
+
 export default function HelpPage() {
   return (
     <div className="min-h-screen bg-[#F0F2F5] pt-18">

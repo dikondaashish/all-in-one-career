@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { Plus, Search, Filter, Calendar, MapPin, Building, DollarSign, Clock, Eye, Edit, Trash2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
 
 interface Application {
   id: string;
