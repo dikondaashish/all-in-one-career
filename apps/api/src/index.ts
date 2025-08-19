@@ -19,6 +19,7 @@ import searchRouter from './routes/search';
 import askRouter from './routes/ask';
 import searchInsightsRouter from './routes/search-insights';
 import authRouter from './routes/auth';
+import { notificationsRouter } from './routes/notifications';
 
 
 const app = express();
@@ -371,6 +372,7 @@ app.use('/search', optionalAuth, searchRouter(prisma, logger));
 app.use('/ask', optionalAuth, askRouter(prisma, logger));
 app.use('/search-insights', optionalAuth, searchInsightsRouter(prisma, logger));
 app.use('/api/auth', authRouter(prisma));
+app.use('/api/notifications', authenticateToken, notificationsRouter(prisma));
 
 
 

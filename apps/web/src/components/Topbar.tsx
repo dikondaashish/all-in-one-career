@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import SmartSearch from './SmartSearch';
+import NotificationBell from './notifications/NotificationBell';
 
 import { useUserStore } from '@/stores/useUserStore';
 import { useTheme } from '@/contexts/ThemeProvider';
@@ -213,7 +214,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
             </button>
 
             {/* Notifications */}
-    
+            <NotificationBell />
 
             {/* User Avatar + Chevron */}
             <div className="relative user-dropdown">

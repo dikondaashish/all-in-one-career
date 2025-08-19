@@ -1,0 +1,104 @@
+import useSWR from 'swr';
+import { useAuth } from '@/contexts/AuthContext';
+
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://all-in-one-career-api.onrender.com'
+  : 'http://localhost:4000';
+
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  archived: boolean;
+}
+
+const fetcher = async (url: string, token: string): Promise<Notification[]> => {
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch notifications: ${response.status}`);
+  }
+
+  return response.json();
+};
+
+export function useNotifications() {
+  const { user } = useAuth();
+
+  const { data: notifications, error, isLoading, mutate } = useSWR(
+    user ? ['/api/notifications', user] : null,
+    async ([url, user]) => {
+      const token = await user.getIdToken();
+      return fetcher(url, token);
+    },
+    {
+      refreshInterval: 30000, // Poll every 30 seconds
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+    }
+  );
+
+  const markAsRead = async (notificationId: string) => {
+    if (!user) return;
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_BASE_URL}/api/notifications/mark-read/${notificationId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Refetch notifications to update the UI
+        mutate();
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    if (!user) return;
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_BASE_URL}/api/notifications/mark-all-read`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Refetch notifications to update the UI
+        mutate();
+      }
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  const unreadCount = notifications?.filter(n => !n.isRead && !n.archived).length || 0;
+
+  return {
+    notifications: notifications || [],
+    unreadCount,
+    isLoading,
+    error,
+    markAsRead,
+    markAllAsRead,
+    mutate,
+  };
+}
