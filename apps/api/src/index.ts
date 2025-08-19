@@ -32,7 +32,14 @@ const server = createServer(app);
 initFirebase();
 
 // Initialize WebSocket notification server
-const wsNotificationServer = new NotificationWebSocketServer(server, prisma);
+let wsNotificationServer: NotificationWebSocketServer | null = null;
+try {
+  wsNotificationServer = new NotificationWebSocketServer(server, prisma);
+  console.log('✅ WebSocket Notification Server initialized successfully');
+} catch (error) {
+  console.error('❌ Failed to initialize WebSocket Notification Server:', error);
+  wsNotificationServer = null;
+}
 
 // Configure CORS for frontend domains
 app.use(cors({
@@ -519,4 +526,15 @@ app.get('/api/logout', (req: any, res) => {
 });
 
 const PORT = Number(process.env.PORT || 4000);
-server.listen(PORT, () => logger.info(`API running on port ${PORT}`));
+server.listen(PORT, () => {
+  logger.info(`API running on port ${PORT}`);
+  logger.info(`WebSocket server ${wsNotificationServer ? 'enabled' : 'disabled'}`);
+});
+
+// Handle server errors
+server.on('error', (error: any) => {
+  logger.error('Server error:', error);
+  if (error.code === 'EADDRINUSE') {
+    logger.error(`Port ${PORT} is already in use`);
+  }
+});
