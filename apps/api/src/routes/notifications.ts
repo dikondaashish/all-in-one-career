@@ -5,17 +5,34 @@ import { authenticateToken } from '../middleware/auth';
 export function notificationsRouter(prisma: PrismaClient): Router {
   const router = Router();
 
-  // GET /api/notifications - Get user's notifications
+  // GET /api/notifications - Get user's notifications with filtering
   router.get('/', authenticateToken, async (req: any, res) => {
     try {
       const userId = req.user.uid;
       const limit = parseInt(req.query.limit as string) || 20;
+      const filter = req.query.filter as string || 'unread'; // unread, all, archived
+      
+      let whereClause: any = {
+        userId,
+      };
+
+      // Apply filters
+      switch (filter) {
+        case 'unread':
+          whereClause.isRead = false;
+          whereClause.archived = false;
+          break;
+        case 'archived':
+          whereClause.archived = true;
+          break;
+        case 'all':
+        default:
+          // No additional filters - show all
+          break;
+      }
       
       const notifications = await prisma.notification.findMany({
-        where: {
-          userId,
-          archived: false
-        },
+        where: whereClause,
         orderBy: {
           createdAt: 'desc'
         },
@@ -27,7 +44,8 @@ export function notificationsRouter(prisma: PrismaClient): Router {
           message: true,
           isRead: true,
           createdAt: true,
-          archived: true
+          archived: true,
+          metadata: true
         }
       });
 
@@ -41,7 +59,7 @@ export function notificationsRouter(prisma: PrismaClient): Router {
   // POST /api/notifications - Create notification (internal use)
   router.post('/', authenticateToken, async (req: any, res) => {
     try {
-      const { userId, type, title, message } = req.body;
+      const { userId, type, title, message, metadata } = req.body;
       
       if (!userId || !type || !title || !message) {
         return res.status(400).json({ 
@@ -56,7 +74,8 @@ export function notificationsRouter(prisma: PrismaClient): Router {
           title,
           message,
           isRead: false,
-          archived: false
+          archived: false,
+          metadata: metadata || null
         }
       });
 
@@ -116,6 +135,64 @@ export function notificationsRouter(prisma: PrismaClient): Router {
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
       res.status(500).json({ error: 'Failed to mark all notifications as read' });
+    }
+  });
+
+  // POST /api/notifications/archive/:id - Archive a notification
+  router.post('/archive/:id', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.uid;
+      const notificationId = req.params.id;
+
+      const notification = await prisma.notification.findFirst({
+        where: {
+          id: notificationId,
+          userId
+        }
+      });
+
+      if (!notification) {
+        return res.status(404).json({ error: 'Notification not found' });
+      }
+
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: { archived: true }
+      });
+
+      res.json({ success: true, message: 'Notification archived' });
+    } catch (error) {
+      console.error('Error archiving notification:', error);
+      res.status(500).json({ error: 'Failed to archive notification' });
+    }
+  });
+
+  // POST /api/notifications/unarchive/:id - Unarchive a notification
+  router.post('/unarchive/:id', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.uid;
+      const notificationId = req.params.id;
+
+      const notification = await prisma.notification.findFirst({
+        where: {
+          id: notificationId,
+          userId
+        }
+      });
+
+      if (!notification) {
+        return res.status(404).json({ error: 'Notification not found' });
+      }
+
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: { archived: false }
+      });
+
+      res.json({ success: true, message: 'Notification unarchived' });
+    } catch (error) {
+      console.error('Error unarchiving notification:', error);
+      res.status(500).json({ error: 'Failed to unarchive notification' });
     }
   });
 
