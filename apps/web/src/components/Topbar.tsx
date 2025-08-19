@@ -14,7 +14,7 @@
 
 import { User as UserIcon, Menu, LogOut, ChevronDown, ChevronRight, Palette, FileText, Lightbulb } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import SmartSearch from './SmartSearch';
 import NotificationBell from './notifications/NotificationBell';
@@ -42,8 +42,45 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   const [plan, setPlan] = useState<'free' | 'premium'>('free');
   const isPremium = plan === 'premium';
   const SUGGEST_FEATURE_URL = 'https://forms.gle/';
+  const [theme, setTheme] = useState<'LIGHT' | 'DARK' | 'SYSTEM'>('SYSTEM');
 
-  // Fetch DB user once on client to avoid flashing Google avatar
+  // Helper: apply theme class to <html>
+  const applyThemeClass = useCallback((t: 'LIGHT'|'DARK'|'SYSTEM') => {
+    const root = document.documentElement;
+    // Normalize
+    root.classList.remove('dark');
+    if (t === 'DARK') {
+      root.classList.add('dark');
+    } else if (t === 'SYSTEM') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) root.classList.add('dark');
+    }
+  }, []);
+
+  // Change theme: apply instantly, persist locally, send to API
+  const changeTheme = useCallback(async (t: 'LIGHT'|'DARK'|'SYSTEM') => {
+    setTheme(t);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('theme', t);
+      applyThemeClass(t);
+    }
+
+    // Persist to backend (fire-and-forget)
+    try {
+      if (!user) return;
+      const token = await user.getIdToken();
+      await fetch(`${API_BASE_URL}/api/profile/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ theme: t })
+      });
+    } catch {}
+  }, [applyThemeClass, user]);
+
+  // Fetch DB user once on client to avoid flashing Google avatar and get theme
   useEffect(() => {
     let isMounted = true;
     const run = async () => {
@@ -54,8 +91,12 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
         if (res.ok) {
           const data = await res.json();
           if (data?.profileImage) {
-            // write into store so it becomes single source of truth
             try { useUserStore.getState().updateProfileImage(data.profileImage); } catch {}
+          }
+          if (data?.theme) {
+            setTheme(data.theme);
+            if (typeof window !== 'undefined') localStorage.setItem('theme', data.theme);
+            if (typeof window !== 'undefined') applyThemeClass(data.theme);
           }
         }
       } catch {}
@@ -63,7 +104,16 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
     };
     run();
     return () => { isMounted = false; };
-  }, [user]);
+  }, [user, applyThemeClass]);
+
+  // On mount: if no DB theme yet, fall back to localStorage, else system
+  useEffect(() => {
+    if (!isClient) return;
+    const local = (typeof window !== 'undefined' && localStorage.getItem('theme')) as 'LIGHT'|'DARK'|'SYSTEM'|null;
+    const initial = local || 'SYSTEM';
+    setTheme(initial);
+    applyThemeClass(initial);
+  }, [isClient, applyThemeClass]);
 
   // Source of truth: after DB fetched, use custom avatar if exists; otherwise fallback
   const resolvedAvatar = !dbLoading
@@ -71,68 +121,6 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
         ? storeUser.profileImage
         : (user?.photoURL || ''))
     : '';
-
-  // Theme handling (light/dark/system)
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
-    if (typeof window === 'undefined') return 'system';
-    return (localStorage.getItem('theme') as 'light' | 'dark' | 'system') || 'system';
-  });
-
-  const applyTheme = (next: 'light' | 'dark' | 'system') => {
-    setTheme(next);
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('theme', next);
-    const root = document.documentElement;
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const shouldDark = next === 'dark' || (next === 'system' && prefersDark);
-    root.classList.toggle('dark', shouldDark);
-  };
-
-  useEffect(() => { setIsClient(true); }, []);
-
-  // Ensure theme is applied on mount and reacts to system changes when in 'system' mode
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!isClient) return;
-
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-
-    type LegacyMediaQueryList = MediaQueryList & {
-      addListener?: (listener: (this: MediaQueryList, ev: MediaQueryListEvent) => void) => void;
-      removeListener?: (listener: (this: MediaQueryList, ev: MediaQueryListEvent) => void) => void;
-    };
-
-    const applyFromCurrentSetting = () => {
-      const stored = (localStorage.getItem('theme') as 'light' | 'dark' | 'system') || theme || 'system';
-      const shouldDark = stored === 'dark' || (stored === 'system' && media.matches);
-      document.documentElement.classList.toggle('dark', shouldDark);
-    };
-
-    applyFromCurrentSetting();
-
-    const handleSystemChange = (e: MediaQueryListEvent) => {
-      const current = (localStorage.getItem('theme') as 'light' | 'dark' | 'system') || theme || 'system';
-      if (current === 'system') {
-        document.documentElement.classList.toggle('dark', e.matches);
-      }
-    };
-
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', handleSystemChange);
-    } else {
-      const legacy = media as LegacyMediaQueryList;
-      legacy.addListener?.(handleSystemChange);
-    }
-
-    return () => {
-      if (typeof media.removeEventListener === 'function') {
-        media.removeEventListener('change', handleSystemChange);
-      } else {
-        const legacy = media as LegacyMediaQueryList;
-        legacy.removeListener?.(handleSystemChange);
-      }
-    };
-  }, [isClient, theme]);
 
   // Update user display info when user changes
   useEffect(() => {
@@ -290,13 +278,13 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
 
                   {showThemeSubmenu && (
                     <div className="absolute top-0 left-full ml-2 w-48 bg-white rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.12)] border border-gray-100 py-2 z-50">
-                      {(['light','dark','system'] as const).map((opt) => (
+                      {(['LIGHT','DARK','SYSTEM'] as const).map((opt) => (
                         <button
                           key={opt}
-                          onClick={() => { applyTheme(opt); setShowDropdown(false); setShowThemeSubmenu(false); }}
+                          onClick={() => { changeTheme(opt); setShowDropdown(false); setShowThemeSubmenu(false); }}
                           className={`w-full text-left px-4 py-2 text-[14px] hover:bg-gray-50 ${theme === opt ? 'font-semibold text-gray-900' : 'text-gray-800'}`}
                         >
-                          {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                          {opt.charAt(0) + opt.slice(1).toLowerCase()}
                         </button>
                       ))}
                     </div>
