@@ -457,10 +457,14 @@ app.post('/api/notifications/announce', async (req: any, res) => {
       // Push real-time notification if WebSocket is available
       if (wsNotificationServer) {
         try {
-          await wsNotificationServer.pushNotificationToUser(user.id, notification);
+          console.log(`🔌 Attempting WebSocket push to user ${user.id} for notification ${notification.id}`);
+          const pushResult = await wsNotificationServer.pushNotificationToUser(user.id, notification);
+          console.log(`🔌 WebSocket push result for user ${user.id}:`, pushResult);
         } catch (wsError) {
           console.log(`WebSocket push failed for user ${user.id}:`, wsError);
         }
+      } else {
+        console.log('🔌 WebSocket server not available for real-time push');
       }
     }
 
