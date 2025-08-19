@@ -75,9 +75,15 @@ export function useRealtimeNotifications() {
         } else if (message.type === 'notification') {
           console.log('📨 Real-time notification received:', message.data);
           
-          // Refresh notifications list to show new notification in UI
+          // Force immediate refresh of notifications list to show new notification in UI
           console.log('🔄 Calling refresh() to update notifications...');
           refresh();
+          
+          // Also trigger a manual SWR revalidation to ensure fresh data
+          setTimeout(() => {
+            console.log('🔄 Triggering additional SWR revalidation...');
+            refresh();
+          }, 100);
         }
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);
@@ -89,6 +95,10 @@ export function useRealtimeNotifications() {
       clearTimeout(connectionTimeout); // Clear connection timeout
       setConnectionStatus('disconnected');
       
+      // Start polling immediately as fallback
+      console.log('🔄 WebSocket disconnected, starting polling fallback...');
+      startPolling();
+      
       // Attempt to reconnect if not a clean close
       if (event.code !== 1000 && reconnectAttemptsRef.current < maxReconnectAttempts) {
         setConnectionStatus('reconnecting');
@@ -99,9 +109,8 @@ export function useRealtimeNotifications() {
           connectWebSocket();
         }, 2000 * reconnectAttemptsRef.current); // Exponential backoff
       } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-        console.log('🔌 Max reconnection attempts reached, falling back to polling');
+        console.log('🔌 Max reconnection attempts reached, continuing with polling');
         setConnectionStatus('polling');
-        startPolling();
       }
     };
 
@@ -127,10 +136,11 @@ export function useRealtimeNotifications() {
   const startPolling = useCallback(() => {
     if (pollingIntervalRef.current) return;
     
-    console.log('🔄 Starting notification polling (15s interval)');
+    console.log('🔄 Starting notification polling (10s interval)');
     pollingIntervalRef.current = setInterval(() => {
+      console.log('🔄 Polling for new notifications...');
       refresh();
-    }, 15000);
+    }, 10000); // Reduced from 15s to 10s
   }, [refresh]);
 
   // Disconnect WebSocket
