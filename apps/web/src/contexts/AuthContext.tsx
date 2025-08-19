@@ -3,14 +3,15 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { 
   User, 
-  signInWithPopup, 
+  signInWithRedirect, 
   signOut, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   setPersistence,
   browserLocalPersistence,
-  browserSessionPersistence
+  browserSessionPersistence,
+  getRedirectResult
 } from 'firebase/auth';
 import { auth, provider } from '@/lib/firebase';
 import { useUserStore } from '@/stores/useUserStore';
@@ -72,151 +73,139 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
-  const signIn = async () => {
-    const maxRetries = 2;
-    let lastError: Error | null = null;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  // Handle redirect result from Google sign-in
+  useEffect(() => {
+    const handleRedirectResult = async () => {
       try {
-        console.log(`Google sign-in attempt ${attempt}/${maxRetries}`);
-        
-        // STEP 2: Google Firebase authentication first
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
-        
-        // Get Firebase ID token
-        const firebaseToken = await user.getIdToken();
-        
-        // Call backend to get JWT token
-        const API_BASE_URL = process.env.NODE_ENV === 'production' 
-          ? 'https://all-in-one-career-api.onrender.com'
-          : 'http://localhost:4000';
-        
-        console.log('Attempting to connect to backend at:', API_BASE_URL);
-        
-        // Test backend connectivity first with timeout
-        let healthCheckPassed = false;
-        try {
-          const healthController = new AbortController();
-          const healthTimeout = setTimeout(() => healthController.abort(), 10000); // 10 second timeout
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log('Google sign-in redirect result received:', result.user.email);
           
-          const healthResponse = await fetch(`${API_BASE_URL}/health`, {
-            signal: healthController.signal
+          const user = result.user;
+          const firebaseToken = await user.getIdToken();
+          
+          // Call backend to get JWT token
+          const API_BASE_URL = process.env.NODE_ENV === 'production' 
+            ? 'https://all-in-one-career-api.onrender.com'
+            : 'http://localhost:4000';
+          
+          console.log('Processing backend authentication for redirect result');
+          
+          // Test backend connectivity first
+          let healthCheckPassed = false;
+          try {
+            const healthController = new AbortController();
+            const healthTimeout = setTimeout(() => healthController.abort(), 10000);
+            
+            const healthResponse = await fetch(`${API_BASE_URL}/health`, {
+              signal: healthController.signal
+            });
+            
+            clearTimeout(healthTimeout);
+            
+            if (healthResponse.ok) {
+              console.log('Backend health check passed:', healthResponse.status);
+              healthCheckPassed = true;
+            } else {
+              console.error('Backend health check failed with status:', healthResponse.status);
+            }
+          } catch (healthError: unknown) {
+            console.error('Backend health check failed:', healthError);
+            if (healthError instanceof Error && healthError.name === 'AbortError') {
+              console.warn('Backend server is not responding, using fallback authentication');
+              await signInWithFallback(user);
+              return;
+            }
+            console.warn('Cannot connect to backend server, using fallback authentication');
+            await signInWithFallback(user);
+            return;
+          }
+          
+          if (!healthCheckPassed) {
+            console.log('Backend unavailable, using fallback authentication');
+            await signInWithFallback(user);
+            return;
+          }
+          
+          // Now attempt the actual authentication
+          const authController = new AbortController();
+          const authTimeout = setTimeout(() => authController.abort(), 15000);
+          
+          const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              firebaseToken,
+              email: user.email,
+              photoURL: user.photoURL,
+            }),
+            signal: authController.signal
           });
           
-          clearTimeout(healthTimeout);
-          
-          if (healthResponse.ok) {
-            console.log('Backend health check passed:', healthResponse.status);
-            healthCheckPassed = true;
-          } else {
-            console.error('Backend health check failed with status:', healthResponse.status);
-          }
-        } catch (healthError: unknown) {
-          console.error('Backend health check failed:', healthError);
-          if (healthError instanceof Error && healthError.name === 'AbortError') {
-            throw new Error('Backend server is not responding. Please try again later.');
-          }
-          throw new Error('Cannot connect to backend server. Please check your internet connection and try again.');
-        }
-        
-        if (!healthCheckPassed) {
-          // If backend health check fails, offer fallback authentication
-          console.log('Backend unavailable, offering fallback authentication');
-          await signInWithFallback(user);
-          return;
-        }
-          
-        // Now attempt the actual authentication
-        const authController = new AbortController();
-        const authTimeout = setTimeout(() => authController.abort(), 15000); // 15 second timeout for auth
-        
-        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            firebaseToken,
-            email: user.email,
-            photoURL: user.photoURL, // Send Google profile photo URL
-          }),
-          signal: authController.signal
-        });
-        
-        clearTimeout(authTimeout);
+          clearTimeout(authTimeout);
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          console.error('Backend auth error:', response.status, errorData);
-          
-          if (response.status === 500) {
-            throw new Error('Server error occurred. Please try again later.');
-          } else if (response.status === 401) {
-            throw new Error('Authentication failed. Please try again.');
-          } else if (response.status === 404) {
-            throw new Error('Authentication service not found. Please contact support.');
-          } else {
-            throw new Error(`Authentication failed: ${response.status}. Please try again.`);
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Backend auth error:', response.status, errorData);
+            
+            if (response.status === 500) {
+              console.warn('Server error occurred, using fallback authentication');
+              await signInWithFallback(user);
+              return;
+            } else if (response.status === 401) {
+              console.warn('Authentication failed, using fallback authentication');
+              await signInWithFallback(user);
+              return;
+            } else if (response.status === 404) {
+              console.warn('Authentication service not found, using fallback authentication');
+              await signInWithFallback(user);
+              return;
+            } else {
+              console.warn(`Authentication failed: ${response.status}, using fallback authentication`);
+              await signInWithFallback(user);
+              return;
+            }
           }
-        }
 
-        const { token } = await response.json();
-        
-        // Store JWT token in localStorage
-        setAuthToken(token);
-        
-        // Populate Zustand store with user data
-        useUserStore.getState().setUser({
-          id: user.uid,
-          name: user.displayName || 'User',
-          email: user.email || '',
-          avatarUrl: user.photoURL || '',
-          profileImage: user.photoURL || ''
-        });
-        
-        console.log('Google login successful, JWT token stored, Zustand store populated');
-        return; // Success, exit retry loop
-        
-      } catch (error: unknown) {
-        console.error(`Google sign in error (attempt ${attempt}):`, error);
-        lastError = error instanceof Error ? error : new Error('Unknown error occurred');
-        
-        // Don't retry for certain errors
-        if (error instanceof Error) {
-          if (error.message.includes('popup-closed') || error.message.includes('cancelled')) {
-            throw error; // Don't retry user-cancelled actions
-          }
-          if (error.message.includes('auth/popup-closed-by-user')) {
-            throw error; // Don't retry user-cancelled popup
-          }
+          const { token } = await response.json();
+          
+          // Store JWT token in localStorage
+          setAuthToken(token);
+          
+          // Populate Zustand store with user data
+          useUserStore.getState().setUser({
+            id: user.uid,
+            name: user.displayName || 'User',
+            email: user.email || '',
+            avatarUrl: user.photoURL || '',
+            profileImage: user.photoURL || ''
+          });
+          
+          console.log('Google login successful via redirect, JWT token stored, Zustand store populated');
         }
-        
-        // If this is the last attempt, throw the error
-        if (attempt === maxRetries) {
-          break;
-        }
-        
-        // Wait before retrying (exponential backoff)
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 3000);
-        console.log(`Waiting ${delay}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+      } catch (error) {
+        console.error('Error handling redirect result:', error);
+        // Don't throw here as this is just handling the redirect result
       }
+    };
+
+    handleRedirectResult();
+  }, []);
+
+  const signIn = async () => {
+    try {
+      console.log('Initiating Google sign-in with redirect');
+      
+      // Use redirect instead of popup to avoid COOP issues
+      await signInWithRedirect(auth, provider);
+      // Note: The actual authentication will happen after redirect back to the app
+      // The result will be handled in the useEffect below
+    } catch (error) {
+      console.error('Google sign-in redirect failed:', error);
+      throw new Error('Google sign-in failed. Please try again.');
     }
-    
-    // If we get here, all retries failed
-    console.error('All Google sign-in attempts failed');
-    
-    // Provide more specific error messages for common issues
-    if (lastError instanceof TypeError && lastError.message === 'Failed to fetch') {
-      throw new Error('Cannot connect to server. Please check your internet connection and try again.');
-    }
-    
-    if (lastError instanceof Error && lastError.name === 'AbortError') {
-      throw new Error('Request timed out. Please try again.');
-    }
-    
-    throw lastError || new Error('Failed to sign in with Google. Please try again.');
   };
 
   const signInWithEmail = async (email: string, password: string) => {
