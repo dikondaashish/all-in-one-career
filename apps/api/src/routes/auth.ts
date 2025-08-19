@@ -72,7 +72,8 @@ export default function authRouter(prisma: PrismaClient): Router {
           uid: decodedToken.uid,
           email: decodedToken.email,
           name: existingUser.name,
-          profileImage: existingUser.profileImage
+          profileImage: existingUser.profileImage,
+          theme: (existingUser as any).theme ?? null
         }
       });
 
@@ -135,6 +136,7 @@ export default function authRouter(prisma: PrismaClient): Router {
             email: true,
             name: true,
             profileImage: true,
+            theme: true,
             atsScans: true,
             portfolios: true,
             emails: true,
@@ -172,7 +174,8 @@ export default function authRouter(prisma: PrismaClient): Router {
           uid: decodedToken.uid,
           email: decodedToken.email,
           name: existingUser.name,
-          profileImage: existingUser.profileImage
+          profileImage: existingUser.profileImage,
+          theme: (existingUser as any).theme ?? null
         }
       });
 

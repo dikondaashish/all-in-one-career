@@ -84,7 +84,8 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
           emails: true,
           referrals: true,
           trackerEvents: true,
-          profileImage: true // Added profileImage to select
+          profileImage: true, // Added profileImage to select
+          theme: true
         }
       });
 
@@ -104,6 +105,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         lastName,
         email: user.email,
         profileImage: user.profileImage, // Return actual profile image URL
+        theme: user.theme || null,
         stats: {
           atsScans: user.atsScans,
           portfolios: user.portfolios,
@@ -144,10 +146,16 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         return res.status(401).json({ error: 'Unauthorized - User not authenticated' });
       }
 
-      const { firstName, lastName, profileImage } = req.body;
+      const { firstName, lastName, profileImage, theme } = req.body;
 
-      if (!firstName || !lastName) {
-        return res.status(400).json({ error: 'First name and last name are required' });
+      // Allow partial updates: at least one of the fields must be provided
+      if (
+        (firstName === undefined || firstName === null) &&
+        (lastName === undefined || lastName === null) &&
+        (profileImage === undefined) &&
+        (theme === undefined)
+      ) {
+        return res.status(400).json({ error: 'No updatable fields provided' });
       }
 
       if (isGuestMode) {
@@ -214,18 +222,41 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         }
       }
 
-      // Update user name in database using the found ID
+      // Validate theme if provided
+      let themeValue: any = undefined;
+      if (typeof theme === 'string') {
+        const upper = theme.toUpperCase();
+        if (!['LIGHT','DARK','SYSTEM'].includes(upper)) {
+          return res.status(400).json({ error: 'Invalid theme value' });
+        }
+        themeValue = upper as any;
+      }
+
+      // Prepare update data
+      const updateData: any = {};
+      if (profileImage !== undefined) updateData.profileImage = profileImage || null;
+      if (themeValue !== undefined) updateData.theme = themeValue;
+      if (firstName !== undefined || lastName !== undefined) {
+        // If only one part provided, merge with existing value
+        const current = await prisma.user.findUnique({ where: { id: existingUser.id }, select: { name: true } });
+        const currentParts = (current?.name || '').split(' ');
+        const currentFirst = currentParts[0] || '';
+        const currentLast = currentParts.slice(1).join(' ');
+        const newFirst = firstName !== undefined ? String(firstName) : currentFirst;
+        const newLast = lastName !== undefined ? String(lastName) : currentLast;
+        updateData.name = `${newFirst} ${newLast}`.trim();
+      }
+
+      // Update user in database using the found ID
       const updatedUser = await prisma.user.update({
         where: { id: existingUser.id },
-        data: {
-          name: `${firstName} ${lastName}`.trim(),
-          profileImage: profileImage || null // Update profile image if provided
-        },
+        data: updateData,
         select: {
           id: true,
           email: true,
           name: true,
           profileImage: true,
+          theme: true,
           createdAt: true,
           atsScans: true,
           portfolios: true,
@@ -245,6 +276,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         lastName: updatedLastName,
         email: updatedUser.email,
         profileImage: updatedUser.profileImage, // Include profile image in response
+        theme: updatedUser.theme || null,
         stats: {
           atsScans: updatedUser.atsScans,
           portfolios: updatedUser.portfolios,
