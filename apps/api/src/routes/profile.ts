@@ -84,7 +84,8 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
           emails: true,
           referrals: true,
           trackerEvents: true,
-          profileImage: true // Added profileImage to select
+          profileImage: true, // Added profileImage to select
+          theme: true
         }
       });
 
@@ -104,6 +105,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         lastName,
         email: user.email,
         profileImage: user.profileImage, // Return actual profile image URL
+        theme: user.theme || null,
         stats: {
           atsScans: user.atsScans,
           portfolios: user.portfolios,
@@ -144,7 +146,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         return res.status(401).json({ error: 'Unauthorized - User not authenticated' });
       }
 
-      const { firstName, lastName, profileImage } = req.body;
+      const { firstName, lastName, profileImage, theme } = req.body;
 
       if (!firstName || !lastName) {
         return res.status(400).json({ error: 'First name and last name are required' });
@@ -214,18 +216,30 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         }
       }
 
+      // Validate theme if provided
+      let themeValue: any = undefined;
+      if (typeof theme === 'string') {
+        const upper = theme.toUpperCase();
+        if (!['LIGHT','DARK','SYSTEM'].includes(upper)) {
+          return res.status(400).json({ error: 'Invalid theme value' });
+        }
+        themeValue = upper as any;
+      }
+
       // Update user name in database using the found ID
       const updatedUser = await prisma.user.update({
         where: { id: existingUser.id },
         data: {
           name: `${firstName} ${lastName}`.trim(),
-          profileImage: profileImage || null // Update profile image if provided
+          profileImage: profileImage || null, // Update profile image if provided
+          theme: themeValue
         },
         select: {
           id: true,
           email: true,
           name: true,
           profileImage: true,
+          theme: true,
           createdAt: true,
           atsScans: true,
           portfolios: true,
@@ -245,6 +259,7 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
         lastName: updatedLastName,
         email: updatedUser.email,
         profileImage: updatedUser.profileImage, // Include profile image in response
+        theme: updatedUser.theme || null,
         stats: {
           atsScans: updatedUser.atsScans,
           portfolios: updatedUser.portfolios,
