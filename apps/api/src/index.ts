@@ -485,15 +485,43 @@ app.get('/api/logout', (req: any, res) => {
 });
 
 const PORT = Number(process.env.PORT || 4000);
-server.listen(PORT, () => {
-  logger.info(`API running on port ${PORT}`);
 
+// Enhanced server configuration for Render
+server.listen(PORT, '0.0.0.0', () => {
+  logger.info(`🚀 API server started successfully`);
+  logger.info(`📍 Listening on port ${PORT}`);
+  logger.info(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`🔗 Server URL: http://localhost:${PORT}`);
+  
+  // Log additional environment info for debugging
+  if (process.env.RENDER) {
+    logger.info('🎯 Running on Render platform');
+  }
 });
 
 // Handle server errors
 server.on('error', (error: any) => {
-  logger.error('Server error:', error);
+  logger.error('❌ Server error:', error);
   if (error.code === 'EADDRINUSE') {
     logger.error(`Port ${PORT} is already in use`);
+  } else if (error.code === 'EACCES') {
+    logger.error(`Permission denied to bind to port ${PORT}`);
   }
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  logger.info('🔄 SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    logger.info('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  logger.info('🔄 SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    logger.info('✅ Server closed');
+    process.exit(0);
+  });
 });
