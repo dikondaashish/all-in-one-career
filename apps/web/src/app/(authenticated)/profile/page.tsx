@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, Camera, Save } from 'lucide-react';
+import { User, Camera, Save, Edit3, X, Check, Upload, User as UserIcon } from 'lucide-react';
 import RouteGuard from '@/components/RouteGuard';
 import { useUserStore } from '@/stores/useUserStore';
 import { auth } from '@/lib/firebase';
+
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
 
 // Environment-based API configuration
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
