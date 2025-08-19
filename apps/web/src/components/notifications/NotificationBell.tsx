@@ -138,6 +138,19 @@ export default function NotificationBell() {
           )}
         </div>
       </button>
+      
+      {/* Manual Refresh Button (for testing) */}
+      <button
+        onClick={() => {
+          console.log('🔄 Manual refresh clicked');
+          refresh();
+        }}
+        className="ml-2 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+        aria-label="Manual refresh"
+        title="Manual refresh"
+      >
+        <RefreshCw className="w-4 h-4" />
+      </button>
 
       {/* Dropdown */}
       {isOpen && (

@@ -103,6 +103,9 @@ export class NotificationWebSocketServer {
     }
 
     try {
+      // Ensure user has default notification preferences
+      await this.ensureDefaultPreferences(userId);
+      
       // Check user preferences before sending
       const userPrefs = await this.prisma.notificationPreference.findMany({
         where: { userId },
@@ -183,6 +186,38 @@ export class NotificationWebSocketServer {
       'MESSAGE': 'activity'
     };
     return mapping[notificationType] || 'activity';
+  }
+
+  // Ensure user has default notification preferences
+  private async ensureDefaultPreferences(userId: string) {
+    try {
+      const existingPrefs = await this.prisma.notificationPreference.findMany({
+        where: { userId }
+      });
+
+      if (existingPrefs.length === 0) {
+        console.log(`🔧 Creating default preferences for user ${userId}`);
+        
+        const defaultPreferences = [
+          { type: 'system', enabled: true },
+          { type: 'task', enabled: true },
+          { type: 'promotion', enabled: true },
+          { type: 'activity', enabled: true }
+        ];
+
+        await this.prisma.notificationPreference.createMany({
+          data: defaultPreferences.map(pref => ({
+            userId,
+            type: pref.type,
+            enabled: pref.enabled
+          }))
+        });
+
+        console.log(`✅ Default preferences created for user ${userId}`);
+      }
+    } catch (error) {
+      console.error(`Failed to create default preferences for user ${userId}:`, error);
+    }
   }
 
   // Close all connections
