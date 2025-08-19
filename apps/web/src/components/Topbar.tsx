@@ -44,6 +44,11 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   const SUGGEST_FEATURE_URL = 'https://forms.gle/';
   const [theme, setTheme] = useState<'LIGHT' | 'DARK' | 'SYSTEM'>('SYSTEM');
 
+  // Fix: ensure client-ready flag is set so header doesn't stay on skeleton
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   // Helper: apply theme class to <html>
   const applyThemeClass = useCallback((t: 'LIGHT'|'DARK'|'SYSTEM') => {
     const root = document.documentElement;
