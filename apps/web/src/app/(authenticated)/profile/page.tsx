@@ -113,6 +113,11 @@ function ProfileContent() {
       
       setProfile(data);
       setEditingProfile(data);
+      
+      // Sync global store so header uses the same image instantly
+      if (data?.profileImage) {
+        try { updateStoreProfileImage(data.profileImage); } catch {}
+      }
     } catch (err) {
       console.error('Profile fetch error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch profile';
