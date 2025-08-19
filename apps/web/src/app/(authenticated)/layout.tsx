@@ -13,6 +13,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 
@@ -24,8 +26,18 @@ export default function AuthenticatedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Set default state to collapsed
+  const { user, loading, isGuest } = useAuth();
+  const router = useRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+
+  // Check authentication at layout level
+  useEffect(() => {
+    if (!loading && !user && !isGuest) {
+      // User is not authenticated and not in guest mode, redirect to login
+      console.log('Unauthenticated user redirected from authenticated layout');
+      router.push('/');
+    }
+  }, [user, loading, isGuest, router]);
 
   // Debug logging to verify state changes
   useEffect(() => {
@@ -35,6 +47,23 @@ export default function AuthenticatedLayout({
   const handleSidebarToggle = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
+
+  // Show loading while checking auth state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#006B53] mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is not authenticated and not in guest mode, don't render layout
+  if (!user && !isGuest) {
+    return null; // Will redirect in useEffect
+  }
 
   return (
     <div className="min-h-screen bg-[#F0F2F5]">
