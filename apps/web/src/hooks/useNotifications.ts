@@ -1,12 +1,11 @@
 import useSWR from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState } from 'react';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://all-in-one-career-api.onrender.com'
   : 'http://localhost:4000';
 
-export interface Notification {
+interface Notification {
   id: string;
   type: string;
   title: string;
@@ -15,13 +14,10 @@ export interface Notification {
   createdAt: string;
   archived: boolean;
   metadata?: {
-    action?: string;
     url?: string;
-    [key: string]: unknown;
+    action?: string;
   };
 }
-
-export type NotificationFilter = 'unread' | 'all' | 'archived';
 
 const fetcher = async (url: string, token: string): Promise<Notification[]> => {
   const response = await fetch(`${API_BASE_URL}${url}`, {
@@ -38,9 +34,8 @@ const fetcher = async (url: string, token: string): Promise<Notification[]> => {
   return response.json();
 };
 
-export function useNotifications() {
+export function useNotifications(filter: 'unread' | 'all' | 'archived' = 'unread') {
   const { user } = useAuth();
-  const [filter, setFilter] = useState<NotificationFilter>('unread');
 
   const { data: notifications, error, isLoading, mutate } = useSWR(
     user ? [`/api/notifications?filter=${filter}`, user] : null,
@@ -113,6 +108,7 @@ export function useNotifications() {
       });
 
       if (response.ok) {
+        // Refetch notifications to update the UI
         mutate();
       }
     } catch (error) {
@@ -134,6 +130,7 @@ export function useNotifications() {
       });
 
       if (response.ok) {
+        // Refetch notifications to update the UI
         mutate();
       }
     } catch (error) {
@@ -146,8 +143,6 @@ export function useNotifications() {
   return {
     notifications: notifications || [],
     unreadCount,
-    filter,
-    setFilter,
     isLoading,
     error,
     markAsRead,
