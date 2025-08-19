@@ -6,7 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { initFirebase, verifyIdToken } from './lib/firebase';
 import { geminiGenerate } from './lib/gemini';
 import { authenticateToken, optionalAuth } from './middleware/auth';
-import { NotificationWebSocketServer } from './websocket/notificationServer';
+
 import atsRouter from './routes/ats';
 import referralsRouter from './routes/referrals';
 import portfolioRouter from './routes/portfolio';
@@ -19,7 +19,7 @@ import searchRouter from './routes/search';
 import askRouter from './routes/ask';
 import searchInsightsRouter from './routes/search-insights';
 import authRouter from './routes/auth';
-import { notificationsRouter } from './routes/notifications';
+
 
 const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
@@ -31,15 +31,7 @@ const server = createServer(app);
 
 initFirebase();
 
-// Initialize WebSocket notification server
-let wsNotificationServer: NotificationWebSocketServer | null = null;
-try {
-  wsNotificationServer = new NotificationWebSocketServer(server, prisma);
-  console.log('✅ WebSocket Notification Server initialized successfully');
-} catch (error) {
-  console.error('❌ Failed to initialize WebSocket Notification Server:', error);
-  wsNotificationServer = null;
-}
+
 
 // Configure CORS for frontend domains
 app.use(cors({
@@ -66,14 +58,7 @@ app.use(async (req: any, _res, next) => {
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// Add WebSocket test endpoint
-app.get('/ws-test', (_req, res) => {
-  res.json({ 
-    message: 'WebSocket test endpoint',
-    wsServerStatus: wsNotificationServer ? 'running' : 'not running',
-    timestamp: new Date().toISOString()
-  });
-});
+
 
 // Add root-level search endpoint for frontend compatibility
 app.get('/api/search', async (req: any, res) => {
@@ -387,123 +372,9 @@ app.use('/ask', optionalAuth, askRouter(prisma, logger));
 app.use('/search-insights', optionalAuth, searchInsightsRouter(prisma, logger));
 app.use('/api/auth', authRouter(prisma));
 
-// Admin announcement endpoint - bypasses authentication, uses admin secret instead
-// MUST be registered BEFORE the wildcard /api/notifications route
-app.post('/api/notifications/announce', async (req: any, res) => {
-  try {
-    // Check admin authentication via secret
-    const adminSecret = req.headers['x-admin-secret'] as string;
-    const expectedSecret = process.env.ADMIN_SECRET || 'climbly_admin_secret_2024';
-    
-
-    
-    if (!adminSecret || adminSecret !== expectedSecret) {
-      return res.status(401).json({ error: 'Admin authentication required' });
-    }
-
-    // Validate request body
-    if (!req.body || typeof req.body !== 'object') {
-      return res.status(400).json({ 
-        error: 'Invalid request body - must be JSON object' 
-      });
-    }
-
-    const { type, title, message } = req.body;
-
-    if (!type || !title || !message) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: type, title, message' 
-      });
-    }
-
-    // Validate field types
-    if (typeof type !== 'string' || typeof title !== 'string' || typeof message !== 'string') {
-      return res.status(400).json({ 
-        error: 'All fields must be strings: type, title, message' 
-      });
-    }
-
-    // Validate notification type against enum
-    const validTypes = ['MESSAGE', 'TASK', 'SYSTEM', 'FEATURE'];
-    if (!validTypes.includes(type.toUpperCase())) {
-      return res.status(400).json({ 
-        error: `Invalid notification type. Must be one of: ${validTypes.join(', ')}` 
-      });
-    }
-
-    // Validate field lengths
-    if (title.length > 200 || message.length > 1000) {
-      return res.status(400).json({ 
-        error: 'Title too long (max 200 chars) or message too long (max 1000 chars)' 
-      });
-    }
 
 
 
-    // Get all users
-    const users = await prisma.user.findMany({
-      select: { id: true }
-    });
-
-    if (users.length === 0) {
-      return res.status(400).json({ error: 'No users found in database' });
-    }
-
-    const notifications = [];
-    for (const user of users) {
-      const notification = await prisma.notification.create({
-        data: {
-          userId: user.id,
-          type: type.toUpperCase() as any,
-          title,
-          message,
-        },
-        select: {
-          id: true,
-          type: true,
-          title: true,
-          message: true,
-          isRead: true,
-          createdAt: true,
-        }
-      });
-      
-      notifications.push(notification);
-      
-      // Push real-time notification if WebSocket is available
-      if (wsNotificationServer) {
-        try {
-          console.log(`🔌 Attempting WebSocket push to user ${user.id} for notification ${notification.id}`);
-          const pushResult = await wsNotificationServer.pushNotificationToUser(user.id, notification);
-          console.log(`🔌 WebSocket push result for user ${user.id}:`, pushResult);
-        } catch (wsError) {
-          console.log(`WebSocket push failed for user ${user.id}:`, wsError);
-        }
-      } else {
-        console.log('🔌 WebSocket server not available for real-time push');
-      }
-    }
-
-
-    res.json({ 
-      success: true, 
-      message: `Announcement sent to ${notifications.length} users`,
-      sentTo: notifications.length,
-      announcement: { type, title, message }
-    });
-
-  } catch (error) {
-    console.error('Error creating global announcement:', error);
-    res.status(500).json({ error: 'Failed to create global announcement' });
-  }
-});
-
-const notificationsRouterInstance = notificationsRouter(prisma);
-app.use('/api/notifications', authenticateToken, notificationsRouterInstance);
-
-// Set WebSocket server reference in notifications router
-import { setWebSocketServer } from './routes/notifications';
-setWebSocketServer(wsNotificationServer);
 
 // Add profile routes at root level for frontend compatibility
 // Profile routes - most endpoints use optional auth, but upload-avatar requires full auth
@@ -537,7 +408,7 @@ app.get('/api/logout', (req: any, res) => {
 const PORT = Number(process.env.PORT || 4000);
 server.listen(PORT, () => {
   logger.info(`API running on port ${PORT}`);
-  logger.info(`WebSocket server ${wsNotificationServer ? 'enabled' : 'disabled'}`);
+
 });
 
 // Handle server errors
