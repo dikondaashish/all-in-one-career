@@ -379,18 +379,17 @@ app.post('/api/notifications/announce', async (req: any, res) => {
     const adminSecret = req.headers['x-admin-secret'] as string;
     const expectedSecret = process.env.ADMIN_SECRET || 'climbly_admin_secret_2024';
     
-    console.log('Admin auth check:', {
-      adminSecret: adminSecret ? `"${adminSecret}"` : 'missing',
-      expectedSecret: expectedSecret ? `"${expectedSecret}"` : 'missing',
-      adminSecretLength: adminSecret?.length || 0,
-      expectedSecretLength: expectedSecret?.length || 0,
-      matches: adminSecret === expectedSecret,
-      adminSecretTrimmed: adminSecret ? `"${adminSecret.trim()}"` : 'missing',
-      expectedSecretTrimmed: expectedSecret ? `"${expectedSecret.trim()}"` : 'missing'
-    });
+
     
     if (!adminSecret || adminSecret !== expectedSecret) {
       return res.status(401).json({ error: 'Admin authentication required' });
+    }
+
+    // Validate request body
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ 
+        error: 'Invalid request body - must be JSON object' 
+      });
     }
 
     const { type, title, message } = req.body;
@@ -401,7 +400,29 @@ app.post('/api/notifications/announce', async (req: any, res) => {
       });
     }
 
-    console.log(`Admin creating global announcement: ${title}`);
+    // Validate field types
+    if (typeof type !== 'string' || typeof title !== 'string' || typeof message !== 'string') {
+      return res.status(400).json({ 
+        error: 'All fields must be strings: type, title, message' 
+      });
+    }
+
+    // Validate notification type against enum
+    const validTypes = ['MESSAGE', 'TASK', 'SYSTEM', 'FEATURE'];
+    if (!validTypes.includes(type.toUpperCase())) {
+      return res.status(400).json({ 
+        error: `Invalid notification type. Must be one of: ${validTypes.join(', ')}` 
+      });
+    }
+
+    // Validate field lengths
+    if (title.length > 200 || message.length > 1000) {
+      return res.status(400).json({ 
+        error: 'Title too long (max 200 chars) or message too long (max 1000 chars)' 
+      });
+    }
+
+
 
     // Get all users
     const users = await prisma.user.findMany({
@@ -417,7 +438,7 @@ app.post('/api/notifications/announce', async (req: any, res) => {
       const notification = await prisma.notification.create({
         data: {
           userId: user.id,
-          type,
+          type: type.toUpperCase() as any,
           title,
           message,
         },
@@ -443,7 +464,7 @@ app.post('/api/notifications/announce', async (req: any, res) => {
       }
     }
 
-    console.log(`Created ${notifications.length} global announcements`);
+
     res.json({ 
       success: true, 
       message: `Announcement sent to ${notifications.length} users`,

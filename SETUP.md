@@ -17,6 +17,9 @@ GEMINI_API_KEY="your-gemini-api-key"
 # Optional: Gemini model (defaults to gemini-1.5-flash)
 GEMINI_MODEL="gemini-1.5-flash"
 
+# Admin Configuration (for global announcements)
+ADMIN_SECRET="climbly_admin_secret_2024"
+
 # Server port (optional, defaults to 4000)
 PORT=4000
 ```
