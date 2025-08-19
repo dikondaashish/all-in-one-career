@@ -28,9 +28,7 @@ interface TopbarProps {
 
 export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProps) {
   const { user, signOutUser, isGuest, profileImageUrl } = useAuth();
-  const { getCurrentProfileImage, hasImageChanged } = useProfileImageSync();
   const { user: storeUser } = useUserStore();
-  const [avatarLoading, setAvatarLoading] = useState(false);
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState('User');
@@ -41,8 +39,8 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   const isPremium = plan === 'premium';
   const SUGGEST_FEATURE_URL = 'https://forms.gle/';
 
-  // Get the most up-to-date profile image from the store
-  const currentProfileImage = storeUser?.profileImage || profileImageUrl || user?.photoURL;
+  // Source of truth for avatar: Zustand store -> AuthContext -> Firebase photoURL
+  const currentProfileImage = storeUser?.profileImage || profileImageUrl || user?.photoURL || '';
 
   // Theme handling (light/dark/system)
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
@@ -60,19 +58,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
     root.classList.toggle('dark', shouldDark);
   };
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Monitor profile image changes and show loading state
-  useEffect(() => {
-    if (hasImageChanged() || storeUser?.profileImage !== profileImageUrl) {
-      setAvatarLoading(true);
-      // Hide loading after a short delay to show the new image
-      const timer = setTimeout(() => setAvatarLoading(false), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [profileImageUrl, user?.photoURL, hasImageChanged, storeUser?.profileImage]);
+  useEffect(() => { setIsClient(true); }, []);
 
   // Ensure theme is applied on mount and reacts to system changes when in 'system' mode
   useEffect(() => {
@@ -200,17 +186,11 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
               aria-expanded={showDropdown}
             >
               <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center overflow-hidden relative">
-                {avatarLoading ? (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  </div>
-                ) : currentProfileImage ? (
+                {currentProfileImage ? (
                   <img 
                     src={currentProfileImage} 
                     alt="Profile" 
                     className="w-full h-full object-cover"
-                    onLoad={() => setAvatarLoading(false)}
-                    onError={() => setAvatarLoading(false)}
                   />
                 ) : (
                   <span className="text-white font-medium text-sm">{userDisplayName.charAt(0).toUpperCase()}</span>
@@ -226,17 +206,11 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
                 <div className="px-4 py-2 border-b border-gray-100">
                   <div className="flex items-center gap-3" style={{ minHeight: 48, maxHeight: 60 }}>
                     <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-[#006B53] to-[#008F6F] flex items-center justify-center relative">
-                      {avatarLoading ? (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                      ) : currentProfileImage ? (
+                      {currentProfileImage ? (
                         <img 
                           src={currentProfileImage} 
                           alt="Profile" 
                           className="w-full h-full object-cover"
-                          onLoad={() => setAvatarLoading(false)}
-                          onError={() => setAvatarLoading(false)}
                         />
                       ) : (
                         <span className="text-white text-xs font-medium">{userDisplayName.charAt(0).toUpperCase()}</span>
