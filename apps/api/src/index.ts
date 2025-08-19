@@ -66,6 +66,15 @@ app.use(async (req: any, _res, next) => {
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
+// Add WebSocket test endpoint
+app.get('/ws-test', (_req, res) => {
+  res.json({ 
+    message: 'WebSocket test endpoint',
+    wsServerStatus: wsNotificationServer ? 'running' : 'not running',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Add root-level search endpoint for frontend compatibility
 app.get('/api/search', async (req: any, res) => {
   try {
