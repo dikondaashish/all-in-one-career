@@ -1,32 +1,33 @@
-require('dotenv/config');
-const express = require('express');
-const cors = require('cors');
-const pino = require('pino');
-const { PrismaClient } = require('@prisma/client');
-const { initFirebase, verifyIdToken } = require('./lib/firebase');
-const { geminiGenerate } = require('./lib/gemini');
-const { authenticateToken, optionalAuth } = require('./middleware/auth');
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import pino from 'pino';
+import { PrismaClient } from '@prisma/client';
+import { initFirebase, verifyIdToken } from './lib/firebase';
+import { geminiGenerate } from './lib/gemini';
+import { authenticateToken, optionalAuth } from './middleware/auth';
 
-const atsRouter = require('./routes/ats').default;
-const referralsRouter = require('./routes/referrals').default;
-const portfolioRouter = require('./routes/portfolio').default;
-const emailsRouter = require('./routes/emails').default;
-const applicationsRouter = require('./routes/applications').default;
-const storageRouter = require('./routes/storage').default;
-const profileRouter = require('./routes/profile').default;
-const adminRouter = require('./routes/admin').default;
-const searchRouter = require('./routes/search').default;
-const askRouter = require('./routes/ask').default;
-const searchInsightsRouter = require('./routes/search-insights').default;
-const authRouter = require('./routes/auth').default;
-const { notificationsRouter } = require('./routes/notifications');
+import atsRouter from './routes/ats';
+import referralsRouter from './routes/referrals';
+import portfolioRouter from './routes/portfolio';
+import emailsRouter from './routes/emails';
+import applicationsRouter from './routes/applications';
+import storageRouter from './routes/storage';
+import profileRouter from './routes/profile';
+import adminRouter from './routes/admin';
+import searchRouter from './routes/search';
+import askRouter from './routes/ask';
+import searchInsightsRouter from './routes/search-insights';
+import authRouter from './routes/auth';
+import { notificationsRouter } from './routes/notifications';
+
 
 const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
 const prisma = new PrismaClient();
 
 // Create HTTP server for WebSocket integration
-const { createServer } = require('http');
+import { createServer } from 'http';
 const server = createServer(app);
 
 initFirebase();
@@ -47,7 +48,7 @@ app.use(cors({
 app.use(express.json({ limit: '5mb' }));
 
 // Optional auth attach (public routes still work)
-app.use(async (req: any, _res: any, next: any) => {
+app.use(async (req: any, _res, next) => {
   const auth = req.header('authorization');
   if (auth?.startsWith('Bearer ')) {
     const token = auth.slice(7);
@@ -56,12 +57,12 @@ app.use(async (req: any, _res: any, next: any) => {
   next();
 });
 
-app.get('/health', (_req: any, res: any) => res.json({ ok: true }));
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
 
 
 // Add root-level search endpoint for frontend compatibility
-app.get('/api/search', async (req: any, res: any) => {
+app.get('/api/search', async (req: any, res) => {
   try {
     const { query, model, status, dateRange } = req.query;
     
@@ -374,13 +375,11 @@ app.use('/api/auth', authRouter(prisma));
 
 // Admin announcement endpoint - bypasses authentication, uses admin secret only
 // MUST be registered BEFORE the authenticated /api/notifications route
-app.post('/api/notifications/announce', async (req: any, res: any) => {
+app.post('/api/notifications/announce', async (req: any, res) => {
   try {
     // Validate admin secret
     const adminSecret = req.headers['x-admin-secret'] as string;
     const expectedSecret = process.env.ADMIN_SECRET || 'climbly_admin_secret_2024';
-    
-    console.log('Admin announce request - Secret provided:', !!adminSecret, 'Expected:', !!expectedSecret);
     
     if (!adminSecret || adminSecret !== expectedSecret) {
       return res.status(401).json({ error: 'Admin authentication required' });
@@ -408,15 +407,8 @@ app.post('/api/notifications/announce', async (req: any, res: any) => {
       select: { id: true }
     });
 
-    console.log(`Found ${users.length} users in database`);
-
     if (users.length === 0) {
-      return res.json({ 
-        success: false, 
-        message: '0 users, nothing sent',
-        sentTo: 0,
-        announcement: { type, title, message }
-      });
+      return res.status(400).json({ error: 'No users found in database' });
     }
 
     // Create notifications for all users
@@ -448,7 +440,7 @@ app.post('/api/notifications/announce', async (req: any, res: any) => {
   }
 });
 
-app.use('/api/notifications', notificationsRouter(prisma));
+app.use('/api/notifications', authenticateToken, notificationsRouter(prisma));
 
 
 
@@ -459,11 +451,11 @@ app.use('/api/notifications', notificationsRouter(prisma));
 app.use('/api/profile', optionalAuth, profileRouter(prisma, logger));
 
 // Add missing routes for sidebar navigation
-app.get('/api/settings', (req: any, res: any) => {
+app.get('/api/settings', (req: any, res) => {
   res.json({ message: 'Settings endpoint - coming soon' });
 });
 
-app.get('/api/logout', (req: any, res: any) => {
+app.get('/api/logout', (req: any, res) => {
   try {
     // Log the logout attempt
     console.log('Logout request received from:', req.user?.uid || 'guest user');
@@ -484,43 +476,15 @@ app.get('/api/logout', (req: any, res: any) => {
 });
 
 const PORT = Number(process.env.PORT || 4000);
+server.listen(PORT, () => {
+  logger.info(`API running on port ${PORT}`);
 
-// Enhanced server configuration for Render
-server.listen(PORT, '0.0.0.0', () => {
-  logger.info(`🚀 API server started successfully`);
-  logger.info(`📍 Listening on port ${PORT}`);
-  logger.info(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  logger.info(`🔗 Server URL: http://localhost:${PORT}`);
-  
-  // Log additional environment info for debugging
-  if (process.env.RENDER) {
-    logger.info('🎯 Running on Render platform');
-  }
 });
 
 // Handle server errors
 server.on('error', (error: any) => {
-  logger.error('❌ Server error:', error);
+  logger.error('Server error:', error);
   if (error.code === 'EADDRINUSE') {
     logger.error(`Port ${PORT} is already in use`);
-  } else if (error.code === 'EACCES') {
-    logger.error(`Permission denied to bind to port ${PORT}`);
   }
-});
-
-// Graceful shutdown handling
-process.on('SIGTERM', () => {
-  logger.info('🔄 SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    logger.info('✅ Server closed');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  logger.info('🔄 SIGINT received, shutting down gracefully...');
-  server.close(() => {
-    logger.info('✅ Server closed');
-    process.exit(0);
-  });
 });
