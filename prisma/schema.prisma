@@ -34,7 +34,7 @@ model User {
   portfolioSites   PortfolioSite[]
   logs             Log[]
   searchHistory    SearchHistory[]
-
+  notifications    Notification[]
 }
 
 model JobDescription {
@@ -120,6 +120,19 @@ model Log {
   action    String
   message   String?
   createdAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String
+  type       String   // FEATURE | SYSTEM | TASK | PROMOTION
+  title      String
+  message    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  archived   Boolean  @default(false)
   
   user User @relation(fields: [userId], references: [id])
 }
