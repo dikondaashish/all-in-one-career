@@ -6,6 +6,7 @@
 - **Package Scripts**: Updated for production builds (`npm run build` + `npm start`)
 - **Server Configuration**: Enhanced with Render-specific optimizations
 - **Graceful Shutdown**: Added proper signal handling for Render
+- **Module System**: Fixed ES Module → CommonJS conversion for Node.js compatibility
 
 ## 🔧 **Required Render Settings**
 
@@ -70,6 +71,11 @@ Body: {
 
 ## 🚨 **Troubleshooting**
 
+### **If you see "Cannot find module '/app/apps/api/dist/index.js'":**
+- ✅ **FIXED**: TypeScript now compiles to CommonJS (`dist/index.js`)
+- ✅ **FIXED**: Package scripts use correct output directory
+- ✅ **FIXED**: Module system compatibility resolved
+
 ### **If you see "No open ports detected":**
 - ✅ **FIXED**: Server now properly binds to `0.0.0.0:PORT`
 - ✅ **FIXED**: Package scripts use compiled JavaScript (`dist/index.js`)
@@ -89,26 +95,47 @@ Body: {
 apps/api/
 ├── src/           # TypeScript source
 ├── dist/          # Compiled JavaScript (created by build)
+│   ├── index.js   # Main server file (CommonJS)
+│   ├── lib/       # Compiled library files
+│   ├── routes/    # Compiled route files
+│   └── middleware/# Compiled middleware files
 ├── package.json   # Updated scripts
 └── node_modules/  # Dependencies
 ```
 
 ## 🎯 **Key Changes Made**
 
-1. **`package.json`**: Updated scripts for production
-2. **`src/index.ts`**: Enhanced server configuration
-3. **Port Binding**: Now binds to `0.0.0.0:PORT`
-4. **Logging**: Added Render-specific logging
-5. **Graceful Shutdown**: Proper signal handling
+1. **`package.json`**: Updated scripts for production, removed ES module config
+2. **`tsconfig.json`**: Changed module system to CommonJS
+3. **`src/index.ts`**: Converted ES imports to CommonJS require statements
+4. **Server Config**: Enhanced with Render-specific optimizations
+5. **Port Binding**: Now binds to `0.0.0.0:PORT`
+6. **Logging**: Added Render-specific logging
+7. **Graceful Shutdown**: Proper signal handling
 
 ## 🔄 **Deployment Workflow**
 
 1. **Local Build Test**: `npm run build` ✅
-2. **Push to GitHub**: `git push origin feature/global-search` ✅
-3. **Render Auto-Deploy**: Triggers on push ✅
-4. **Monitor Logs**: Check for success messages ✅
-5. **Test Endpoints**: Verify API is responding ✅
+2. **Verify Output**: Check `dist/index.js` exists ✅
+3. **Push to GitHub**: `git push origin feature/global-search` ✅
+4. **Render Auto-Deploy**: Triggers on push ✅
+5. **Monitor Logs**: Check for success messages ✅
+6. **Test Endpoints**: Verify API is responding ✅
+
+## 🧪 **Local Testing**
+
+### **Test Build Process**
+```bash
+cd apps/api
+npm run build
+ls -la dist/  # Should show index.js and other compiled files
+```
+
+### **Test Start Script**
+```bash
+npm start  # Should run dist/index.js successfully
+```
 
 ---
 
-**Status**: ✅ **READY FOR RENDER DEPLOYMENT**
+**Status**: ✅ **READY FOR RENDER DEPLOYMENT - COMMONJS BUILD FIXED**
