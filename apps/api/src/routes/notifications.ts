@@ -57,13 +57,33 @@ export function notificationsRouter(prisma: PrismaClient): Router {
   });
 
   // POST /api/notifications - Create notification (internal use)
-  router.post('/', authenticateToken, async (req: any, res) => {
+  router.post('/', async (req: any, res) => {
     try {
-      const { userId, type, title, message, metadata } = req.body;
+      // Check for admin secret first
+      const adminSecret = req.headers['x-admin-secret'] as string;
+      const expectedSecret = process.env.ADMIN_SECRET || 'climbly_admin_secret_2024';
       
-      if (!userId || !type || !title || !message) {
+      let userId: string;
+      
+      if (adminSecret && adminSecret === expectedSecret) {
+        // Admin mode - get userId from request body
+        userId = req.body.userId;
+        if (!userId) {
+          return res.status(400).json({ error: 'userId is required when using admin secret' });
+        }
+      } else {
+        // Regular user mode - require authentication
+        if (!req.user) {
+          return res.status(401).json({ error: 'Access token required' });
+        }
+        userId = req.user.uid;
+      }
+      
+      const { type, title, message, metadata } = req.body;
+      
+      if (!type || !title || !message) {
         return res.status(400).json({ 
-          error: 'Missing required fields: userId, type, title, message' 
+          error: 'Missing required fields: type, title, message' 
         });
       }
 
