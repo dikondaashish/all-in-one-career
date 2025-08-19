@@ -1,33 +1,32 @@
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import pino from 'pino';
-import { PrismaClient } from '@prisma/client';
-import { initFirebase, verifyIdToken } from './lib/firebase';
-import { geminiGenerate } from './lib/gemini';
-import { authenticateToken, optionalAuth } from './middleware/auth';
+require('dotenv/config');
+const express = require('express');
+const cors = require('cors');
+const pino = require('pino');
+const { PrismaClient } = require('@prisma/client');
+const { initFirebase, verifyIdToken } = require('./lib/firebase');
+const { geminiGenerate } = require('./lib/gemini');
+const { authenticateToken, optionalAuth } = require('./middleware/auth');
 
-import atsRouter from './routes/ats';
-import referralsRouter from './routes/referrals';
-import portfolioRouter from './routes/portfolio';
-import emailsRouter from './routes/emails';
-import applicationsRouter from './routes/applications';
-import storageRouter from './routes/storage';
-import profileRouter from './routes/profile';
-import adminRouter from './routes/admin';
-import searchRouter from './routes/search';
-import askRouter from './routes/ask';
-import searchInsightsRouter from './routes/search-insights';
-import authRouter from './routes/auth';
-import { notificationsRouter } from './routes/notifications';
-
+const atsRouter = require('./routes/ats');
+const referralsRouter = require('./routes/referrals');
+const portfolioRouter = require('./routes/portfolio');
+const emailsRouter = require('./routes/emails');
+const applicationsRouter = require('./routes/applications');
+const storageRouter = require('./routes/storage');
+const profileRouter = require('./routes/profile');
+const adminRouter = require('./routes/admin');
+const searchRouter = require('./routes/search');
+const askRouter = require('./routes/ask');
+const searchInsightsRouter = require('./routes/search-insights');
+const authRouter = require('./routes/auth');
+const { notificationsRouter } = require('./routes/notifications');
 
 const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
 const prisma = new PrismaClient();
 
 // Create HTTP server for WebSocket integration
-import { createServer } from 'http';
+const { createServer } = require('http');
 const server = createServer(app);
 
 initFirebase();
@@ -48,7 +47,7 @@ app.use(cors({
 app.use(express.json({ limit: '5mb' }));
 
 // Optional auth attach (public routes still work)
-app.use(async (req: any, _res, next) => {
+app.use(async (req: any, _res: any, next: any) => {
   const auth = req.header('authorization');
   if (auth?.startsWith('Bearer ')) {
     const token = auth.slice(7);
@@ -57,12 +56,12 @@ app.use(async (req: any, _res, next) => {
   next();
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', (_req: any, res: any) => res.json({ ok: true }));
 
 
 
 // Add root-level search endpoint for frontend compatibility
-app.get('/api/search', async (req: any, res) => {
+app.get('/api/search', async (req: any, res: any) => {
   try {
     const { query, model, status, dateRange } = req.query;
     
@@ -375,7 +374,7 @@ app.use('/api/auth', authRouter(prisma));
 
 // Admin announcement endpoint - bypasses authentication, uses admin secret only
 // MUST be registered BEFORE the authenticated /api/notifications route
-app.post('/api/notifications/announce', async (req: any, res) => {
+app.post('/api/notifications/announce', async (req: any, res: any) => {
   try {
     // Validate admin secret
     const adminSecret = req.headers['x-admin-secret'] as string;
@@ -460,11 +459,11 @@ app.use('/api/notifications', notificationsRouter(prisma));
 app.use('/api/profile', optionalAuth, profileRouter(prisma, logger));
 
 // Add missing routes for sidebar navigation
-app.get('/api/settings', (req: any, res) => {
+app.get('/api/settings', (req: any, res: any) => {
   res.json({ message: 'Settings endpoint - coming soon' });
 });
 
-app.get('/api/logout', (req: any, res) => {
+app.get('/api/logout', (req: any, res: any) => {
   try {
     // Log the logout attempt
     console.log('Logout request received from:', req.user?.uid || 'guest user');
