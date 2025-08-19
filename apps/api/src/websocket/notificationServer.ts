@@ -30,6 +30,12 @@ export class NotificationWebSocketServer {
 
   constructor(server: any, prisma: PrismaClient) {
     this.prisma = prisma;
+    
+    console.log('🔌 Creating WebSocket server with options:', {
+      server: !!server,
+      prisma: !!prisma
+    });
+    
     this.wss = new WebSocketServer({ 
       server,
       // Add WebSocket server options for better connection handling
@@ -38,7 +44,18 @@ export class NotificationWebSocketServer {
       skipUTF8Validation: false
     });
     
+    // Add error handling for the WebSocket server itself
+    this.wss.on('error', (error) => {
+      console.error('🔌 WebSocket server error:', error);
+    });
+    
     this.wss.on('connection', this.handleConnection.bind(this));
+    
+    // Log when the server is ready
+    this.wss.on('listening', () => {
+      console.log('🔌 WebSocket server is listening for connections');
+    });
+    
     console.log('🔌 WebSocket Notification Server started');
   }
 
