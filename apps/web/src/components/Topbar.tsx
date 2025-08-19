@@ -291,7 +291,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
                     <span className="font-medium">User Guides</span>
                   </button>
 
-                  {/* Theme with submenu */}
+                  {/* Theme with inline submenu */}
                   <div className="relative">
                     <button
                       onClick={() => setShowThemeSubmenu((s) => !s)}
@@ -305,14 +305,21 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
                     </button>
 
                     {showThemeSubmenu && (
-                      <div className="absolute top-0 left-full ml-2 w-48 bg-white rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.12)] border border-gray-100 py-2 z-50">
+                      <div className="w-full bg-gray-50 border-t border-gray-100 mt-1">
                         {(['LIGHT','DARK','SYSTEM'] as const).map((opt) => (
                           <button
                             key={opt}
                             onClick={() => { changeTheme(opt); setShowDropdown(false); setShowThemeSubmenu(false); }}
-                            className={`w-full text-left px-4 py-2 text-[14px] hover:bg-gray-50 ${theme === opt ? 'font-semibold text-gray-900' : 'text-gray-800'}`}
+                            className={`w-full text-left px-8 py-2.5 text-[14px] hover:bg-gray-100 transition-colors flex items-center justify-between ${
+                              theme === opt 
+                                ? 'font-semibold text-gray-900 bg-gray-100' 
+                                : 'text-gray-700'
+                            }`}
                           >
-                            {opt.charAt(0) + opt.slice(1).toLowerCase()}
+                            <span>{opt.charAt(0) + opt.slice(1).toLowerCase()}</span>
+                            {theme === opt && (
+                              <div className="w-2 h-2 bg-[#006B53] rounded-full"></div>
+                            )}
                           </button>
                         ))}
                       </div>
