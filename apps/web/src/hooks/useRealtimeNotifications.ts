@@ -47,88 +47,93 @@ export function useRealtimeNotifications() {
       // Add connection timeout
       const connectionTimeout = setTimeout(() => {
         if (ws.readyState === WebSocket.CONNECTING) {
-          console.log('WebSocket connection timeout, closing connection');
-          ws.close();
+          console.log('🔌 WebSocket connection timeout, closing connection');
+          ws.close(1000, 'Connection timeout');
         }
-      }, 10000); // 10 second timeout
+      }, 15000); // Increased to 15 seconds
 
-    ws.onopen = () => {
-      console.log('🔌 WebSocket connected');
-      clearTimeout(connectionTimeout); // Clear connection timeout
-      setConnectionStatus('connected');
-      reconnectAttemptsRef.current = 0;
-      
-      // Clear any polling intervals
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        console.log('🔌 WebSocket message received:', message);
+      // Set up event handlers before connection attempts
+      ws.onopen = () => {
+        console.log('🔌 WebSocket connected successfully');
+        clearTimeout(connectionTimeout);
+        setConnectionStatus('connected');
+        reconnectAttemptsRef.current = 0;
         
-        if (message.type === 'connection') {
-          console.log('WebSocket connection confirmed:', message.status);
-        } else if (message.type === 'notification') {
-          console.log('📨 Real-time notification received:', message.data);
+        // Clear any polling intervals
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('🔌 WebSocket message received:', message);
           
-          // Force immediate refresh of notifications list to show new notification in UI
-          console.log('🔄 Calling refresh() to update notifications...');
-          refresh();
-          
-          // Also trigger a manual SWR revalidation to ensure fresh data
-          setTimeout(() => {
-            console.log('🔄 Triggering additional SWR revalidation...');
+          if (message.type === 'connection') {
+            console.log('🔌 WebSocket connection confirmed:', message.status);
+          } else if (message.type === 'notification') {
+            console.log('📨 Real-time notification received:', message.data);
+            
+            // Force immediate refresh of notifications list to show new notification in UI
+            console.log('🔄 Calling refresh() to update notifications...');
             refresh();
-          }, 100);
+            
+            // Also trigger a manual SWR revalidation to ensure fresh data
+            setTimeout(() => {
+              console.log('🔄 Triggering additional SWR revalidation...');
+              refresh();
+            }, 100);
+          }
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
         }
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
-      }
-    };
+      };
 
-    ws.onclose = (event) => {
-      console.log('🔌 WebSocket disconnected:', event.code, event.reason);
-      clearTimeout(connectionTimeout); // Clear connection timeout
-      setConnectionStatus('disconnected');
-      
-      // Start polling immediately as fallback
-      console.log('🔄 WebSocket disconnected, starting polling fallback...');
-      startPolling();
-      
-      // Attempt to reconnect if not a clean close
-      if (event.code !== 1000 && reconnectAttemptsRef.current < maxReconnectAttempts) {
-        setConnectionStatus('reconnecting');
-        reconnectAttemptsRef.current++;
+      ws.onclose = (event) => {
+        console.log('🔌 WebSocket disconnected:', event.code, event.reason);
+        clearTimeout(connectionTimeout);
+        setConnectionStatus('disconnected');
         
-        reconnectTimeoutRef.current = setTimeout(() => {
-          console.log(`🔌 Attempting WebSocket reconnect ${reconnectAttemptsRef.current}/${maxReconnectAttempts}`);
-          connectWebSocket();
-        }, 2000 * reconnectAttemptsRef.current); // Exponential backoff
-      } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-        console.log('🔌 Max reconnection attempts reached, continuing with polling');
-        setConnectionStatus('polling');
-      }
-    };
+        // Start polling immediately as fallback
+        console.log('🔄 WebSocket disconnected, starting polling fallback...');
+        startPolling();
+        
+        // Attempt to reconnect if not a clean close and not a timeout
+        if (event.code !== 1000 && event.code !== 1001 && reconnectAttemptsRef.current < maxReconnectAttempts) {
+          setConnectionStatus('reconnecting');
+          reconnectAttemptsRef.current++;
+          
+          const delay = Math.min(2000 * Math.pow(2, reconnectAttemptsRef.current - 1), 10000); // Exponential backoff with max 10s
+          console.log(`🔌 Attempting WebSocket reconnect ${reconnectAttemptsRef.current}/${maxReconnectAttempts} in ${delay}ms`);
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connectWebSocket();
+          }, delay);
+        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+          console.log('🔌 Max reconnection attempts reached, continuing with polling');
+          setConnectionStatus('polling');
+        }
+      };
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      console.log('WebSocket connection details:', {
-        url: fullWsUrl,
-        readyState: ws.readyState,
-        firebaseUser: currentUser?.uid ? 'present' : 'missing'
-      });
-      setConnectionStatus('disconnected');
-    };
+      ws.onerror = (error) => {
+        console.error('🔌 WebSocket error:', error);
+        console.log('🔌 WebSocket connection details:', {
+          url: fullWsUrl,
+          readyState: ws.readyState,
+          firebaseUser: currentUser?.uid ? 'present' : 'missing'
+        });
+        setConnectionStatus('disconnected');
+      };
 
-    wsRef.current = ws;
-    
+      wsRef.current = ws;
+      
     } catch (error) {
-      console.error('Failed to create WebSocket connection:', error);
+      console.error('🔌 Failed to create WebSocket connection:', error);
       setConnectionStatus('disconnected');
+      // Start polling as fallback
+      startPolling();
     }
   }, [isGuest, API_URL, refresh]);
 
@@ -137,14 +142,17 @@ export function useRealtimeNotifications() {
     if (pollingIntervalRef.current) return;
     
     console.log('🔄 Starting notification polling (10s interval)');
+    setConnectionStatus('polling');
     pollingIntervalRef.current = setInterval(() => {
       console.log('🔄 Polling for new notifications...');
       refresh();
-    }, 10000); // Reduced from 15s to 10s
+    }, 10000); // 10 second interval
   }, [refresh]);
 
   // Disconnect WebSocket
   const disconnectWebSocket = useCallback(() => {
+    console.log('🔌 Disconnecting WebSocket...');
+    
     if (wsRef.current) {
       wsRef.current.close(1000, 'User logout');
       wsRef.current = null;
@@ -175,6 +183,7 @@ export function useRealtimeNotifications() {
     // Connect to WebSocket (handle async)
     const initConnection = async () => {
       console.log('🔌 Initializing WebSocket connection...');
+      setConnectionStatus('connecting');
       await connectWebSocket();
     };
     initConnection();

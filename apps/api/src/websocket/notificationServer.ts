@@ -30,7 +30,13 @@ export class NotificationWebSocketServer {
 
   constructor(server: any, prisma: PrismaClient) {
     this.prisma = prisma;
-    this.wss = new WebSocketServer({ server });
+    this.wss = new WebSocketServer({ 
+      server,
+      // Add WebSocket server options for better connection handling
+      perMessageDeflate: false,
+      maxPayload: 1024 * 1024, // 1MB max payload
+      skipUTF8Validation: false
+    });
     
     this.wss.on('connection', this.handleConnection.bind(this));
     console.log('🔌 WebSocket Notification Server started');
@@ -38,17 +44,22 @@ export class NotificationWebSocketServer {
 
   private async handleConnection(ws: AuthenticatedWebSocket, request: IncomingMessage) {
     try {
-      // Extract JWT token from query params or headers
+      console.log('🔌 New WebSocket connection attempt from:', request.headers.origin);
+      
+      // Extract Firebase ID token from query params or headers
       const url = new URL(request.url!, `http://${request.headers.host}`);
       const token = url.searchParams.get('token') || 
                    request.headers.authorization?.replace('Bearer ', '');
 
       if (!token) {
+        console.log('🔌 No token provided in WebSocket connection');
         ws.close(1008, 'Authentication required');
         return;
       }
 
-      // Verify JWT token
+      console.log('🔌 Token received, length:', token.length);
+
+      // Verify Firebase ID token
       try {
         const decoded = await verifyIdToken(token);
         ws.userId = decoded.uid;
@@ -67,10 +78,10 @@ export class NotificationWebSocketServer {
         }));
 
         // Handle client disconnect
-        ws.on('close', () => {
+        ws.on('close', (code, reason) => {
           if (ws.userId) {
             this.clients.delete(ws.userId);
-            console.log(`🔌 WebSocket disconnected: ${ws.userId}`);
+            console.log(`🔌 WebSocket disconnected: ${ws.userId}, code: ${code}, reason: ${reason}`);
           }
         });
 
@@ -80,6 +91,31 @@ export class NotificationWebSocketServer {
           if (ws.userId) {
             this.clients.delete(ws.userId);
           }
+        });
+
+        // Handle pong messages for keep-alive
+        ws.on('pong', () => {
+          console.log(`🔌 Pong received from user ${ws.userId}`);
+        });
+
+        // Send ping every 30 seconds to keep connection alive
+        const pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.ping();
+              console.log(`🔌 Ping sent to user ${ws.userId}`);
+            } catch (error) {
+              console.error(`Failed to ping user ${ws.userId}:`, error);
+              clearInterval(pingInterval);
+            }
+          } else {
+            clearInterval(pingInterval);
+          }
+        }, 30000);
+
+        // Clean up ping interval on close
+        ws.on('close', () => {
+          clearInterval(pingInterval);
         });
 
       } catch (authError) {
@@ -144,9 +180,16 @@ export class NotificationWebSocketServer {
         }
       };
 
-      client.send(JSON.stringify(message));
-      console.log(`📨 Pushed notification ${notification.id} to user ${userId}`);
-      return true;
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(message));
+        console.log(`📨 Pushed notification ${notification.id} to user ${userId}`);
+        return true;
+      } else {
+        console.log(`WebSocket for user ${userId} is not open (state: ${client.readyState})`);
+        // Remove disconnected client
+        this.clients.delete(userId);
+        return false;
+      }
     } catch (error) {
       console.error(`Failed to push notification to user ${userId}:`, error);
       return false;
@@ -167,7 +210,7 @@ export class NotificationWebSocketServer {
   public getConnectionStatus(userId: string) {
     const client = this.clients.get(userId);
     return {
-      connected: !!client && client.isAuthenticated,
+      connected: !!client && client.isAuthenticated && client.readyState === WebSocket.OPEN,
       readyState: client?.readyState
     };
   }
