@@ -1,12 +1,23 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bell, X, Check, CheckCheck } from 'lucide-react';
-import { useNotifications } from '@/hooks/useNotifications';
+import { Bell, X, Check, CheckCheck, Archive, ArchiveRestore } from 'lucide-react';
+import { useNotifications, NotificationFilter } from '@/hooks/useNotifications';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function NotificationBell() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, isLoading } = useNotifications();
+  const { 
+    notifications, 
+    unreadCount, 
+    filter, 
+    setFilter,
+    markAsRead, 
+    markAllAsRead, 
+    archiveNotification,
+    unarchiveNotification,
+    isLoading 
+  } = useNotifications();
+  
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -28,6 +39,16 @@ export default function NotificationBell() {
 
   const handleMarkAllRead = async () => {
     await markAllAsRead();
+  };
+
+  const handleArchive = async (notificationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await archiveNotification(notificationId);
+  };
+
+  const handleUnarchive = async (notificationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await unarchiveNotification(notificationId);
   };
 
   const getTypeIcon = (type: string) => {
@@ -57,6 +78,32 @@ export default function NotificationBell() {
         return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+    }
+  };
+
+  const getFilterLabel = (filterType: NotificationFilter) => {
+    switch (filterType) {
+      case 'unread':
+        return 'Unread';
+      case 'all':
+        return 'All';
+      case 'archived':
+        return 'Archived';
+      default:
+        return 'Unread';
+    }
+  };
+
+  const getFilterCount = (filterType: NotificationFilter) => {
+    switch (filterType) {
+      case 'unread':
+        return notifications.filter(n => !n.isRead && !n.archived).length;
+      case 'all':
+        return notifications.filter(n => !n.archived).length;
+      case 'archived':
+        return notifications.filter(n => n.archived).length;
+      default:
+        return 0;
     }
   };
 
@@ -94,8 +141,25 @@ export default function NotificationBell() {
             </button>
           </div>
 
+          {/* Filter Tabs */}
+          <div className="flex border-b border-gray-200 dark:border-gray-700">
+            {(['unread', 'all', 'archived'] as NotificationFilter[]).map((filterType) => (
+              <button
+                key={filterType}
+                onClick={() => setFilter(filterType)}
+                className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
+                  filter === filterType
+                    ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
+              >
+                {getFilterLabel(filterType)} ({getFilterCount(filterType)})
+              </button>
+            ))}
+          </div>
+
           {/* Mark All Read Button */}
-          {unreadCount > 0 && (
+          {filter === 'unread' && unreadCount > 0 && (
             <div className="p-3 border-b border-gray-200 dark:border-gray-700">
               <button
                 onClick={handleMarkAllRead}
@@ -115,14 +179,14 @@ export default function NotificationBell() {
               </div>
             ) : notifications.length === 0 ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                No notifications
+                No {filter} notifications
               </div>
             ) : (
               notifications.map((notification) => (
                 <div
                   key={notification.id}
                   className={`p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer ${
-                    !notification.isRead ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                    !notification.isRead && !notification.archived ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                   }`}
                   onClick={() => handleNotificationClick(notification.id)}
                 >
@@ -136,13 +200,13 @@ export default function NotificationBell() {
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(notification.type)}`}>
                           {notification.type}
                         </span>
-                        {!notification.isRead && (
+                        {!notification.isRead && !notification.archived && (
                           <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                         )}
                       </div>
                       
                       <h4 className={`text-sm font-medium mb-1 ${
-                        !notification.isRead 
+                        !notification.isRead && !notification.archived
                           ? 'text-gray-900 dark:text-white' 
                           : 'text-gray-700 dark:text-gray-300'
                       }`}>
@@ -158,17 +222,39 @@ export default function NotificationBell() {
                           {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                         </span>
                         
-                        {!notification.isRead && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleNotificationClick(notification.id);
-                            }}
-                            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {!notification.isRead && !notification.archived && (
+                            <button
+                              onClick={(e) => handleArchive(notification.id, e)}
+                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                              title="Archive"
+                            >
+                              <Archive className="w-4 h-4" />
+                            </button>
+                          )}
+                          
+                          {notification.archived && (
+                            <button
+                              onClick={(e) => handleUnarchive(notification.id, e)}
+                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                              title="Unarchive"
+                            >
+                              <ArchiveRestore className="w-4 h-4" />
+                            </button>
+                          )}
+                          
+                          {!notification.isRead && !notification.archived && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNotificationClick(notification.id);
+                              }}
+                              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

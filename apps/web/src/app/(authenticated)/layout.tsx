@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
+import ToastNotificationManager from '@/components/notifications/ToastNotificationManager';
 
 // Force dynamic rendering to prevent static generation issues with theme system
 export const dynamic = 'force-dynamic';
@@ -87,6 +88,9 @@ export default function AuthenticatedLayout({
           {children}
         </div>
       </main>
+      
+      {/* Toast Notification Manager */}
+      <ToastNotificationManager />
     </div>
   );
 }
