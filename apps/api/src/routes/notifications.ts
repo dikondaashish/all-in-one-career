@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { seedTestNotifications, cleanupTestNotifications } from '../utils/seedNotifications';
+
 
 // WebSocket server reference (will be set by main index.ts)
 let wsNotificationServer: any = null;
@@ -440,54 +440,7 @@ export function notificationsRouter(prisma: PrismaClient): Router {
 
   // Admin announcement endpoint moved to main index.ts to bypass authentication
 
-  // POST /api/notifications/seed-test - Create test notifications (for development)
-  router.post('/seed-test', async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const userId = req.user?.uid;
-      if (!userId) {
-        return res.status(401).json({ error: 'User not authenticated' });
-      }
 
-      const { type } = req.query as { type?: string };
-      const mapped = type ? preferenceToEnum[String(type).toLowerCase()] : undefined;
-
-      console.log(`Seeding test notifications for user: ${userId}${mapped ? ` of type ${mapped}` : ''}`);
-
-      const result = await seedTestNotifications(userId, mapped);
-
-      res.json({ 
-        success: true, 
-        message: `Created ${result.created} test notifications (${result.unread} unread)`,
-        ...result
-      });
-    } catch (error) {
-      console.error('Error seeding test notifications:', error);
-      res.status(500).json({ error: 'Failed to seed test notifications' });
-    }
-  });
-
-  // DELETE /api/notifications/cleanup-test - Clean up test notifications (for development)
-  router.delete('/cleanup-test', async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const userId = req.user?.uid;
-      if (!userId) {
-        return res.status(401).json({ error: 'User not authenticated' });
-      }
-
-      console.log(`Cleaning up test notifications for user: ${userId}`);
-
-      const deletedCount = await cleanupTestNotifications(userId);
-
-      res.json({ 
-        success: true, 
-        message: `Cleaned up ${deletedCount} notifications`,
-        deletedCount
-      });
-    } catch (error) {
-      console.error('Error cleaning up test notifications:', error);
-      res.status(500).json({ error: 'Failed to cleanup test notifications' });
-    }
-  });
 
   return router;
 }
