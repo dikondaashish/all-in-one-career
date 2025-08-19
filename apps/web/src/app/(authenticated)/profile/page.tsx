@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { User, Camera, Save } from 'lucide-react';
 import RouteGuard from '@/components/RouteGuard';
+import { useUserStore } from '@/stores/useUserStore';
 
 // Environment-based API configuration
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
@@ -28,6 +29,7 @@ export default function ProfilePage() {
 
 function ProfileContent() {
   const { user, hasSkippedAuth, updateProfileImage } = useAuth();
+  const { updateProfileImage: updateStoreProfileImage } = useUserStore();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -200,6 +202,7 @@ function ProfileContent() {
       
       // Update auth context - this will trigger re-renders in Topbar and other components
       updateProfileImage(avatarUrl);
+      updateStoreProfileImage(avatarUrl); // Update Zustand store
       
       // Force a re-fetch of the profile to ensure consistency
       await fetchProfile();
