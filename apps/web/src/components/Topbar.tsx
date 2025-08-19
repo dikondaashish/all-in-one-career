@@ -18,8 +18,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import SmartSearch from './SmartSearch';
 import NotificationBell from './notifications/NotificationBell';
-import { useProfileImageSync } from '@/hooks/useProfileImageSync';
 import { useUserStore } from '@/stores/useUserStore';
+
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://all-in-one-career-api.onrender.com'
+  : 'http://localhost:4000';
 
 interface TopbarProps {
   sidebarCollapsed: boolean;
@@ -27,10 +30,11 @@ interface TopbarProps {
 }
 
 export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProps) {
-  const { user, signOutUser, isGuest, profileImageUrl } = useAuth();
+  const { user, signOutUser, isGuest } = useAuth();
   const { user: storeUser } = useUserStore();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
+  const [dbLoading, setDbLoading] = useState(true);
   const [userDisplayName, setUserDisplayName] = useState('User');
   const [userEmail, setUserEmail] = useState('user@example.com');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -39,8 +43,34 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   const isPremium = plan === 'premium';
   const SUGGEST_FEATURE_URL = 'https://forms.gle/';
 
-  // Source of truth for avatar: Zustand store -> AuthContext -> Firebase photoURL
-  const currentProfileImage = storeUser?.profileImage || profileImageUrl || user?.photoURL || '';
+  // Fetch DB user once on client to avoid flashing Google avatar
+  useEffect(() => {
+    let isMounted = true;
+    const run = async () => {
+      if (!user) { setDbLoading(false); return; }
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`${API_BASE_URL}/api/profile`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.profileImage) {
+            // write into store so it becomes single source of truth
+            try { useUserStore.getState().updateProfileImage(data.profileImage); } catch {}
+          }
+        }
+      } catch {}
+      if (isMounted) setDbLoading(false);
+    };
+    run();
+    return () => { isMounted = false; };
+  }, [user]);
+
+  // Source of truth: after DB fetched, use custom avatar if exists; otherwise fallback
+  const resolvedAvatar = !dbLoading
+    ? (storeUser?.profileImage && storeUser.profileImage !== ''
+        ? storeUser.profileImage
+        : (user?.photoURL || ''))
+    : '';
 
   // Theme handling (light/dark/system)
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
@@ -186,12 +216,10 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
               aria-expanded={showDropdown}
             >
               <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center overflow-hidden relative">
-                {currentProfileImage ? (
-                  <img 
-                    src={currentProfileImage} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
-                  />
+                {dbLoading ? (
+                  <div className="w-6 h-6 bg-white/30 rounded-full" />
+                ) : resolvedAvatar ? (
+                  <img src={resolvedAvatar} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-white font-medium text-sm">{userDisplayName.charAt(0).toUpperCase()}</span>
                 )}
@@ -205,13 +233,12 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
                 {/* Header - Avatar + Name + Email */}
                 <div className="px-4 py-2 border-b border-gray-100">
                   <div className="flex items-center gap-3" style={{ minHeight: 48, maxHeight: 60 }}>
+                    {/* Dropdown header avatar */}
                     <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-[#006B53] to-[#008F6F] flex items-center justify-center relative">
-                      {currentProfileImage ? (
-                        <img 
-                          src={currentProfileImage} 
-                          alt="Profile" 
-                          className="w-full h-full object-cover"
-                        />
+                      {dbLoading ? (
+                        <div className="w-4 h-4 bg-white/30 rounded-full" />
+                      ) : resolvedAvatar ? (
+                        <img src={resolvedAvatar} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
                         <span className="text-white text-xs font-medium">{userDisplayName.charAt(0).toUpperCase()}</span>
                       )}
