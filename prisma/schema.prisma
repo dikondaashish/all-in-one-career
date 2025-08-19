@@ -18,6 +18,7 @@ model User {
   email        String   @unique
   name         String?
   profileImage String?  // URL to user's profile photo
+  theme        Theme?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
@@ -144,6 +145,12 @@ enum NotificationType {
   TASK
   SYSTEM
   FEATURE
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
 }
 
 model NotificationPreference {
