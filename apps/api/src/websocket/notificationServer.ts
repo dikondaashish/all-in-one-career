@@ -105,17 +105,26 @@ export class NotificationWebSocketServer {
     try {
       // Check user preferences before sending
       const userPrefs = await this.prisma.notificationPreference.findMany({
-        where: { userId, enabled: true },
-        select: { type: true }
+        where: { userId },
+        select: { type: true, enabled: true }
       });
 
-      const enabledTypes = userPrefs.map(p => p.type);
-      const notificationType = this.mapNotificationTypeToPreference(notification.type);
-      
-      // Only send if user has enabled this notification type
-      if (!enabledTypes.includes(notificationType)) {
-        console.log(`User ${userId} has disabled ${notificationType} notifications`);
-        return false;
+      console.log(`🔍 User ${userId} preferences:`, userPrefs);
+
+      // If user has no preferences set, allow all notifications (default behavior)
+      if (userPrefs.length === 0) {
+        console.log(`User ${userId} has no preferences set, allowing notification`);
+      } else {
+        // Check if user has explicitly disabled this notification type
+        const notificationType = this.mapNotificationTypeToPreference(notification.type);
+        console.log(`🔍 Notification type ${notification.type} maps to preference type: ${notificationType}`);
+        
+        const disabledType = userPrefs.find(p => p.type === notificationType && !p.enabled);
+        
+        if (disabledType) {
+          console.log(`User ${userId} has disabled ${notificationType} notifications`);
+          return false;
+        }
       }
 
       const message: NotificationMessage = {
@@ -126,7 +135,7 @@ export class NotificationWebSocketServer {
           title: notification.title,
           message: notification.message,
           isRead: notification.isRead,
-          archived: notification.archived,
+          archived: notification.archived || false,
           metadata: notification.metadata,
           createdAt: notification.createdAt.toISOString()
         }
