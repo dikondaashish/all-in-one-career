@@ -72,11 +72,22 @@ export function notificationsRouter(prisma: PrismaClient): Router {
           return res.status(400).json({ error: 'userId is required when using admin secret' });
         }
       } else {
-        // Regular user mode - require authentication
-        if (!req.user) {
+        // Regular user mode - require JWT authentication
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
           return res.status(401).json({ error: 'Access token required' });
         }
-        userId = req.user.uid;
+        
+        try {
+          // Import and use verifyIdToken directly
+          const { verifyIdToken } = require('../lib/firebase');
+          const token = authHeader.slice(7);
+          const decodedToken = await verifyIdToken(token);
+          userId = decodedToken.uid;
+        } catch (authError) {
+          console.error('JWT verification failed:', authError);
+          return res.status(401).json({ error: 'Invalid access token' });
+        }
       }
       
       const { type, title, message, metadata } = req.body;
