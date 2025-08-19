@@ -34,6 +34,8 @@ interface AuthContextType {
   setAuthToken: (token: string) => void;
   clearAuthToken: () => void;
   updateProfileImage: (imageUrl: string) => void;
+  isFallbackAuth: () => boolean;
+  retryBackendConnection: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -71,74 +73,150 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async () => {
-    try {
-      // STEP 2: Google Firebase authentication first
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      // Get Firebase ID token
-      const firebaseToken = await user.getIdToken();
-      
-      // Call backend to get JWT token
-      const API_BASE_URL = process.env.NODE_ENV === 'production' 
-        ? 'https://all-in-one-career-api.onrender.com'
-        : 'http://localhost:4000';
-      
-      console.log('Attempting to connect to backend at:', API_BASE_URL);
-      
-      // Test backend connectivity first
+    const maxRetries = 2;
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const healthResponse = await fetch(`${API_BASE_URL}/health`);
-        console.log('Backend health check response:', healthResponse.status);
-      } catch (healthError) {
-        console.error('Backend health check failed:', healthError);
-        throw new Error('Backend server is not accessible. Please try again later.');
-      }
+        console.log(`Google sign-in attempt ${attempt}/${maxRetries}`);
         
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          firebaseToken,
-          email: user.email,
-          photoURL: user.photoURL, // Send Google profile photo URL
-        }),
-      });
+        // STEP 2: Google Firebase authentication first
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        
+        // Get Firebase ID token
+        const firebaseToken = await user.getIdToken();
+        
+        // Call backend to get JWT token
+        const API_BASE_URL = process.env.NODE_ENV === 'production' 
+          ? 'https://all-in-one-career-api.onrender.com'
+          : 'http://localhost:4000';
+        
+        console.log('Attempting to connect to backend at:', API_BASE_URL);
+        
+        // Test backend connectivity first with timeout
+        let healthCheckPassed = false;
+        try {
+          const healthController = new AbortController();
+          const healthTimeout = setTimeout(() => healthController.abort(), 10000); // 10 second timeout
+          
+          const healthResponse = await fetch(`${API_BASE_URL}/health`, {
+            signal: healthController.signal
+          });
+          
+          clearTimeout(healthTimeout);
+          
+          if (healthResponse.ok) {
+            console.log('Backend health check passed:', healthResponse.status);
+            healthCheckPassed = true;
+          } else {
+            console.error('Backend health check failed with status:', healthResponse.status);
+          }
+        } catch (healthError: unknown) {
+          console.error('Backend health check failed:', healthError);
+          if (healthError instanceof Error && healthError.name === 'AbortError') {
+            throw new Error('Backend server is not responding. Please try again later.');
+          }
+          throw new Error('Cannot connect to backend server. Please check your internet connection and try again.');
+        }
+        
+        if (!healthCheckPassed) {
+          // If backend health check fails, offer fallback authentication
+          console.log('Backend unavailable, offering fallback authentication');
+          await signInWithFallback(user);
+          return;
+        }
+          
+        // Now attempt the actual authentication
+        const authController = new AbortController();
+        const authTimeout = setTimeout(() => authController.abort(), 15000); // 15 second timeout for auth
+        
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            firebaseToken,
+            email: user.email,
+            photoURL: user.photoURL, // Send Google profile photo URL
+          }),
+          signal: authController.signal
+        });
+        
+        clearTimeout(authTimeout);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Backend auth error:', response.status, errorData);
-        throw new Error(`Failed to authenticate with backend: ${response.status}`);
-      }
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Backend auth error:', response.status, errorData);
+          
+          if (response.status === 500) {
+            throw new Error('Server error occurred. Please try again later.');
+          } else if (response.status === 401) {
+            throw new Error('Authentication failed. Please try again.');
+          } else if (response.status === 404) {
+            throw new Error('Authentication service not found. Please contact support.');
+          } else {
+            throw new Error(`Authentication failed: ${response.status}. Please try again.`);
+          }
+        }
 
-      const { token } = await response.json();
-      
-      // Store JWT token in localStorage
-      setAuthToken(token);
-      
-      // Populate Zustand store with user data
-      useUserStore.getState().setUser({
-        id: user.uid,
-        name: user.displayName || 'User',
-        email: user.email || '',
-        avatarUrl: user.photoURL || '',
-        profileImage: user.photoURL || ''
-      });
-      
-      console.log('Google login successful, JWT token stored, Zustand store populated');
-      
-    } catch (error) {
-      console.error('Google sign in error:', error);
-      
-      // Provide more specific error messages for common issues
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new Error('Cannot connect to server. Please check your internet connection and try again.');
+        const { token } = await response.json();
+        
+        // Store JWT token in localStorage
+        setAuthToken(token);
+        
+        // Populate Zustand store with user data
+        useUserStore.getState().setUser({
+          id: user.uid,
+          name: user.displayName || 'User',
+          email: user.email || '',
+          avatarUrl: user.photoURL || '',
+          profileImage: user.photoURL || ''
+        });
+        
+        console.log('Google login successful, JWT token stored, Zustand store populated');
+        return; // Success, exit retry loop
+        
+      } catch (error: unknown) {
+        console.error(`Google sign in error (attempt ${attempt}):`, error);
+        lastError = error instanceof Error ? error : new Error('Unknown error occurred');
+        
+        // Don't retry for certain errors
+        if (error instanceof Error) {
+          if (error.message.includes('popup-closed') || error.message.includes('cancelled')) {
+            throw error; // Don't retry user-cancelled actions
+          }
+          if (error.message.includes('auth/popup-closed-by-user')) {
+            throw error; // Don't retry user-cancelled popup
+          }
+        }
+        
+        // If this is the last attempt, throw the error
+        if (attempt === maxRetries) {
+          break;
+        }
+        
+        // Wait before retrying (exponential backoff)
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 3000);
+        console.log(`Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-      
-      throw error;
     }
+    
+    // If we get here, all retries failed
+    console.error('All Google sign-in attempts failed');
+    
+    // Provide more specific error messages for common issues
+    if (lastError instanceof TypeError && lastError.message === 'Failed to fetch') {
+      throw new Error('Cannot connect to server. Please check your internet connection and try again.');
+    }
+    
+    if (lastError instanceof Error && lastError.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again.');
+    }
+    
+    throw lastError || new Error('Failed to sign in with Google. Please try again.');
   };
 
   const signInWithEmail = async (email: string, password: string) => {
@@ -154,7 +232,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
         ? 'https://all-in-one-career-api.onrender.com'
         : 'http://localhost:4000';
+      
+      // Test backend connectivity first
+      try {
+        const healthController = new AbortController();
+        const healthTimeout = setTimeout(() => healthController.abort(), 10000);
         
+        const healthResponse = await fetch(`${API_BASE_URL}/health`, {
+          signal: healthController.signal
+        });
+        
+        clearTimeout(healthTimeout);
+        
+        if (!healthResponse.ok) {
+          throw new Error('Backend health check failed');
+        }
+      } catch (healthError: unknown) {
+        console.error('Backend health check failed:', healthError);
+        throw new Error('Cannot connect to server. Please check your internet connection and try again.');
+      }
+        
+      // Now attempt the actual authentication with timeout
+      const authController = new AbortController();
+      const authTimeout = setTimeout(() => authController.abort(), 15000);
+      
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
@@ -164,12 +265,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           firebaseToken,
           email: user.email,
         }),
+        signal: authController.signal
       });
+      
+      clearTimeout(authTimeout);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Backend auth error:', response.status, errorData);
-        throw new Error(`Failed to authenticate with backend: ${response.status}`);
+        
+        if (response.status === 500) {
+          throw new Error('Server error occurred. Please try again later.');
+        } else if (response.status === 401) {
+          throw new Error('Authentication failed. Please try again.');
+        } else if (response.status === 404) {
+          throw new Error('Authentication service not found. Please contact support.');
+        } else {
+          throw new Error(`Authentication failed: ${response.status}. Please try again.`);
+        }
       }
 
       const { token } = await response.json();
@@ -190,6 +303,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
     } catch (err: unknown) {
       console.error('Email sign in error:', err);
+      
+      // Handle timeout errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      // Handle network errors
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        throw new Error('Cannot connect to server. Please check your internet connection and try again.');
+      }
+      
+      // Handle Firebase auth errors
       if (err instanceof Error && 'code' in err) {
         const errorCode = (err as { code: string }).code;
         if (errorCode === 'auth/invalid-credential') {
@@ -240,7 +365,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
         ? 'https://all-in-one-career-api.onrender.com'
         : 'http://localhost:4000';
+      
+      // Test backend connectivity first
+      try {
+        const healthController = new AbortController();
+        const healthTimeout = setTimeout(() => healthController.abort(), 10000);
         
+        const healthResponse = await fetch(`${API_BASE_URL}/health`, {
+          signal: healthController.signal
+        });
+        
+        clearTimeout(healthTimeout);
+        
+        if (!healthResponse.ok) {
+          throw new Error('Backend health check failed');
+        }
+      } catch (healthError: unknown) {
+        console.error('Backend health check failed:', healthError);
+        throw new Error('Cannot connect to server. Please check your internet connection and try again.');
+      }
+        
+      // Now attempt the actual signup with timeout
+      const authController = new AbortController();
+      const authTimeout = setTimeout(() => authController.abort(), 15000);
+      
       const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
         method: 'POST',
         headers: {
@@ -252,12 +400,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           name: name || user.displayName || user.email?.split('@')[0] || 'User',
           profileImage: profileImageUrl
         }),
+        signal: authController.signal
       });
+      
+      clearTimeout(authTimeout);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Backend auth error:', response.status, errorData);
-        throw new Error(`Failed to authenticate with backend: ${response.status}`);
+        
+        if (response.status === 500) {
+          throw new Error('Server error occurred. Please try again later.');
+        } else if (response.status === 400) {
+          throw new Error('Invalid signup data. Please check your information and try again.');
+        } else if (response.status === 409) {
+          throw new Error('An account with this email already exists.');
+        } else {
+          throw new Error(`Signup failed: ${response.status}. Please try again.`);
+        }
       }
 
       const { token } = await response.json();
@@ -278,6 +438,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
     } catch (err: unknown) {
       console.error('Email sign up error:', err);
+      
+      // Handle timeout errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      // Handle network errors
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        throw new Error('Cannot connect to server. Please check your internet connection and try again.');
+      }
+      
+      // Handle Firebase auth errors
       if (err instanceof Error && 'code' in err) {
         const errorCode = (err as { code: string }).code;
         if (errorCode === 'auth/email-already-in-use') {
@@ -358,6 +530,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('climbly_skip_guest');
   };
 
+  // Fallback authentication when backend is unavailable
+  const signInWithFallback = async (user: { uid: string; displayName: string | null; email: string | null; photoURL: string | null }) => {
+    console.log('Using fallback authentication - backend unavailable');
+    
+    // Generate a temporary local token for offline use
+    const tempToken = `temp_${user.uid}_${Date.now()}`;
+    
+    // Store temporary token
+    setAuthToken(tempToken);
+    
+    // Populate Zustand store with user data
+    useUserStore.getState().setUser({
+      id: user.uid,
+      name: user.displayName || 'User',
+      email: user.email || '',
+      avatarUrl: user.photoURL || '',
+      profileImage: user.photoURL || ''
+    });
+    
+    // Store fallback flag
+    localStorage.setItem('climbly_fallback_auth', 'true');
+    
+    console.log('Fallback authentication successful - user can continue with limited functionality');
+  };
+
   // JWT Token management
   const getAuthToken = (): string | null => {
     if (typeof window === 'undefined') return null;
@@ -402,6 +599,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Check if user is in fallback authentication mode
+  const isFallbackAuth = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('climbly_fallback_auth') === 'true';
+  };
+
+  // Retry backend connection and upgrade from fallback to full auth
+  const retryBackendConnection = async (): Promise<boolean> => {
+    try {
+      const API_BASE_URL = process.env.NODE_ENV === 'production' 
+        ? 'https://all-in-one-career-api.onrender.com'
+        : 'http://localhost:4000';
+      
+      // Test backend connectivity
+      const healthResponse = await fetch(`${API_BASE_URL}/health`);
+      if (!healthResponse.ok) {
+        throw new Error('Backend still unavailable');
+      }
+      
+      // If we get here, backend is available
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        // Attempt to authenticate with backend
+        const firebaseToken = await currentUser.getIdToken();
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            firebaseToken,
+            email: currentUser.email,
+            photoURL: currentUser.photoURL,
+          }),
+        });
+        
+        if (response.ok) {
+          const { token } = await response.json();
+          setAuthToken(token);
+          localStorage.removeItem('climbly_fallback_auth');
+          console.log('Successfully upgraded from fallback to full authentication');
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Backend connection retry failed:', error);
+      return false;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -421,7 +668,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearAuthToken,
       setGuestMode,
       updateProfileImage,
-      profileImageUrl
+      profileImageUrl,
+      isFallbackAuth,
+      retryBackendConnection
     }}>
       {children}
     </AuthContext.Provider>
