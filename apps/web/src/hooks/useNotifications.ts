@@ -24,6 +24,7 @@ const API_URL = process.env.NODE_ENV === 'production'
 
 // Fetcher function with authentication
 const fetcher = async (url: string, token: string | null): Promise<NotificationsResponse> => {
+  console.log('🔄 Fetching notifications from:', `${API_URL}${url}`);
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };
@@ -37,11 +38,15 @@ const fetcher = async (url: string, token: string | null): Promise<Notifications
     headers,
   });
 
+  console.log('📡 Notifications API response status:', response.status);
+
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log('📡 Notifications API response data:', data);
+  return data;
 };
 
 // Mark all notifications as read
@@ -150,7 +155,10 @@ export function useNotifications() {
     error: shouldFetch ? error : null,
     markAllAsRead: handleMarkAllAsRead,
     markAsRead: handleMarkAsRead,
-    refresh: mutate,
+    refresh: () => {
+      console.log('🔄 refresh() called');
+      return mutate();
+    },
     showArchived,
     setShowArchived,
   };

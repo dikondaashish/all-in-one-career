@@ -18,22 +18,31 @@ export function useRealtimeNotifications() {
 
   // Connect to WebSocket
   const connectWebSocket = useCallback(async () => {
-    if (isGuest) return;
+    if (isGuest) {
+      console.log('🔌 Skipping WebSocket connection for guest user');
+      return;
+    }
 
     // Get current Firebase user and ID token
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.log('No Firebase user, skipping WebSocket connection');
+      console.log('🔌 No Firebase user, skipping WebSocket connection');
       return;
     }
 
     try {
       const firebaseToken = await currentUser.getIdToken();
+      console.log('🔌 Got Firebase token, length:', firebaseToken.length);
+      
       // Convert HTTP/HTTPS to WS/WSS for WebSocket connections
       const wsUrl = API_URL.replace(/^https?:\/\//, (match) => 
         match === 'https://' ? 'wss://' : 'ws://'
       );
-      const ws = new WebSocket(`${wsUrl}?token=${firebaseToken}`);
+      
+      const fullWsUrl = `${wsUrl}?token=${firebaseToken}`;
+      console.log('🔌 Connecting to WebSocket URL:', fullWsUrl);
+      
+      const ws = new WebSocket(fullWsUrl);
     
       // Add connection timeout
       const connectionTimeout = setTimeout(() => {
@@ -59,6 +68,7 @@ export function useRealtimeNotifications() {
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+        console.log('🔌 WebSocket message received:', message);
         
         if (message.type === 'connection') {
           console.log('WebSocket connection confirmed:', message.status);
@@ -66,6 +76,7 @@ export function useRealtimeNotifications() {
           console.log('📨 Real-time notification received:', message.data);
           
           // Refresh notifications list to show new notification in UI
+          console.log('🔄 Calling refresh() to update notifications...');
           refresh();
         }
       } catch (error) {
@@ -97,7 +108,7 @@ export function useRealtimeNotifications() {
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
       console.log('WebSocket connection details:', {
-        url: wsUrl,
+        url: fullWsUrl,
         readyState: ws.readyState,
         firebaseUser: currentUser?.uid ? 'present' : 'missing'
       });
@@ -144,15 +155,22 @@ export function useRealtimeNotifications() {
 
   // Initialize connection
   useEffect(() => {
-    if (isGuest) return;
+    console.log('🔌 useRealtimeNotifications useEffect triggered, isGuest:', isGuest);
+    
+    if (isGuest) {
+      console.log('🔌 Skipping WebSocket connection for guest user');
+      return;
+    }
 
     // Connect to WebSocket (handle async)
     const initConnection = async () => {
+      console.log('🔌 Initializing WebSocket connection...');
       await connectWebSocket();
     };
     initConnection();
 
     return () => {
+      console.log('🔌 Cleaning up WebSocket connection...');
       disconnectWebSocket();
     };
   }, [isGuest, connectWebSocket, disconnectWebSocket]);
