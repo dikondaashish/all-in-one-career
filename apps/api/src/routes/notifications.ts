@@ -57,44 +57,13 @@ export function notificationsRouter(prisma: PrismaClient): Router {
   });
 
   // POST /api/notifications - Create notification (internal use)
-  router.post('/', async (req: any, res) => {
+  router.post('/', authenticateToken, async (req: any, res) => {
     try {
-      // Check for admin secret first
-      const adminSecret = req.headers['x-admin-secret'] as string;
-      const expectedSecret = process.env.ADMIN_SECRET || 'climbly_admin_secret_2024';
+      const { userId, type, title, message } = req.body;
       
-      let userId: string;
-      
-      if (adminSecret && adminSecret === expectedSecret) {
-        // Admin mode - get userId from request body
-        userId = req.body.userId;
-        if (!userId) {
-          return res.status(400).json({ error: 'userId is required when using admin secret' });
-        }
-      } else {
-        // Regular user mode - require JWT authentication
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          return res.status(401).json({ error: 'Access token required' });
-        }
-        
-        try {
-          // Import and use verifyIdToken directly
-          const { verifyIdToken } = require('../lib/firebase');
-          const token = authHeader.slice(7);
-          const decodedToken = await verifyIdToken(token);
-          userId = decodedToken.uid;
-        } catch (authError) {
-          console.error('JWT verification failed:', authError);
-          return res.status(401).json({ error: 'Invalid access token' });
-        }
-      }
-      
-      const { type, title, message, metadata } = req.body;
-      
-      if (!type || !title || !message) {
+      if (!userId || !type || !title || !message) {
         return res.status(400).json({ 
-          error: 'Missing required fields: type, title, message' 
+          error: 'Missing required fields: userId, type, title, message' 
         });
       }
 
@@ -105,8 +74,7 @@ export function notificationsRouter(prisma: PrismaClient): Router {
           title,
           message,
           isRead: false,
-          archived: false,
-          metadata: metadata || null
+          archived: false
         }
       });
 
