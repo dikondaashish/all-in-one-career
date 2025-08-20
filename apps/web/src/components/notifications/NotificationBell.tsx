@@ -51,8 +51,10 @@ export default function NotificationBell() {
   };
 
   const handleArchive = async (notificationId: string) => {
-    const result = await archiveNotification(notificationId);
+    // Close the menu immediately for better UX
     setActiveMenuId(null);
+    
+    const result = await archiveNotification(notificationId);
     if (result?.success) {
       setToastMessage({ message: 'Moved to archive', type: 'success' });
     } else {
@@ -61,8 +63,10 @@ export default function NotificationBell() {
   };
 
   const handleRestore = async (notificationId: string) => {
-    const result = await restoreNotification(notificationId);
+    // Close the menu immediately for better UX
     setActiveMenuId(null);
+    
+    const result = await restoreNotification(notificationId);
     if (result?.success) {
       setToastMessage({ message: 'Notification restored', type: 'success' });
     } else {
