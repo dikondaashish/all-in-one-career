@@ -19,14 +19,15 @@ export function notificationsRouter(prisma: PrismaClient): Router {
         whereClause.archived = false;
       } else if (tab === 'archived') {
         whereClause.archived = true;
-      } else {
-        // 'all' tab: show everything regardless of archived/read status
-        // no extra filters
+      } else if (tab === 'all') {
+        whereClause.archived = false; // All tab shows non-archived notifications
       }
 
       const notifications = await prisma.notification.findMany({
         where: whereClause,
-        orderBy: { createdAt: 'desc' },
+        orderBy: {
+          createdAt: 'desc'
+        },
         take: limit,
         select: {
           id: true,
