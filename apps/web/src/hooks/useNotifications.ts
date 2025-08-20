@@ -117,6 +117,19 @@ export function useNotifications() {
     if (!user) return;
 
     try {
+      // Optimistic update: immediately update the local state
+      const optimisticUpdate = (currentNotifications: Notification[] | undefined) => {
+        if (!currentNotifications) return currentNotifications;
+        return currentNotifications.map(notification => 
+          notification.id === notificationId 
+            ? { ...notification, archived: true, isRead: true }
+            : notification
+        );
+      };
+
+      // Apply optimistic update
+      mutate(optimisticUpdate, false); // false = don't revalidate yet
+
       const token = await user.getIdToken();
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/archive`, {
         method: 'POST',
@@ -127,14 +140,18 @@ export function useNotifications() {
       });
 
       if (response.ok) {
-        // Refetch notifications to update the UI
+        // Revalidate to ensure consistency with backend
         mutate();
         return { success: true, message: 'Notification archived' };
       } else {
+        // Revert optimistic update on error
+        mutate();
         const errorData = await response.json();
         return { success: false, message: errorData.error || 'Failed to archive notification' };
       }
     } catch (error) {
+      // Revert optimistic update on error
+      mutate();
       console.error('Error archiving notification:', error);
       return { success: false, message: 'Failed to archive notification' };
     }
@@ -144,6 +161,19 @@ export function useNotifications() {
     if (!user) return;
 
     try {
+      // Optimistic update: immediately update the local state
+      const optimisticUpdate = (currentNotifications: Notification[] | undefined) => {
+        if (!currentNotifications) return currentNotifications;
+        return currentNotifications.map(notification => 
+          notification.id === notificationId 
+            ? { ...notification, archived: false }
+            : notification
+        );
+      };
+
+      // Apply optimistic update
+      mutate(optimisticUpdate, false); // false = don't revalidate yet
+
       const token = await user.getIdToken();
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/restore`, {
         method: 'POST',
@@ -154,14 +184,18 @@ export function useNotifications() {
       });
 
       if (response.ok) {
-        // Refetch notifications to update the UI
+        // Revalidate to ensure consistency with backend
         mutate();
         return { success: true, message: 'Notification restored' };
       } else {
+        // Revert optimistic update on error
+        mutate();
         const errorData = await response.json();
         return { success: false, message: errorData.error || 'Failed to restore notification' };
       }
     } catch (error) {
+      // Revert optimistic update on error
+      mutate();
       console.error('Error restoring notification:', error);
       return { success: false, message: 'Failed to restore notification' };
     }
