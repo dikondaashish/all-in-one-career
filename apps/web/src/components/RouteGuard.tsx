@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import Toast, { ToastType } from './Toast';
+import Toast from './Toast';
 
 interface RouteGuardProps {
   children: React.ReactNode;

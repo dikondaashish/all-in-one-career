@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, Camera, Save, Edit3, X, Check, Upload, User as UserIcon } from 'lucide-react';
+import { Camera, Save } from 'lucide-react';
 import RouteGuard from '@/components/RouteGuard';
 import { useUserStore } from '@/stores/useUserStore';
-import { auth } from '@/lib/firebase';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -32,7 +31,7 @@ export default function ProfilePage() {
 }
 
 function ProfileContent() {
-  const { user, hasSkippedAuth, updateProfileImage } = useAuth();
+  const { user, updateProfileImage } = useAuth();
   const { updateProfileImage: updateStoreProfileImage } = useUserStore();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null);
@@ -43,11 +42,7 @@ function ProfileContent() {
   const [retryCount, setRetryCount] = useState(0);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -141,7 +136,11 @@ function ProfileContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, retryCount, updateStoreProfileImage]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   const handleRetry = () => {
     setRetryCount(prev => prev + 1);
