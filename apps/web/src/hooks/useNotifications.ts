@@ -118,17 +118,14 @@ export function useNotifications() {
 
     try {
       // Optimistic update: immediately update the local state
-      const optimisticUpdate = (currentNotifications: Notification[] | undefined) => {
+      mutate(async (currentNotifications: Notification[] | undefined) => {
         if (!currentNotifications) return currentNotifications;
         return currentNotifications.map(notification => 
           notification.id === notificationId 
             ? { ...notification, archived: true, isRead: true }
             : notification
         );
-      };
-
-      // Apply optimistic update and trigger re-render
-      mutate(optimisticUpdate, { 
+      }, { 
         revalidate: false, // Don't revalidate yet
         populateCache: true // Populate the cache with optimistic data
       });
@@ -165,17 +162,14 @@ export function useNotifications() {
 
     try {
       // Optimistic update: immediately update the local state
-      const optimisticUpdate = (currentNotifications: Notification[] | undefined) => {
+      mutate(async (currentNotifications: Notification[] | undefined) => {
         if (!currentNotifications) return currentNotifications;
         return currentNotifications.map(notification => 
           notification.id === notificationId 
             ? { ...notification, archived: false }
             : notification
         );
-      };
-
-      // Apply optimistic update and trigger re-render
-      mutate(optimisticUpdate, { 
+      }, { 
         revalidate: false, // Don't revalidate yet
         populateCache: true // Populate the cache with optimistic data
       });
