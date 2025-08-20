@@ -7,7 +7,7 @@ import { initFirebase, verifyIdToken } from './lib/firebase';
 import { geminiGenerate } from './lib/gemini';
 import { authenticateToken, optionalAuth } from './middleware/auth';
 
-import atsRouter from './routes/ats';
+import createAtsRouter from './routes/ats';
 import referralsRouter from './routes/referrals';
 import portfolioRouter from './routes/portfolio';
 import emailsRouter from './routes/emails';
@@ -361,7 +361,7 @@ IMPORTANT:
 });
 
 // STEP 7: Apply authentication middleware to protected routes
-app.use('/ats', authenticateToken, atsRouter(prisma, logger));
+app.use('/api/ats', authenticateToken, createAtsRouter(prisma));
 app.use('/referrals', authenticateToken, referralsRouter(prisma, logger));
 app.use('/portfolio', authenticateToken, portfolioRouter(prisma, logger));
 app.use('/emails', authenticateToken, emailsRouter(prisma, logger));
