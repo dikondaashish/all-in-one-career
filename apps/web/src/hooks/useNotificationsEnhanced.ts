@@ -7,6 +7,17 @@ const API_BASE_URL = process.env.NODE_ENV === 'production'
   ? 'https://all-in-one-career-api.onrender.com'
   : 'http://localhost:4000';
 
+export interface NotificationMetadata {
+  url?: string;
+  actionText?: string;
+  details?: Record<string, unknown> | string;
+  attachments?: Array<{
+    name: string;
+    url: string;
+    type?: string;
+  }>;
+}
+
 export interface Notification {
   id: string;
   type: string;
@@ -15,6 +26,7 @@ export interface Notification {
   isRead: boolean;
   createdAt: string;
   archived: boolean;
+  metadata?: NotificationMetadata;
 }
 
 export type NotificationTab = 'unread' | 'all' | 'archived';
@@ -209,6 +221,41 @@ export function useNotificationsEnhanced({
     }
   }, [user, mutate]);
 
+  const deleteNotification = useCallback(async (notificationId: string) => {
+    if (!user) return;
+
+    try {
+      const token = await user.getIdToken();
+      
+      // Optimistic update - remove from current view
+      mutate(current => 
+        current?.filter(n => n.id !== notificationId), false
+      );
+
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        // Revert optimistic update on failure
+        mutate();
+        throw new Error('Failed to delete notification');
+      }
+
+      // Revalidate to ensure consistency
+      mutate();
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      // Revert optimistic update
+      mutate();
+      throw error;
+    }
+  }, [user, mutate]);
+
   const unreadCount = notifications?.filter(n => !n.isRead && !n.archived).length || 0;
 
   return {
@@ -220,6 +267,7 @@ export function useNotificationsEnhanced({
     markAllAsRead,
     archiveNotification,
     restoreNotification,
+    deleteNotification,
     mutate,
   };
 }

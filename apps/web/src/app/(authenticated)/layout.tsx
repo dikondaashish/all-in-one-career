@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 import { ToastProvider } from '@/components/notifications/ToastContainer';
+import { ConfirmationProvider } from '@/components/ui/ConfirmationDialog';
 
 // Force dynamic rendering to prevent static generation issues with theme system
 export const dynamic = 'force-dynamic';
@@ -67,29 +68,31 @@ export default function AuthenticatedLayout({
   }
 
   return (
-    <ToastProvider>
-      <div className="min-h-screen bg-[#F0F2F5]">
-        {/* Fixed Topbar that spans full width */}
-        <Topbar 
-          sidebarCollapsed={sidebarCollapsed}
-          onToggleSidebar={handleSidebarToggle}
-        />
-        
-        {/* Sidebar positioned below the topbar */}
-        <Sidebar 
-          isCollapsed={sidebarCollapsed}
-          onToggle={setSidebarCollapsed}
-        />
-        
-        {/* Main content area that shifts right/left based on sidebar state */}
-        <main className={`pt-18 min-h-screen transition-all duration-300 ease-in-out ${
-          sidebarCollapsed ? 'ml-16' : 'ml-60'
-        }`}>
-          <div className="p-8">
-            {children}
-          </div>
-        </main>
-      </div>
-    </ToastProvider>
+    <ConfirmationProvider>
+      <ToastProvider>
+        <div className="min-h-screen bg-[#F0F2F5]">
+          {/* Fixed Topbar that spans full width */}
+          <Topbar 
+            sidebarCollapsed={sidebarCollapsed}
+            onToggleSidebar={handleSidebarToggle}
+          />
+          
+          {/* Sidebar positioned below the topbar */}
+          <Sidebar 
+            isCollapsed={sidebarCollapsed}
+            onToggle={setSidebarCollapsed}
+          />
+          
+          {/* Main content area that shifts right/left based on sidebar state */}
+          <main className={`pt-18 min-h-screen transition-all duration-300 ease-in-out ${
+            sidebarCollapsed ? 'ml-16' : 'ml-60'
+          }`}>
+            <div className="p-8">
+              {children}
+            </div>
+          </main>
+        </div>
+      </ToastProvider>
+    </ConfirmationProvider>
   );
 }
