@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bell, X, Check, CheckCheck } from 'lucide-react';
+import { Bell, X, Check, CheckCheck, MoreVertical, Archive } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatDistanceToNow } from 'date-fns';
+import toast from 'react-hot-toast';
 
 type FilterType = 'unread' | 'all' | 'archived';
 
 export default function NotificationBell() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, isLoading } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, archiveNotification, isLoading } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>('unread');
+  const [showMenuFor, setShowMenuFor] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -18,6 +20,7 @@ export default function NotificationBell() {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setShowMenuFor(null); // Also close any open menus
       }
     };
 
@@ -31,6 +34,16 @@ export default function NotificationBell() {
 
   const handleMarkAllRead = async () => {
     await markAllAsRead();
+  };
+
+  const handleArchive = async (notificationId: string) => {
+    setShowMenuFor(null); // Close the menu
+    const success = await archiveNotification(notificationId);
+    if (success) {
+      toast.success('Notification moved to archive');
+    } else {
+      toast.error('Failed to archive notification');
+    }
   };
 
   // Filter notifications based on active filter
@@ -200,17 +213,47 @@ export default function NotificationBell() {
                           {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                         </span>
                         
-                        {!notification.isRead && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleNotificationClick(notification.id);
-                            }}
-                            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {!notification.isRead && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNotificationClick(notification.id);
+                              }}
+                              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                          )}
+                          
+                          {/* Three-dot menu for archive */}
+                          <div className="relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowMenuFor(showMenuFor === notification.id ? null : notification.id);
+                              }}
+                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                            
+                            {showMenuFor === notification.id && (
+                              <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleArchive(notification.id);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                  <Archive className="w-4 h-4" />
+                                  Archive
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
