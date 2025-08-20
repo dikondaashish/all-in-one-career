@@ -1,6 +1,6 @@
 'use client';
 
-import { HelpCircle, Search, FileText, Briefcase, Mail, Users, ClipboardList, BarChart3 } from 'lucide-react';
+import { HelpCircle, Search, FileText, BarChart3 } from 'lucide-react';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';

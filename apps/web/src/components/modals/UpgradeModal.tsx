@@ -196,7 +196,7 @@ export default function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
         });
       }
       
-    } catch (error) {
+    } catch {
       showToast({
         icon: '❌',
         title: 'Redemption Failed',

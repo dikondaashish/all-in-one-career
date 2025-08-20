@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Filter, Calendar, MapPin, Building, DollarSign, Clock, Eye, Edit, Trash2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -43,31 +43,7 @@ export default function TrackerPage() {
     notes: ''
   });
 
-  useEffect(() => {
-    if (!loading && !user && !hasSkippedAuth()) {
-      router.push('/');
-    }
-  }, [user, loading, hasSkippedAuth, router]);
-
-  useEffect(() => {
-    if (user) {
-      fetchApplications();
-    }
-  }, [user]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!user && !hasSkippedAuth()) {
-    return null;
-  }
-
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     setIsLoading(true);
     setError('');
 
@@ -89,7 +65,31 @@ export default function TrackerPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!loading && !user && !hasSkippedAuth()) {
+      router.push('/');
+    }
+  }, [user, loading, hasSkippedAuth, router]);
+
+  useEffect(() => {
+    if (user) {
+      fetchApplications();
+    }
+  }, [user, fetchApplications]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!user && !hasSkippedAuth()) {
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

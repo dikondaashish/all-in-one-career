@@ -34,7 +34,7 @@ import {
   HelpCircle, 
   Download
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -44,7 +44,7 @@ interface SidebarProps {
 export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isGuest, setGuestMode } = useAuth();
+
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
