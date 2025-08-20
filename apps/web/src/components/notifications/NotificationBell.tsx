@@ -54,7 +54,7 @@ export default function NotificationBell() {
     const result = await archiveNotification(notificationId);
     setActiveMenuId(null);
     if (result?.success) {
-      setToastMessage({ message: result.message, type: 'success' });
+      setToastMessage({ message: 'Moved to archive', type: 'success' });
     } else {
       setToastMessage({ message: result?.message || 'Failed to archive notification', type: 'error' });
     }
@@ -64,7 +64,7 @@ export default function NotificationBell() {
     const result = await restoreNotification(notificationId);
     setActiveMenuId(null);
     if (result?.success) {
-      setToastMessage({ message: result.message, type: 'success' });
+      setToastMessage({ message: 'Notification restored', type: 'success' });
     } else {
       setToastMessage({ message: result?.message || 'Failed to restore notification', type: 'error' });
     }
