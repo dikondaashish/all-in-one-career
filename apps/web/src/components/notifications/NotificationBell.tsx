@@ -15,7 +15,8 @@ export default function NotificationBell() {
     archiveNotification, 
     restoreNotification,
     isLoading, 
-    getFilteredNotifications 
+    getFilteredNotifications,
+    forceUpdate // Add this to force re-renders
   } = useNotifications();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -36,6 +37,12 @@ export default function NotificationBell() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Force re-render when notifications change (for optimistic updates)
+  useEffect(() => {
+    // This will trigger a re-render when forceUpdate changes
+    console.log('🔄 NotificationBell re-rendering due to forceUpdate:', forceUpdate);
+  }, [forceUpdate]);
 
   const handleNotificationClick = async (notificationId: string) => {
     await markAsRead(notificationId);

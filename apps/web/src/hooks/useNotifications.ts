@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://all-in-one-career-api.onrender.com'
@@ -113,6 +113,31 @@ export function useNotifications() {
     }
   };
 
+  // Filter notifications based on selected filter
+  const getFilteredNotifications = (filter: NotificationFilter) => {
+    if (!notifications) return [];
+    
+    // Debug logging to see what's happening
+    console.log('🔍 getFilteredNotifications called with filter:', filter);
+    console.log('📊 Current notifications:', notifications);
+    console.log('📋 Archived notifications:', notifications.filter(n => n.archived));
+    
+    switch (filter) {
+      case 'unread':
+        return notifications.filter(n => !n.isRead && !n.archived);
+      case 'archived':
+        const archived = notifications.filter(n => n.archived);
+        console.log('📁 Filtered archived notifications:', archived);
+        return archived;
+      case 'all':
+      default:
+        return notifications;
+    }
+  };
+
+  // Force re-render when notifications change
+  const [forceUpdate, setForceUpdate] = useState(0);
+
   const archiveNotification = async (notificationId: string) => {
     if (!user) return;
 
@@ -140,6 +165,9 @@ export function useNotifications() {
         populateCache: true // Populate the cache with optimistic data
       });
 
+      // Force re-render to update UI immediately
+      setForceUpdate(prev => prev + 1);
+
       const token = await user.getIdToken();
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/archive`, {
         method: 'POST',
@@ -156,12 +184,14 @@ export function useNotifications() {
       } else {
         // Revert optimistic update on error
         mutate();
+        setForceUpdate(prev => prev + 1);
         const errorData = await response.json();
         return { success: false, message: errorData.error || 'Failed to archive notification' };
       }
     } catch (error) {
       // Revert optimistic update on error
       mutate();
+      setForceUpdate(prev => prev + 1);
       console.error('Error archiving notification:', error);
       return { success: false, message: 'Failed to archive notification' };
     }
@@ -194,6 +224,9 @@ export function useNotifications() {
         populateCache: true // Populate the cache with optimistic data
       });
 
+      // Force re-render to update UI immediately
+      setForceUpdate(prev => prev + 1);
+
       const token = await user.getIdToken();
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/restore`, {
         method: 'POST',
@@ -210,12 +243,14 @@ export function useNotifications() {
       } else {
         // Revert optimistic update on error
         mutate();
+        setForceUpdate(prev => prev + 1);
         const errorData = await response.json();
         return { success: false, message: errorData.error || 'Failed to restore notification' };
       }
     } catch (error) {
       // Revert optimistic update on error
       mutate();
+      setForceUpdate(prev => prev + 1);
       console.error('Error restoring notification:', error);
       return { success: false, message: 'Failed to restore notification' };
     }
@@ -223,28 +258,8 @@ export function useNotifications() {
 
   const unreadCount = notifications?.filter(n => !n.isRead && !n.archived).length || 0;
 
-  // Filter notifications based on selected filter
-  const getFilteredNotifications = (filter: NotificationFilter) => {
-    if (!notifications) return [];
-    
-    // Debug logging to see what's happening
-    console.log('🔍 getFilteredNotifications called with filter:', filter);
-    console.log('📊 Current notifications:', notifications);
-    console.log('📋 Archived notifications:', notifications.filter(n => n.archived));
-    
-    switch (filter) {
-      case 'unread':
-        return notifications.filter(n => !n.isRead && !n.archived);
-      case 'archived':
-        return notifications.filter(n => n.archived);
-      case 'all':
-      default:
-        return notifications;
-    }
-  };
-
   return {
-    notifications: notifications || [],
+    notifications,
     unreadCount,
     isLoading,
     error,
@@ -254,5 +269,6 @@ export function useNotifications() {
     restoreNotification,
     mutate,
     getFilteredNotifications,
+    forceUpdate // Add this to force re-renders
   };
 }
