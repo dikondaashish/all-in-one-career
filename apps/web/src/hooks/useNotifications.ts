@@ -1,27 +1,34 @@
 import useSWR from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useEffect } from 'react';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://all-in-one-career-api.onrender.com'
   : 'http://localhost:4000';
 
-interface Notification {
+export interface Notification {
   id: string;
+  userId: string;
   type: string;
   title: string;
   message: string;
   isRead: boolean;
   createdAt: string;
   archived: boolean;
+  metadata?: {
+    url?: string;
+    [key: string]: any;
+  };
 }
+
+export type NotificationFilter = 'unread' | 'all' | 'archived';
 
 const fetcher = async (url: string, token: string): Promise<Notification[]> => {
   const response = await fetch(`${API_BASE_URL}${url}`, {
     headers: {
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+      'Content-Type': 'application/json'
+    }
   });
 
   if (!response.ok) {
@@ -31,11 +38,9 @@ const fetcher = async (url: string, token: string): Promise<Notification[]> => {
   return response.json();
 };
 
-export type NotificationFilter = 'unread' | 'all' | 'archived';
-
-export function useNotifications() {
+export function useNotifications(filter: NotificationFilter = 'unread') {
   const { user } = useAuth();
-  const previousNotificationsRef = useRef<Notification[]>([]);
+  const previousNotifications = useRef<Notification[]>([]);
 
   const { data: notifications, error, isLoading, mutate } = useSWR(
     user ? ['/api/notifications', user] : null,
@@ -43,31 +48,32 @@ export function useNotifications() {
       const token = await user.getIdToken();
       return fetcher(url, token);
     },
-    {
-      refreshInterval: 30000, // Poll every 30 seconds
-      revalidateOnFocus: true,
+    { 
+      refreshInterval: 30000, 
+      revalidateOnFocus: true, 
       revalidateOnReconnect: true,
+      onSuccess: (data) => {
+        // Track new notifications for toast popups
+        if (previousNotifications.current.length > 0 && data) {
+          const newUnreadNotifications = data.filter(n => 
+            !n.isRead && 
+            !n.archived && 
+            !previousNotifications.current.some(prev => prev.id === n.id)
+          );
+          
+          // Store current notifications for next comparison
+          previousNotifications.current = data;
+          
+          // Return new notifications for toast handling
+          return newUnreadNotifications;
+        }
+        
+        // Store initial notifications
+        previousNotifications.current = data || [];
+        return [];
+      }
     }
   );
-
-  // Detect new notifications for toast popups
-  useEffect(() => {
-    if (notifications && previousNotificationsRef.current.length > 0) {
-      const previousIds = new Set(previousNotificationsRef.current.map(n => n.id));
-      const newUnreadNotifications = notifications.filter(
-        n => !previousIds.has(n.id) && !n.isRead && !n.archived
-      );
-      
-      // Store current notifications for next comparison
-      previousNotificationsRef.current = notifications;
-      
-      // Note: New unread notifications are detected here
-      // The parent component can use this information if needed
-    } else if (notifications) {
-      // First load - just store the notifications
-      previousNotificationsRef.current = notifications;
-    }
-  }, [notifications]);
 
   const markAsRead = async (notificationId: string) => {
     if (!user) return;
@@ -78,12 +84,12 @@ export function useNotifications() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json'
+        }
       });
 
       if (response.ok) {
-        // Refetch notifications to update the UI
+        // Optimistically update the local state
         mutate();
       }
     } catch (error) {
@@ -100,12 +106,11 @@ export function useNotifications() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json'
+        }
       });
 
       if (response.ok) {
-        // Refetch notifications to update the UI
         mutate();
       }
     } catch (error) {
@@ -114,161 +119,30 @@ export function useNotifications() {
   };
 
   // Filter notifications based on selected filter
-  const getFilteredNotifications = (filter: NotificationFilter) => {
-    if (!notifications) return [];
-    
-    // Debug logging to see what's happening
-    console.log('🔍 getFilteredNotifications called with filter:', filter);
-    console.log('📊 Current notifications:', notifications);
-    console.log('📋 Archived notifications:', notifications.filter(n => n.archived));
-    
+  const filteredNotifications = notifications?.filter(notification => {
     switch (filter) {
       case 'unread':
-        return notifications.filter(n => !n.isRead && !n.archived);
-      case 'archived':
-        const archived = notifications.filter(n => n.archived);
-        console.log('📁 Filtered archived notifications:', archived);
-        return archived;
+        return !notification.isRead && !notification.archived;
       case 'all':
+        return true;
+      case 'archived':
+        return notification.archived;
       default:
-        return notifications;
+        return !notification.isRead && !notification.archived;
     }
-  };
-
-  // Force re-render when notifications change
-  const [forceUpdate, setForceUpdate] = useState(0);
-
-  const archiveNotification = async (notificationId: string) => {
-    if (!user) return;
-
-    try {
-      // Optimistic update: immediately update the local state
-      mutate((currentNotifications: Notification[] | undefined) => {
-        if (!currentNotifications) return currentNotifications;
-        
-        const updatedNotifications = currentNotifications.map(notification => 
-          notification.id === notificationId 
-            ? { ...notification, archived: true, isRead: true }
-            : notification
-        );
-        
-        console.log('🔄 Optimistic archive update:', {
-          notificationId,
-          before: currentNotifications.find(n => n.id === notificationId),
-          after: updatedNotifications.find(n => n.id === notificationId),
-          totalArchived: updatedNotifications.filter(n => n.archived).length
-        });
-        
-        return updatedNotifications;
-      }, { 
-        revalidate: false, // Don't revalidate yet
-        populateCache: true // Populate the cache with optimistic data
-      });
-
-      // Force re-render to update UI immediately
-      setForceUpdate(prev => prev + 1);
-
-      const token = await user.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/archive`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        // Revalidate to ensure consistency with backend
-        mutate();
-        return { success: true, message: 'Notification archived' };
-      } else {
-        // Revert optimistic update on error
-        mutate();
-        setForceUpdate(prev => prev + 1);
-        const errorData = await response.json();
-        return { success: false, message: errorData.error || 'Failed to archive notification' };
-      }
-    } catch (error) {
-      // Revert optimistic update on error
-      mutate();
-      setForceUpdate(prev => prev + 1);
-      console.error('Error archiving notification:', error);
-      return { success: false, message: 'Failed to archive notification' };
-    }
-  };
-
-  const restoreNotification = async (notificationId: string) => {
-    if (!user) return;
-
-    try {
-      // Optimistic update: immediately update the local state
-      mutate((currentNotifications: Notification[] | undefined) => {
-        if (!currentNotifications) return currentNotifications;
-        
-        const updatedNotifications = currentNotifications.map(notification => 
-          notification.id === notificationId 
-            ? { ...notification, archived: false }
-            : notification
-        );
-        
-        console.log('🔄 Optimistic restore update:', {
-          notificationId,
-          before: currentNotifications.find(n => n.id === notificationId),
-          after: updatedNotifications.find(n => n.id === notificationId),
-          totalArchived: updatedNotifications.filter(n => n.archived).length
-        });
-        
-        return updatedNotifications;
-      }, { 
-        revalidate: false, // Don't revalidate yet
-        populateCache: true // Populate the cache with optimistic data
-      });
-
-      // Force re-render to update UI immediately
-      setForceUpdate(prev => prev + 1);
-
-      const token = await user.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/restore`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        // Revalidate to ensure consistency with backend
-        mutate();
-        return { success: true, message: 'Notification restored' };
-      } else {
-        // Revert optimistic update on error
-        mutate();
-        setForceUpdate(prev => prev + 1);
-        const errorData = await response.json();
-        return { success: false, message: errorData.error || 'Failed to restore notification' };
-      }
-    } catch (error) {
-      // Revert optimistic update on error
-      mutate();
-      setForceUpdate(prev => prev + 1);
-      console.error('Error restoring notification:', error);
-      return { success: false, message: 'Failed to restore notification' };
-    }
-  };
+  }) || [];
 
   const unreadCount = notifications?.filter(n => !n.isRead && !n.archived).length || 0;
 
-  return {
-    notifications,
-    unreadCount,
-    isLoading,
-    error,
-    markAsRead,
-    markAllAsRead,
-    archiveNotification,
-    restoreNotification,
+  return { 
+    notifications: filteredNotifications, 
+    allNotifications: notifications || [],
+    unreadCount, 
+    isLoading, 
+    error, 
+    markAsRead, 
+    markAllAsRead, 
     mutate,
-    getFilteredNotifications,
-    forceUpdate // Add this to force re-renders
+    filter 
   };
 }
