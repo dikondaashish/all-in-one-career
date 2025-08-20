@@ -1,5 +1,6 @@
 import useSWR from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEffect, useRef } from 'react';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://all-in-one-career-api.onrender.com'
@@ -13,10 +14,6 @@ interface Notification {
   isRead: boolean;
   createdAt: string;
   archived: boolean;
-  metadata?: {
-    url?: string;
-    action?: string;
-  };
 }
 
 const fetcher = async (url: string, token: string): Promise<Notification[]> => {
@@ -34,11 +31,14 @@ const fetcher = async (url: string, token: string): Promise<Notification[]> => {
   return response.json();
 };
 
-export function useNotifications(filter: 'unread' | 'all' | 'archived' = 'unread') {
+export type NotificationFilter = 'unread' | 'all' | 'archived';
+
+export function useNotifications() {
   const { user } = useAuth();
+  const previousNotificationsRef = useRef<Notification[]>([]);
 
   const { data: notifications, error, isLoading, mutate } = useSWR(
-    user ? [`/api/notifications?filter=${filter}`, user] : null,
+    user ? ['/api/notifications', user] : null,
     async ([url, user]) => {
       const token = await user.getIdToken();
       return fetcher(url, token);
@@ -49,6 +49,25 @@ export function useNotifications(filter: 'unread' | 'all' | 'archived' = 'unread
       revalidateOnReconnect: true,
     }
   );
+
+  // Detect new notifications for toast popups
+  useEffect(() => {
+    if (notifications && previousNotificationsRef.current.length > 0) {
+      const previousIds = new Set(previousNotificationsRef.current.map(n => n.id));
+      const newUnreadNotifications = notifications.filter(
+        n => !previousIds.has(n.id) && !n.isRead && !n.archived
+      );
+      
+      // Store current notifications for next comparison
+      previousNotificationsRef.current = notifications;
+      
+      // Note: New unread notifications are detected here
+      // The parent component can use this information if needed
+    } else if (notifications) {
+      // First load - just store the notifications
+      previousNotificationsRef.current = notifications;
+    }
+  }, [notifications]);
 
   const markAsRead = async (notificationId: string) => {
     if (!user) return;
@@ -94,51 +113,22 @@ export function useNotifications(filter: 'unread' | 'all' | 'archived' = 'unread
     }
   };
 
-  const archiveNotification = async (notificationId: string) => {
-    if (!user) return;
-
-    try {
-      const token = await user.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/notifications/archive/${notificationId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        // Refetch notifications to update the UI
-        mutate();
-      }
-    } catch (error) {
-      console.error('Error archiving notification:', error);
-    }
-  };
-
-  const unarchiveNotification = async (notificationId: string) => {
-    if (!user) return;
-
-    try {
-      const token = await user.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/notifications/unarchive/${notificationId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        // Refetch notifications to update the UI
-        mutate();
-      }
-    } catch (error) {
-      console.error('Error unarchiving notification:', error);
-    }
-  };
-
   const unreadCount = notifications?.filter(n => !n.isRead && !n.archived).length || 0;
+
+  // Filter notifications based on selected filter
+  const getFilteredNotifications = (filter: NotificationFilter) => {
+    if (!notifications) return [];
+    
+    switch (filter) {
+      case 'unread':
+        return notifications.filter(n => !n.isRead && !n.archived);
+      case 'archived':
+        return notifications.filter(n => n.archived);
+      case 'all':
+      default:
+        return notifications;
+    }
+  };
 
   return {
     notifications: notifications || [],
@@ -147,8 +137,7 @@ export function useNotifications(filter: 'unread' | 'all' | 'archived' = 'unread
     error,
     markAsRead,
     markAllAsRead,
-    archiveNotification,
-    unarchiveNotification,
     mutate,
+    getFilteredNotifications,
   };
 }
