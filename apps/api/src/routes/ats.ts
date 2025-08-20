@@ -1,15 +1,15 @@
-import express from 'express';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs/promises';
-import { z } from 'zod';
+import express, { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
+import { z } from 'zod';
 import { extractTextFromFile } from '../utils/fileParser';
-import { extractResumeFields, extractSkills, calculateMatchScore, tokenize } from '../utils/textProcessor';
+import { extractResumeFields, calculateMatchScore, extractSkills } from '../utils/textProcessor';
 
-const router = express.Router();
+const router = Router();
 
-// Configure multer for file uploads
+// Multer configuration for file uploads
 const upload = multer({
   dest: 'temp/',
   limits: {
@@ -22,7 +22,7 @@ const upload = multer({
     if (allowedTypes.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Only DOC and DOCX files are currently supported'));
+      cb(new Error('Only DOC and DOCX files are currently supported. PDF support coming soon.'));
     }
   }
 });
@@ -32,241 +32,295 @@ const scanRequestSchema = z.object({
   jobDescription: z.string().optional()
 });
 
+const paginationSchema = z.object({
+  limit: z.string().optional().default('20').transform(Number),
+  offset: z.string().optional().default('0').transform(Number)
+});
+
 export default function createAtsRouter(prisma: PrismaClient): express.Router {
   // POST /api/ats/scan - Upload and scan resume
   router.post('/scan', upload.single('resume'), async (req: any, res) => {
+    let tempFilePath: string | null = null;
+    
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'Resume file is required' });
       }
 
-      // Validate request body
       const { jobDescription } = scanRequestSchema.parse(req.body);
-      
-      const userId = req.user?.uid; // From authenticateToken middleware
+      const userId = req.user?.uid; // User ID from authenticated token
+
       const file = req.file;
-      const fileExt = path.extname(file.originalname).toLowerCase();
+      const fileExt = path.extname(file.originalname);
+      tempFilePath = file.path;
+
+      console.log(`Processing file: ${file.originalname}, size: ${file.size}, type: ${fileExt}`);
+
+      // Extract text from file
+      const resumeText = await extractTextFromFile(file.path, fileExt);
       
-      try {
-        // Extract text from uploaded file
-        const resumeText = await extractTextFromFile(file.path, fileExt);
-        
-        // Parse resume into structured data
-        const parsedResume = extractResumeFields(resumeText);
-        
-        // Extract skills from job description if provided
-        let jdSkills: string[] = [];
-        let matchResult: { score: number; missingSkills: string[]; extraSkills: string[] } = { 
-          score: 0, 
-          missingSkills: [], 
-          extraSkills: parsedResume.skills 
-        };
-        
-        if (jobDescription && jobDescription.trim()) {
-          jdSkills = extractSkills(jobDescription);
-          matchResult = calculateMatchScore(parsedResume.skills, jdSkills);
-        }
-        
-        // Save scan to database
-        const scan = await prisma.atsScan.create({
-          data: {
-            userId,
-            fileName: file.originalname,
-            fileType: fileExt,
-            jdText: jobDescription || null,
-            parsedJson: parsedResume,
-            matchScore: matchResult.score,
-            missingSkills: matchResult.missingSkills,
-            extraSkills: matchResult.extraSkills
-          }
-        });
-        
-        // Save keyword stats
-        const allKeywords = new Set([...parsedResume.skills, ...jdSkills]);
-        const keywordStats = Array.from(allKeywords).map(keyword => ({
-          scanId: scan.id,
-          keyword,
-          inResume: parsedResume.skills.includes(keyword),
-          inJobDesc: jdSkills.includes(keyword),
-          weight: 1.0
-        }));
-        
-        if (keywordStats.length > 0) {
-          await prisma.atsKeywordStat.createMany({
-            data: keywordStats
-          });
-        }
-        
-        // Update user's ATS scan count
-        if (userId) {
-          await prisma.user.update({
-            where: { id: userId },
-            data: { atsScans: { increment: 1 } }
-          });
-        }
-        
-        // Return response
-        const response = {
-          scanId: scan.id,
+      if (!resumeText || resumeText.trim().length === 0) {
+        throw new Error('Could not extract text from the uploaded file. Please ensure it contains readable text.');
+      }
+      
+      console.log(`Extracted text length: ${resumeText.length} characters`);
+      
+      // Parse resume into structured data
+      const parsedResume = extractResumeFields(resumeText);
+      
+      console.log(`Parsed resume - Name: ${parsedResume.name}, Email: ${parsedResume.email}, Skills: ${parsedResume.skills.length}`);
+      
+      // Extract skills from job description if provided
+      let jdSkills: string[] = [];
+      let matchResult: { score: number; missingSkills: string[]; extraSkills: string[] } = { 
+        score: 0, 
+        missingSkills: [], 
+        extraSkills: parsedResume.skills 
+      };
+      
+      if (jobDescription && jobDescription.trim()) {
+        jdSkills = extractSkills(jobDescription);
+        matchResult = calculateMatchScore(parsedResume.skills, jdSkills);
+        console.log(`JD skills: ${jdSkills.length}, Match score: ${matchResult.score}%`);
+      }
+
+      // Save scan to database
+      const atsScan = await prisma.atsScan.create({
+        data: {
+          userId: userId || null, // Allow guests if no user ID
+          fileName: file.originalname,
+          fileType: fileExt,
+          jdText: jobDescription || null,
+          parsedJson: parsedResume as any, // Prisma Json type
           matchScore: matchResult.score,
-          summary: {
-            name: parsedResume.name,
-            email: parsedResume.email,
-            phone: parsedResume.phone,
-            skills: parsedResume.skills
-          },
           missingSkills: matchResult.missingSkills,
           extraSkills: matchResult.extraSkills,
-          keywords: keywordStats
-        };
-        
-        res.json(response);
-        
-      } finally {
-        // Clean up temp file
-        try {
-          await fs.unlink(file.path);
-        } catch (err) {
-          console.warn('Failed to delete temp file:', file.path);
+        }
+      });
+
+      console.log(`Created ATS scan with ID: ${atsScan.id}`);
+
+      // Save keywords stats
+      const keywordsToCreate = [];
+      
+      // Add resume skills
+      for (const skill of parsedResume.skills) {
+        keywordsToCreate.push({
+          scanId: atsScan.id,
+          keyword: skill,
+          inResume: true,
+          inJobDesc: jdSkills.map(s => s.toLowerCase()).includes(skill.toLowerCase()),
+        });
+      }
+      
+      // Add missing skills from JD
+      for (const jdSkill of jdSkills) {
+        if (!parsedResume.skills.map(s => s.toLowerCase()).includes(jdSkill.toLowerCase())) {
+          keywordsToCreate.push({
+            scanId: atsScan.id,
+            keyword: jdSkill,
+            inResume: false,
+            inJobDesc: true,
+          });
         }
       }
       
-    } catch (error) {
-      console.error('Error in ATS scan:', error);
-      
-      // Clean up temp file on error
-      if (req.file?.path) {
-        try {
-          await fs.unlink(req.file.path);
-        } catch (err) {
-          console.warn('Failed to delete temp file on error:', req.file.path);
-        }
+      if (keywordsToCreate.length > 0) {
+        await prisma.atsKeywordStat.createMany({
+          data: keywordsToCreate,
+          skipDuplicates: true,
+        });
+        console.log(`Created ${keywordsToCreate.length} keyword stats`);
       }
+
+      // Update user's ATS scan count if authenticated
+      if (userId) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { atsScans: { increment: 1 } }
+        });
+      }
+
+      // Prepare response
+      const response = {
+        scanId: atsScan.id,
+        matchScore: atsScan.matchScore,
+        summary: {
+          name: parsedResume.name,
+          email: parsedResume.email,
+          phone: parsedResume.phone,
+          skills: parsedResume.skills,
+        },
+        missingSkills: atsScan.missingSkills,
+        extraSkills: atsScan.extraSkills,
+        keywords: keywordsToCreate.map(k => ({
+          keyword: k.keyword,
+          inResume: k.inResume,
+          inJobDesc: k.inJobDesc,
+          weight: 1 // Default weight for MVP
+        }))
+      };
+
+      console.log(`Scan completed successfully for ${file.originalname}`);
+      res.json(response);
+
+    } catch (error: any) {
+      console.error('ATS Scan Error:', error);
       
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.issues });
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: error.issues 
+        });
       }
       
-      res.status(500).json({ error: 'Failed to process resume scan' });
+      // Handle specific error types
+      if (error.message.includes('PDF parsing') || error.message.includes('not supported')) {
+        return res.status(400).json({ error: error.message });
+      }
+      
+      res.status(500).json({ 
+        error: 'Failed to process resume scan. Please try again or contact support if the issue persists.' 
+      });
+    } finally {
+      // Clean up temp file
+      if (tempFilePath) {
+        try { 
+          fs.unlinkSync(tempFilePath); 
+          console.log(`Cleaned up temp file: ${tempFilePath}`);
+        } catch (err) {
+          console.warn('Failed to delete temp file:', tempFilePath, err);
+        }
+      }
     }
   });
-  
+
   // GET /api/ats/scans - Get user's scan history
   router.get('/scans', async (req: any, res) => {
     try {
+      const { limit, offset } = paginationSchema.parse(req.query);
       const userId = req.user?.uid;
+
       if (!userId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
-      
-      const limit = parseInt(req.query.limit as string) || 20;
-      const offset = parseInt(req.query.offset as string) || 0;
-      
-      const scans = await prisma.atsScan.findMany({
-        where: { userId },
-        select: {
-          id: true,
-          fileName: true,
-          matchScore: true,
-          createdAt: true,
-          fileType: true
-        },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip: offset
-      });
-      
-      const total = await prisma.atsScan.count({
-        where: { userId }
-      });
-      
+
+      const [scans, total] = await Promise.all([
+        prisma.atsScan.findMany({
+          where: { userId },
+          select: {
+            id: true,
+            fileName: true,
+            matchScore: true,
+            createdAt: true,
+            fileType: true,
+            jdText: true
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset
+        }),
+        prisma.atsScan.count({
+          where: { userId }
+        })
+      ]);
+
       res.json({
-        scans,
-        pagination: {
-          total,
-          limit,
-          offset,
-          hasMore: offset + limit < total
-        }
+        scans: scans.map(scan => ({
+          ...scan,
+          hasJobDescription: !!scan.jdText
+        })),
+        total,
+        limit,
+        offset
       });
+
+    } catch (error: any) {
+      console.error('Get scans error:', error);
       
-    } catch (error) {
-      console.error('Error fetching ATS scans:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid query parameters', 
+          details: error.issues 
+        });
+      }
+      
       res.status(500).json({ error: 'Failed to fetch scan history' });
     }
   });
-  
+
   // GET /api/ats/scans/:id - Get specific scan details
   router.get('/scans/:id', async (req: any, res) => {
     try {
+      const { id } = req.params;
       const userId = req.user?.uid;
+
       if (!userId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
-      
-      const scanId = req.params.id;
-      
+
       const scan = await prisma.atsScan.findFirst({
-        where: {
-          id: scanId,
-          userId
+        where: { 
+          id,
+          userId // Ensure user can only access their own scans
         },
         include: {
           keywords: true
         }
       });
-      
+
       if (!scan) {
         return res.status(404).json({ error: 'Scan not found' });
       }
-      
+
       res.json(scan);
-      
-    } catch (error) {
-      console.error('Error fetching ATS scan:', error);
+
+    } catch (error: any) {
+      console.error('Get scan detail error:', error);
       res.status(500).json({ error: 'Failed to fetch scan details' });
     }
   });
-  
+
   // DELETE /api/ats/scans/:id - Delete a scan
   router.delete('/scans/:id', async (req: any, res) => {
     try {
+      const { id } = req.params;
       const userId = req.user?.uid;
+
       if (!userId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
-      
-      const scanId = req.params.id;
-      
+
+      // Check if scan exists and belongs to user
       const scan = await prisma.atsScan.findFirst({
-        where: {
-          id: scanId,
-          userId
+        where: { 
+          id,
+          userId 
         }
       });
-      
+
       if (!scan) {
         return res.status(404).json({ error: 'Scan not found' });
       }
-      
-      // Delete scan (keywords will be deleted due to cascade)
+
+      // Delete scan (keywords will be cascade deleted)
       await prisma.atsScan.delete({
-        where: { id: scanId }
+        where: { id }
       });
-      
+
       // Update user's ATS scan count
       await prisma.user.update({
         where: { id: userId },
         data: { atsScans: { decrement: 1 } }
       });
-      
+
       res.json({ message: 'Scan deleted successfully' });
-      
-    } catch (error) {
-      console.error('Error deleting ATS scan:', error);
+
+    } catch (error: any) {
+      console.error('Delete scan error:', error);
       res.status(500).json({ error: 'Failed to delete scan' });
     }
   });
-  
+
   return router;
 }
