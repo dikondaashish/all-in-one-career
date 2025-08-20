@@ -1,230 +1,236 @@
+'use client';
+
 import { useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import useSWR, { mutate } from 'swr';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://all-in-one-career-api.onrender.com';
-
+// Interface for scan result response
 export interface AtsScanResult {
   scanId: string;
   matchScore: number;
   summary: {
-    name: string | null;
-    email: string | null;
-    phone: string | null;
+    name: string;
+    email: string;
+    phone: string;
     skills: string[];
   };
   missingSkills: string[];
   extraSkills: string[];
-  keywords: Array<{
-    keyword: string;
-    inResume: boolean;
-    inJobDesc: boolean;
-    weight: number;
-  }>;
+  keywords: AtsKeywordStat[];
 }
 
+// Interface for scan history item
 export interface AtsScanHistoryItem {
   id: string;
   fileName: string;
   matchScore: number;
   createdAt: string;
   fileType: string;
+  hasJobDescription: boolean;
 }
 
+// Interface for detailed scan data
 export interface AtsScanDetail {
   id: string;
-  userId: string;
   fileName: string;
   fileType: string;
   jdText: string | null;
   parsedJson: {
-    name: string | null;
-    email: string | null;
-    phone: string | null;
-    skills: string[];
+    name: string;
+    email: string;
+    phone: string;
     education: Array<{
-      school: string;
       degree: string;
-      year: string | null;
+      school: string;
+      year: string;
     }>;
     experience: Array<{
       title: string;
       company: string;
-      start: string;
-      end: string | null;
-      bullets: string[];
+      startYear: string;
+      endYear: string;
+      description: string;
     }>;
+    skills: string[];
+    originalText: string;
   };
   matchScore: number;
   missingSkills: string[];
   extraSkills: string[];
   createdAt: string;
-  keywords: Array<{
-    id: string;
-    keyword: string;
-    inResume: boolean;
-    inJobDesc: boolean;
-    weight: number;
-  }>;
+  keywords: AtsKeywordStat[];
 }
 
-export interface AtsHistory {
+// Interface for keyword statistics
+export interface AtsKeywordStat {
+  keyword: string;
+  inResume: boolean;
+  inJobDesc: boolean;
+  weight: number;
+}
+
+// Interface for history response
+export interface AtsHistoryResponse {
   scans: AtsScanHistoryItem[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-    hasMore: boolean;
-  };
+  total: number;
+  limit: number;
+  offset: number;
 }
 
-export function useAtsScanner() {
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
+
+export const useAtsScanner = () => {
+  const { user } = useAuth();
   const [isScanning, setIsScanning] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
-  const { user } = useAuth();
 
-  const scanResume = useCallback(async (
-    file: File, 
-    jobDescription?: string
-  ): Promise<AtsScanResult> => {
-    if (!user) {
-      throw new Error('Authentication required');
+  // SWR fetcher with authentication
+  const fetcher = useCallback(async (url: string) => {
+    if (!user) throw new Error('User not authenticated');
+    const token = await user.getIdToken();
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Failed to fetch data');
     }
+    return res.json();
+  }, [user]);
+
+  // Function to scan a resume
+  const scanResume = useCallback(async (file: File, jobDescription?: string): Promise<AtsScanResult> => {
+    if (!user) throw new Error('Authentication required to scan resume.');
 
     setIsScanning(true);
-    
     try {
+      const token = await user.getIdToken();
       const formData = new FormData();
       formData.append('resume', file);
       if (jobDescription) {
         formData.append('jobDescription', jobDescription);
       }
 
-      const token = await user.getIdToken();
-      
       const response = await fetch(`${API_BASE_URL}/api/ats/scan`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Scan failed with status ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to scan resume');
       }
 
-      const result = await response.json();
+      const result: AtsScanResult = await response.json();
+      
+      // Invalidate history cache to refresh the list
+      mutate(`${API_BASE_URL}/api/ats/scans`);
+      
       return result;
-    } catch (error) {
-      console.error('Resume scan error:', error);
-      throw error;
     } finally {
       setIsScanning(false);
     }
   }, [user]);
 
-  const getAtsHistory = useCallback(async (
-    limit: number = 20, 
-    offset: number = 0
-  ): Promise<AtsHistory> => {
-    if (!user) {
-      throw new Error('Authentication required');
-    }
+  // Function to get ATS scan history
+  const getAtsHistory = useCallback(async (limit: number = 20, offset: number = 0): Promise<AtsHistoryResponse> => {
+    if (!user) return { scans: [], total: 0, limit, offset };
 
     setIsLoadingHistory(true);
-    
     try {
       const token = await user.getIdToken();
-      
-      const response = await fetch(
-        `${API_BASE_URL}/api/ats/scans?limit=${limit}&offset=${offset}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/ats/scans?limit=${limit}&offset=${offset}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch history with status ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch ATS history');
       }
 
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      console.error('ATS history fetch error:', error);
-      throw error;
+      return response.json();
     } finally {
       setIsLoadingHistory(false);
     }
   }, [user]);
 
+  // Function to get detailed scan data
   const getScanDetail = useCallback(async (scanId: string): Promise<AtsScanDetail> => {
-    if (!user) {
-      throw new Error('Authentication required');
-    }
+    if (!user) throw new Error('Authentication required to view scan details.');
 
     setIsLoadingDetail(true);
-    
     try {
       const token = await user.getIdToken();
-      
       const response = await fetch(`${API_BASE_URL}/api/ats/scans/${scanId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch scan detail with status ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch scan details');
       }
 
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      console.error('ATS scan detail fetch error:', error);
-      throw error;
+      return response.json();
     } finally {
       setIsLoadingDetail(false);
     }
   }, [user]);
 
-  const deleteScan = useCallback(async (scanId: string): Promise<void> => {
-    if (!user) {
-      throw new Error('Authentication required');
-    }
-    
+  // Function to delete a scan
+  const deleteScan = useCallback(async (scanId: string) => {
+    if (!user) throw new Error('Authentication required to delete scan.');
+
     try {
       const token = await user.getIdToken();
-      
       const response = await fetch(`${API_BASE_URL}/api/ats/scans/${scanId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to delete scan with status ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete scan');
       }
+
+      // Invalidate history cache to refresh the list
+      mutate(`${API_BASE_URL}/api/ats/scans`);
     } catch (error) {
-      console.error('ATS scan delete error:', error);
+      console.error('Error deleting scan:', error);
       throw error;
     }
   }, [user]);
+
+  // Hook for scan history using SWR
+  const useAtsHistory = (limit: number = 20, offset: number = 0) => {
+    const { data, error, isLoading } = useSWR<AtsHistoryResponse>(
+      user ? `${API_BASE_URL}/api/ats/scans?limit=${limit}&offset=${offset}` : null,
+      fetcher,
+      {
+        refreshInterval: 0, // Don't auto-refresh
+        revalidateOnFocus: false,
+      }
+    );
+
+    return {
+      data,
+      error,
+      isLoading,
+    };
+  };
 
   return {
     scanResume,
     getAtsHistory,
     getScanDetail,
     deleteScan,
+    useAtsHistory,
     isScanning,
     isLoadingHistory,
     isLoadingDetail,
   };
-}
+};
+
+// Named export for the hook function
+export { useAtsScanner as default };
