@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import WelcomeWidget from '@/components/dashboard/WelcomeWidget';
+import { useWelcomeWidget } from '@/hooks/useWelcomeWidget';
 import { 
   Plus, 
   Upload,
@@ -53,6 +55,8 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
+  const { shouldShow, dismiss, userName } = useWelcomeWidget();
+  
   const [stats] = useState<DashboardStats>({
     atsScans: 24,
     portfolios: 10,
@@ -106,9 +110,19 @@ function DashboardContent() {
   };
 
   return (
-    <div className="space-y-8">
-      {/* Greeting Header */}
-      <div className="flex items-center justify-between">
+    <>
+      {/* Welcome Widget */}
+      {shouldShow && (
+        <WelcomeWidget 
+          onDismiss={dismiss}
+          showWidget={shouldShow}
+          userName={userName}
+        />
+      )}
+      
+      <div className="space-y-8">
+        {/* Greeting Header */}
+        <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{greeting}</h1>
           <p className="text-gray-600">Plan, prioritize and accomplish your career tasks with ease.</p>
@@ -339,5 +353,6 @@ function DashboardContent() {
         </div>
       </div>
     </div>
+    </>
   );
 }
