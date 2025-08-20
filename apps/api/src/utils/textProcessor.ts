@@ -1,8 +1,8 @@
 import { removeStopwords } from 'stopword';
-import * as skillsData from '../data/skills.json';
+import skillsData from '../data/skills.json';
 
 // Load skills as a Set for faster lookups
-const SKILLS_SET = new Set((skillsData as string[]).map((skill: string) => skill.toLowerCase()));
+const SKILLS_SET = new Set(skillsData.map((skill: string) => skill.toLowerCase()));
 
 /**
  * Tokenize text into keywords
