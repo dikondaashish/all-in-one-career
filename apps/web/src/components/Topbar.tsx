@@ -215,7 +215,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
               onClick={() => setShowUpgradeModal(true)}
               className="bg-[#006B53] dark:bg-[#00d4aa] text-white dark:text-black px-4 py-2 rounded-lg font-medium hover:bg-[#005A47] dark:hover:bg-[#00b894] transition-colors"
             >
-              UPGRADE
+              Upgrade to Premium
             </button>
 
             {/* Notifications */}
