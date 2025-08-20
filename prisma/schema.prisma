@@ -133,7 +133,6 @@ model Notification {
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
   archived   Boolean  @default(false)
-  metadata   Json?    // For storing URLs and additional data
   
   user User @relation(fields: [userId], references: [id])
 }

@@ -1,25 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bell, X, Check, CheckCheck, Archive, RotateCcw } from 'lucide-react';
-import { useNotifications } from '@/hooks/useNotifications';
+import { Bell, X, Check, CheckCheck } from 'lucide-react';
+import { useNotifications, NotificationFilter } from '@/hooks/useNotifications';
 import { formatDistanceToNow } from 'date-fns';
 
-type FilterType = 'unread' | 'all' | 'archived';
-
 export default function NotificationBell() {
-  const [currentFilter, setCurrentFilter] = useState<FilterType>('unread');
-  const { 
-    notifications, 
-    unreadCount, 
-    markAsRead, 
-    markAllAsRead, 
-    archiveNotification,
-    unarchiveNotification,
-    isLoading 
-  } = useNotifications(currentFilter);
-  
+  const { notifications, unreadCount, markAsRead, markAllAsRead, isLoading, getFilteredNotifications } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<NotificationFilter>('unread');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -35,21 +24,15 @@ export default function NotificationBell() {
   }, []);
 
   const handleNotificationClick = async (notificationId: string) => {
-    if (currentFilter === 'unread') {
-      await markAsRead(notificationId);
-    }
+    await markAsRead(notificationId);
   };
 
   const handleMarkAllRead = async () => {
     await markAllAsRead();
   };
 
-  const handleArchive = async (notificationId: string) => {
-    await archiveNotification(notificationId);
-  };
-
-  const handleUnarchive = async (notificationId: string) => {
-    await unarchiveNotification(notificationId);
+  const handleFilterChange = (filter: NotificationFilter) => {
+    setActiveFilter(filter);
   };
 
   const getTypeIcon = (type: string) => {
@@ -82,13 +65,9 @@ export default function NotificationBell() {
     }
   };
 
-  const getFilterButtonClass = (filter: FilterType) => {
-    return `px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-      currentFilter === filter
-        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-    }`;
-  };
+  // Get filtered notifications based on active filter
+  const filteredNotifications = getFilteredNotifications(activeFilter);
+  const filteredUnreadCount = filteredNotifications.filter(n => !n.isRead && !n.archived).length;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -124,30 +103,28 @@ export default function NotificationBell() {
             </button>
           </div>
 
-          {/* Filter Tabs */}
-          <div className="flex items-center gap-2 p-3 border-b border-gray-200 dark:border-gray-700">
-            <button
-              onClick={() => setCurrentFilter('unread')}
-              className={getFilterButtonClass('unread')}
-            >
-              Unread
-            </button>
-            <button
-              onClick={() => setCurrentFilter('all')}
-              className={getFilterButtonClass('all')}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setCurrentFilter('archived')}
-              className={getFilterButtonClass('archived')}
-            >
-              Archived
-            </button>
+          {/* Filter Chips */}
+          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex gap-2">
+              {(['unread', 'all', 'archived'] as NotificationFilter[]).map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => handleFilterChange(filter)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                    activeFilter === filter
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {filter === 'unread' ? `Unread (${unreadCount})` : 
+                   filter === 'all' ? 'All' : 'Archived'}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Mark All Read Button */}
-          {currentFilter === 'unread' && unreadCount > 0 && (
+          {filteredUnreadCount > 0 && activeFilter === 'unread' && (
             <div className="p-3 border-b border-gray-200 dark:border-gray-700">
               <button
                 onClick={handleMarkAllRead}
@@ -165,17 +142,20 @@ export default function NotificationBell() {
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
                 Loading notifications...
               </div>
-            ) : notifications.length === 0 ? (
+            ) : filteredNotifications.length === 0 ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                No {currentFilter} notifications
+                {activeFilter === 'unread' ? 'No unread notifications' :
+                 activeFilter === 'archived' ? 'No archived notifications' :
+                 'No notifications'}
               </div>
             ) : (
-              notifications.map((notification) => (
+              filteredNotifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                  className={`p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer ${
                     !notification.isRead && !notification.archived ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                   }`}
+                  onClick={() => handleNotificationClick(notification.id)}
                 >
                   <div className="flex items-start gap-3">
                     {/* Type Icon */}
@@ -189,6 +169,9 @@ export default function NotificationBell() {
                         </span>
                         {!notification.isRead && !notification.archived && (
                           <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        )}
+                        {notification.archived && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">Archived</span>
                         )}
                       </div>
                       
@@ -209,45 +192,17 @@ export default function NotificationBell() {
                           {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                         </span>
                         
-                        {/* Action Buttons */}
-                        <div className="flex items-center gap-2">
-                          {!notification.isRead && currentFilter === 'unread' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleNotificationClick(notification.id);
-                              }}
-                              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                              title="Mark as read"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                          )}
-                          
-                          {!notification.archived ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleArchive(notification.id);
-                              }}
-                              className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-                              title="Archive"
-                            >
-                              <Archive className="w-4 h-4" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUnarchive(notification.id);
-                              }}
-                              className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-                              title="Unarchive"
-                            >
-                              <RotateCcw className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
+                        {!notification.isRead && !notification.archived && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleNotificationClick(notification.id);
+                            }}
+                            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
