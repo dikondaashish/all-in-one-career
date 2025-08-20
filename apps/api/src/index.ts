@@ -57,9 +57,9 @@ app.use(async (req: any, _res, next) => {
   next();
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
-
-
+app.get('/health', (_req, res) => {
+  res.status(200).send('OK');
+});
 
 // Add root-level search endpoint for frontend compatibility
 app.get('/api/search', async (req: any, res) => {
@@ -487,4 +487,21 @@ server.on('error', (error: any) => {
   if (error.code === 'EADDRINUSE') {
     logger.error(`Port ${PORT} is already in use`);
   }
+});
+
+// Graceful shutdown handlers for Render
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received: closing HTTP server...');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received: closing HTTP server...');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
 });
