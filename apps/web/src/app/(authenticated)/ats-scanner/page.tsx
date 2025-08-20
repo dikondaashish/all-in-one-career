@@ -42,13 +42,13 @@ export default function AtsScannerPage() {
   };
 
   const handleFileSelect = (selectedFile: File) => {
-    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'];
+    const allowedTypes = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'];
     
     if (!allowedTypes.includes(selectedFile.type)) {
       showToast({
         icon: '❌',
         title: 'Invalid File',
-        message: 'Please upload a PDF, DOC, or DOCX file'
+        message: 'Please upload a DOC or DOCX file. PDF support is temporarily unavailable.'
       });
       return;
     }
@@ -256,7 +256,7 @@ export default function AtsScannerPage() {
                       </button>
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Supports PDF, DOC, DOCX (max 10MB)
+                      Supports DOC, DOCX (max 10MB). PDF support coming soon.
                     </p>
                   </div>
                 </div>
@@ -267,7 +267,7 @@ export default function AtsScannerPage() {
               ref={fileInputRef}
               type="file"
               className="hidden"
-              accept=".pdf,.doc,.docx"
+              accept=".doc,.docx"
               onChange={handleFileChange}
             />
           </div>

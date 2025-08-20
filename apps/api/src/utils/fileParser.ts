@@ -1,18 +1,14 @@
-import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 import fs from 'fs';
 
 /**
  * Extract text from PDF file
+ * Note: PDF parsing is currently not available. Please use DOCX files for best results.
  */
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  try {
-    const data = await pdfParse(buffer);
-    return data.text;
-  } catch (error) {
-    console.error('Error parsing PDF:', error);
-    throw new Error('Failed to parse PDF file');
-  }
+  // For MVP, we'll focus on DOCX support as it's more reliable
+  // PDF parsing requires complex dependencies that may not work in all environments
+  throw new Error('PDF parsing is currently not supported. Please upload a DOCX file instead for best results.');
 }
 
 /**
@@ -36,11 +32,11 @@ export async function extractTextFromFile(filePath: string, fileType: string): P
   
   switch (fileType.toLowerCase()) {
     case '.pdf':
-      return extractTextFromPdf(buffer);
+      throw new Error('PDF files are currently not supported. Please upload a DOCX file instead.');
     case '.docx':
     case '.doc':
       return extractTextFromDocx(buffer);
     default:
-      throw new Error(`Unsupported file type: ${fileType}`);
+      throw new Error(`Unsupported file type: ${fileType}. Please upload a DOC or DOCX file.`);
   }
 }
