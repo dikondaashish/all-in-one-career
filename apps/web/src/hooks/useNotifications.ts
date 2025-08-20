@@ -113,6 +113,60 @@ export function useNotifications() {
     }
   };
 
+  const archiveNotification = async (notificationId: string) => {
+    if (!user) return;
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/archive`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Refetch notifications to update the UI
+        mutate();
+        return { success: true, message: 'Notification archived' };
+      } else {
+        const errorData = await response.json();
+        return { success: false, message: errorData.error || 'Failed to archive notification' };
+      }
+    } catch (error) {
+      console.error('Error archiving notification:', error);
+      return { success: false, message: 'Failed to archive notification' };
+    }
+  };
+
+  const restoreNotification = async (notificationId: string) => {
+    if (!user) return;
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/restore`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Refetch notifications to update the UI
+        mutate();
+        return { success: true, message: 'Notification restored' };
+      } else {
+        const errorData = await response.json();
+        return { success: false, message: errorData.error || 'Failed to restore notification' };
+      }
+    } catch (error) {
+      console.error('Error restoring notification:', error);
+      return { success: false, message: 'Failed to restore notification' };
+    }
+  };
+
   const unreadCount = notifications?.filter(n => !n.isRead && !n.archived).length || 0;
 
   // Filter notifications based on selected filter
@@ -137,6 +191,8 @@ export function useNotifications() {
     error,
     markAsRead,
     markAllAsRead,
+    archiveNotification,
+    restoreNotification,
     mutate,
     getFilteredNotifications,
   };
