@@ -18,7 +18,7 @@ export default function NotificationToastManager() {
 
   // Detect new notifications and show toasts
   useEffect(() => {
-    if (notifications.length > 0) {
+    if (notifications && notifications.length > 0) {
       const currentIds = new Set(notifications.map(n => n.id));
       
       // Find new unread notifications
