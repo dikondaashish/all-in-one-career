@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import ToastManager from '@/components/notifications/ToastManager';
+import NotificationToastManager from '@/components/notifications/NotificationToastManager';
 import { 
   Plus, 
   Upload,
@@ -339,9 +339,7 @@ function DashboardContent() {
           ))}
         </div>
       </div>
-      
-      {/* Toast Notifications */}
-      <ToastManager />
+      <NotificationToastManager />
     </div>
   );
 }

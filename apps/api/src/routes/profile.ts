@@ -271,40 +271,6 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
       const updatedFirstName = nameParts[0] || '';
       const updatedLastName = nameParts.slice(1).join(' ') || '';
 
-      // Check if name was updated and create notification
-      if (firstName !== undefined || lastName !== undefined) {
-        try {
-          // Get the previous name for comparison
-          const previousUser = await prisma.user.findUnique({ 
-            where: { id: existingUser.id }, 
-            select: { name: true } 
-          });
-          
-          if (previousUser?.name !== updatedUser.name) {
-            // Create notification for name update
-            await prisma.notification.create({
-              data: {
-                userId: existingUser.id,
-                type: 'SYSTEM',
-                title: 'Profile Updated',
-                message: `Your profile name has been updated to "${updatedUser.name}"`,
-                isRead: false,
-                archived: false,
-                metadata: {
-                  url: '/profile',
-                  action: 'profile_update'
-                }
-              }
-            });
-            
-            console.log(`Notification created for profile update: ${existingUser.id}`);
-          }
-        } catch (notificationError) {
-          console.error('Failed to create profile update notification:', notificationError);
-          // Don't fail the profile update if notification creation fails
-        }
-      }
-
       const updatedProfile = {
         firstName: updatedFirstName,
         lastName: updatedLastName,
