@@ -136,8 +136,14 @@ export function useNotifications() {
       });
 
       if (response.ok) {
-        // Refetch notifications to update the UI
-        mutate();
+        // Force immediate refetch and clear cache to ensure fresh data
+        await mutate(undefined, { revalidate: true });
+        
+        // Also trigger a manual refetch after a short delay to ensure backend sync
+        setTimeout(() => {
+          mutate();
+        }, 100);
+        
         return true;
       }
       return false;

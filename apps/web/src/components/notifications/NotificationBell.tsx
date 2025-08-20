@@ -41,6 +41,12 @@ export default function NotificationBell() {
     const success = await archiveNotification(notificationId);
     if (success) {
       toast.success('Notification moved to archive');
+      
+      // Force a re-render by updating the active filter
+      // This ensures the UI updates immediately
+      setTimeout(() => {
+        setActiveFilter(activeFilter); // Trigger re-render
+      }, 50);
     } else {
       toast.error('Failed to archive notification');
     }
@@ -58,6 +64,16 @@ export default function NotificationBell() {
       default:
         return !notification.isRead && !notification.archived;
     }
+  });
+
+  // Debug logging to see what's happening
+  console.log('NotificationBell Debug:', {
+    totalNotifications: notifications.length,
+    unreadCount: notifications.filter(n => !n.isRead && !n.archived).length,
+    archivedCount: notifications.filter(n => n.archived).length,
+    activeFilter,
+    filteredNotificationsCount: filteredNotifications.length,
+    notifications: notifications.map(n => ({ id: n.id, archived: n.archived, isRead: n.isRead }))
   });
 
   const getTypeIcon = (type: string) => {
