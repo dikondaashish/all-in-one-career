@@ -127,8 +127,11 @@ export function useNotifications() {
         );
       };
 
-      // Apply optimistic update
-      mutate(optimisticUpdate, false); // false = don't revalidate yet
+      // Apply optimistic update and trigger re-render
+      mutate(optimisticUpdate, { 
+        revalidate: false, // Don't revalidate yet
+        populateCache: true // Populate the cache with optimistic data
+      });
 
       const token = await user.getIdToken();
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/archive`, {
@@ -171,8 +174,11 @@ export function useNotifications() {
         );
       };
 
-      // Apply optimistic update
-      mutate(optimisticUpdate, false); // false = don't revalidate yet
+      // Apply optimistic update and trigger re-render
+      mutate(optimisticUpdate, { 
+        revalidate: false, // Don't revalidate yet
+        populateCache: true // Populate the cache with optimistic data
+      });
 
       const token = await user.getIdToken();
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/restore`, {
