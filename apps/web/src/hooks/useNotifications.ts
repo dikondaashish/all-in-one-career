@@ -118,13 +118,23 @@ export function useNotifications() {
 
     try {
       // Optimistic update: immediately update the local state
-      mutate(async (currentNotifications: Notification[] | undefined) => {
+      mutate((currentNotifications: Notification[] | undefined) => {
         if (!currentNotifications) return currentNotifications;
-        return currentNotifications.map(notification => 
+        
+        const updatedNotifications = currentNotifications.map(notification => 
           notification.id === notificationId 
             ? { ...notification, archived: true, isRead: true }
             : notification
         );
+        
+        console.log('🔄 Optimistic archive update:', {
+          notificationId,
+          before: currentNotifications.find(n => n.id === notificationId),
+          after: updatedNotifications.find(n => n.id === notificationId),
+          totalArchived: updatedNotifications.filter(n => n.archived).length
+        });
+        
+        return updatedNotifications;
       }, { 
         revalidate: false, // Don't revalidate yet
         populateCache: true // Populate the cache with optimistic data
@@ -162,13 +172,23 @@ export function useNotifications() {
 
     try {
       // Optimistic update: immediately update the local state
-      mutate(async (currentNotifications: Notification[] | undefined) => {
+      mutate((currentNotifications: Notification[] | undefined) => {
         if (!currentNotifications) return currentNotifications;
-        return currentNotifications.map(notification => 
+        
+        const updatedNotifications = currentNotifications.map(notification => 
           notification.id === notificationId 
             ? { ...notification, archived: false }
             : notification
         );
+        
+        console.log('🔄 Optimistic restore update:', {
+          notificationId,
+          before: currentNotifications.find(n => n.id === notificationId),
+          after: updatedNotifications.find(n => n.id === notificationId),
+          totalArchived: updatedNotifications.filter(n => n.archived).length
+        });
+        
+        return updatedNotifications;
       }, { 
         revalidate: false, // Don't revalidate yet
         populateCache: true // Populate the cache with optimistic data
@@ -206,6 +226,11 @@ export function useNotifications() {
   // Filter notifications based on selected filter
   const getFilteredNotifications = (filter: NotificationFilter) => {
     if (!notifications) return [];
+    
+    // Debug logging to see what's happening
+    console.log('🔍 getFilteredNotifications called with filter:', filter);
+    console.log('📊 Current notifications:', notifications);
+    console.log('📋 Archived notifications:', notifications.filter(n => n.archived));
     
     switch (filter) {
       case 'unread':
