@@ -32,7 +32,7 @@ interface TopbarProps {
   onToggleSidebar: () => void;
 }
 
-export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProps) {
+export default function Topbar({ onToggleSidebar }: TopbarProps) {
   const { user, signOutUser, isGuest, isFallbackAuth, retryBackendConnection } = useAuth();
   const { user: storeUser } = useUserStore();
   const { theme, setTheme } = useTheme();
@@ -44,8 +44,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   const [showDropdown, setShowDropdown] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showThemeSubmenu, setShowThemeSubmenu] = useState(false);
-  const [plan, setPlan] = useState<'free' | 'premium'>('free');
-  const isPremium = plan === 'premium';
+
   const SUGGEST_FEATURE_URL = 'https://forms.gle/';
 
   // Fix: ensure client-ready flag is set so header doesn't stay on skeleton

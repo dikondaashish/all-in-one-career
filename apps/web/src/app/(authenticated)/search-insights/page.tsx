@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Search, TrendingUp, BarChart3, PieChart, LineChart, Calendar, Filter, Download, Share, Eye, Clock, Target, Award, Users, Building, MessageCircle } from 'lucide-react';
+
+import { Search, TrendingUp, BarChart3, MessageCircle, Clock } from 'lucide-react';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ interface SearchInsights {
 }
 
 export default function SearchInsightsPage() {
-  const { user, hasSkippedAuth } = useAuth();
+
   const [insights, setInsights] = useState<SearchInsights | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

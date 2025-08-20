@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import WelcomeWidget from '@/components/dashboard/WelcomeWidget';
 import { useWelcomeWidget } from '@/hooks/useWelcomeWidget';
@@ -16,8 +15,7 @@ import {
   Clock,
   Play,
   Square,
-  Calendar,
-  BarChart3
+  Calendar
 } from 'lucide-react';
 
 // Force dynamic rendering to prevent static generation issues

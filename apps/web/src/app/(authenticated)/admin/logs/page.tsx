@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
@@ -27,55 +27,25 @@ export default function AdminLogsPage() {
   const [error, setError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
-
-  useEffect(() => {
-    if (user) {
-      checkAdminAccess();
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (isAdmin) {
-      fetchLogs();
-    }
-  }, [isAdmin]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
-  const checkAdminAccess = () => {
+  const checkAdminAccess = useCallback(() => {
     // Check if user is admin (you can customize this logic)
     const adminEmails = ['ashishdikonda@gmail.com']; // Add more admin emails as needed
-    const hasAccess = adminEmails.includes(user.email || '');
+    const hasAccess = adminEmails.includes(user?.email || '');
     setIsAdmin(hasAccess);
     
     if (!hasAccess) {
       setError('Admin access required');
     }
-  };
+  }, [user]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setIsLoading(true);
     setError('');
 
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/logs`, {
         headers: {
-          'Authorization': `Bearer ${await user.getIdToken()}`,
+          'Authorization': `Bearer ${user ? await user.getIdToken() : ''}`,
         },
       });
 
@@ -93,7 +63,37 @@ export default function AdminLogsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      checkAdminAccess();
+    }
+  }, [user, checkAdminAccess]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchLogs();
+    }
+  }, [isAdmin, fetchLogs]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {

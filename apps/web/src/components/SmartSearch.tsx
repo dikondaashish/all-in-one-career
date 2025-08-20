@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, FileText, Briefcase, Mail, Users, Building, Calendar, Filter, X, MessageCircle } from 'lucide-react';
 
@@ -59,25 +59,6 @@ export default function SmartSearch() {
   // Check if query is a question
   const isQuestion = (text: string) => text.trim().endsWith('?');
 
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (query.trim().length > 0) {
-        if (isQuestion(query.trim())) {
-          performAIQuestion(query.trim());
-        } else {
-          performSearch(query.trim());
-        }
-      } else {
-        setResults([]);
-        setAiResponse(null);
-        setShowDropdown(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [query, filters]);
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -91,7 +72,7 @@ export default function SmartSearch() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const performSearch = async (searchQuery: string) => {
+  const performSearch = useCallback(async (searchQuery: string) => {
     setIsLoading(true);
     setError(null);
     setAiResponse(null);
@@ -131,7 +112,26 @@ export default function SmartSearch() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filters]);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (query.trim().length > 0) {
+        if (isQuestion(query.trim())) {
+          performAIQuestion(query.trim());
+        } else {
+          performSearch(query.trim());
+        }
+      } else {
+        setResults([]);
+        setAiResponse(null);
+        setShowDropdown(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query, filters, performSearch]);
 
   const performAIQuestion = async (question: string) => {
     setIsLoading(true);
