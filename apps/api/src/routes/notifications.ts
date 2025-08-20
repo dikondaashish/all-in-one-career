@@ -10,15 +10,23 @@ export function notificationsRouter(prisma: PrismaClient): Router {
     try {
       const userId = req.user.uid;
       const limit = parseInt(req.query.limit as string) || 20;
-      
+      const tab = (req.query.tab as string)?.toLowerCase() || 'unread';
+
+      // Compose where clause based on tab filter
+      let whereClause: any = { userId };
+      if (tab === 'unread') {
+        whereClause.isRead = false;
+        whereClause.archived = false;
+      } else if (tab === 'archived') {
+        whereClause.archived = true;
+      } else {
+        // 'all' tab: show everything regardless of archived/read status
+        // no extra filters
+      }
+
       const notifications = await prisma.notification.findMany({
-        where: {
-          userId,
-          archived: false
-        },
-        orderBy: {
-          createdAt: 'desc'
-        },
+        where: whereClause,
+        orderBy: { createdAt: 'desc' },
         take: limit,
         select: {
           id: true,
@@ -126,25 +134,19 @@ export function notificationsRouter(prisma: PrismaClient): Router {
       const notificationId = req.params.id;
 
       const notification = await prisma.notification.findFirst({
-        where: {
-          id: notificationId,
-          userId
-        }
+        where: { id: notificationId, userId }
       });
 
       if (!notification) {
         return res.status(404).json({ error: 'Notification not found' });
       }
 
-      await prisma.notification.update({
+      const updated = await prisma.notification.update({
         where: { id: notificationId },
-        data: { 
-          archived: true,
-          isRead: true // Mark as read when archiving
-        }
+        data: { archived: true, isRead: true }
       });
 
-      res.json({ success: true, message: 'Notification archived' });
+      res.json({ success: true, message: 'Notification archived', notification: updated });
     } catch (error) {
       console.error('Error archiving notification:', error);
       res.status(500).json({ error: 'Failed to archive notification' });
@@ -158,22 +160,19 @@ export function notificationsRouter(prisma: PrismaClient): Router {
       const notificationId = req.params.id;
 
       const notification = await prisma.notification.findFirst({
-        where: {
-          id: notificationId,
-          userId
-        }
+        where: { id: notificationId, userId }
       });
 
       if (!notification) {
         return res.status(404).json({ error: 'Notification not found' });
       }
 
-      await prisma.notification.update({
+      const updated = await prisma.notification.update({
         where: { id: notificationId },
         data: { archived: false }
       });
 
-      res.json({ success: true, message: 'Notification restored' });
+      res.json({ success: true, message: 'Notification restored', notification: updated });
     } catch (error) {
       console.error('Error restoring notification:', error);
       res.status(500).json({ error: 'Failed to restore notification' });
