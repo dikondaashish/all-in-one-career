@@ -2,173 +2,421 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNotificationToasts } from '@/hooks/useNotificationToasts';
-import Button from '@/components/Button';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { useNotifications } from '@/hooks/useNotifications';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 import { 
-  TrendingUp, 
-  Users, 
+  Plus, 
+  Upload,
+  TrendingUp,
+  FileText, 
   Briefcase, 
-  Target,
+  Mail, 
+  Users,
+  Clock,
+  Play,
+  Square,
   Calendar,
-  Award
+  BarChart3
 } from 'lucide-react';
 
+// Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
 
-export default function Dashboard() {
-  const { user, isGuest } = useAuth();
-  const [stats, setStats] = useState({
-    applications: 0,
-    interviews: 0,
-    offers: 0,
-    savedJobs: 0
-  });
+interface DashboardStats {
+  atsScans: number;
+  portfolios: number;
+  emails: number;
+  referrals: number;
+}
 
-  // Enable notification toasts on dashboard
-  useNotificationToasts();
+interface ActivityItem {
+  id: string;
+  user: string;
+  task: string;
+  status: 'completed' | 'in-progress' | 'pending';
+  avatar: string;
+}
+
+interface ProjectItem {
+  id: string;
+  name: string;
+  dueDate: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+interface NotificationData {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  archived: boolean;
+  metadata?: {
+    url?: string;
+  };
+}
+
+export default function DashboardPage() {
+  // STEP 6: Wrap dashboard with ProtectedRoute to prevent flashing
+  return (
+    <ProtectedRoute>
+      <DashboardContent />
+    </ProtectedRoute>
+  );
+}
+
+function DashboardContent() {
+  const router = useRouter();
+  const { setOnNewNotification, markAsRead } = useNotifications();
+  const [stats] = useState<DashboardStats>({
+    atsScans: 24,
+    portfolios: 10,
+    emails: 12,
+    referrals: 2
+  });
+  const [activities] = useState<ActivityItem[]>([
+    { id: '1', user: 'Alexandra Deff', task: 'Working on Github Project Repository', status: 'completed', avatar: 'AD' },
+    { id: '2', user: 'Edwin Adenike', task: 'Working on Integrate User Authentication System', status: 'in-progress', avatar: 'EA' },
+    { id: '3', user: 'Isaac Oluwatemilorun', task: 'Working on Develop Search and Filter Functionality', status: 'pending', avatar: 'IO' },
+    { id: '4', user: 'David Oshodi', task: 'Working on Responsive Layout for Homepage', status: 'in-progress', avatar: 'DO' },
+  ]);
+  const [projects] = useState<ProjectItem[]>([
+    { id: '1', name: 'Develop API Endpoints', dueDate: 'Nov 26, 2024', icon: FileText },
+    { id: '2', name: 'Onboarding Flow', dueDate: 'Nov 28, 2024', icon: Briefcase },
+    { id: '3', name: 'Build Dashboard', dueDate: 'Nov 30, 2024', icon: Mail },
+    { id: '4', name: 'Optimize Page Load', dueDate: 'Dec 5, 2024', icon: Users },
+    { id: '5', name: 'Cross-Browser Testing', dueDate: 'Dec 6, 2024', icon: Clock },
+  ]);
+  const [isClient, setIsClient] = useState(false);
+  const [greeting, setGreeting] = useState('Dashboard');
 
   useEffect(() => {
-    // Simulate fetching dashboard stats
-    setStats({
-      applications: 12,
-      interviews: 3,
-      offers: 1,
-      savedJobs: 8
-    });
+    setIsClient(true);
   }, []);
 
-  const dashboardCards = [
-    {
-      title: 'Total Applications',
-      value: stats.applications,
-      description: 'Jobs you\'ve applied to',
-      icon: Briefcase,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100 dark:bg-blue-900/20'
-    },
-    {
-      title: 'Interviews Scheduled',
-      value: stats.interviews,
-      description: 'Upcoming interviews',
-      icon: Calendar,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100 dark:bg-green-900/20'
-    },
-    {
-      title: 'Job Offers',
-      value: stats.offers,
-      description: 'Offers received',
-      icon: Award,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-100 dark:bg-purple-900/20'
-    },
-    {
-      title: 'Saved Jobs',
-      value: stats.savedJobs,
-      description: 'Jobs you\'re interested in',
-      icon: Target,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-100 dark:bg-orange-900/20'
+  useEffect(() => {
+    if (isClient) {
+      const hour = new Date().getHours();
+      if (hour < 12) {
+        setGreeting('Good Morning');
+      } else if (hour < 17) {
+        setGreeting('Good Afternoon');
+      } else {
+        setGreeting('Good Evening');
+      }
     }
-  ];
+  }, [isClient]);
+
+  // Set up new notification handler for toast popups
+  useEffect(() => {
+    const handleNewNotification = (notification: NotificationData) => {
+      // Only show toast if user is on dashboard and not inside notification dropdown
+      const notificationDropdown = document.querySelector('[class*="notification"]');
+      if (!notificationDropdown?.contains(document.activeElement)) {
+        const truncatedMessage = notification.message.length > 100 
+          ? notification.message.substring(0, 100) + '...' 
+          : notification.message;
+        
+        toast.custom((t) => (
+          <div className={`${
+            t.visible ? 'animate-enter' : 'animate-leave'
+          } max-w-sm w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+            <div className="flex-1 w-0 p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <div className="text-2xl">
+                    {notification.type === 'FEATURE' ? '🚀' :
+                     notification.type === 'SYSTEM' ? '⚙️' :
+                     notification.type === 'TASK' ? '📋' :
+                     notification.type === 'PROMOTION' ? '🎉' : '📢'}
+                  </div>
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    {notification.title}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {truncatedMessage}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex border-l border-gray-200">
+              <button
+                onClick={async () => {
+                  toast.dismiss(t.id);
+                  await markAsRead(notification.id);
+                  if (notification.metadata?.url) {
+                    router.push(notification.metadata.url);
+                  }
+                }}
+                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-blue-600 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                View
+              </button>
+            </div>
+          </div>
+        ), {
+          duration: 5000,
+          position: 'bottom-right',
+        });
+      }
+    };
+
+    setOnNewNotification(handleNewNotification);
+
+    // Cleanup function
+    return () => {
+      setOnNewNotification(null);
+    };
+  }, [setOnNewNotification, markAsRead, router]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'in-progress':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'pending':
+        return 'bg-orange-100 text-orange-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Welcome back, {user?.displayName || 'User'}!
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Here&apos;s what&apos;s happening with your career journey
-        </p>
+    <div className="space-y-8">
+      {/* Greeting Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{greeting}</h1>
+          <p className="text-gray-600">Plan, prioritize and accomplish your career tasks with ease.</p>
+        </div>
+        <div className="flex space-x-3">
+          <button className="bg-[#006B53] hover:bg-[#005A47] text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center">
+            <Plus className="w-5 h-5 mr-2" />
+            Add Application
+          </button>
+          <button className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors duration-200 flex items-center">
+            <Upload className="w-5 h-5 mr-2" />
+            Import
+          </button>
+        </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {dashboardCards.map((card, index) => (
-          <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {card.title}
-              </h3>
-              <div className={`p-2 rounded-full ${card.bgColor}`}>
-                <card.icon className={`h-4 w-4 ${card.color}`} />
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              {card.value}
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {card.description}
-            </p>
+      {/* Top KPI Cards Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* ATS Scans Card */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6 h-35">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-3xl font-bold text-[#006B53]">{stats.atsScans}</div>
+            <TrendingUp className="w-6 h-6 text-green-500" />
           </div>
-        ))}
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">ATS Scans</h3>
+          <div className="w-12 h-1 bg-gradient-to-r from-[#006B53] to-[#008F6F] rounded-full mb-3"></div>
+          <p className="text-sm text-gray-600">5 Increased from last month</p>
+        </div>
+
+        {/* Portfolios Card */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6 h-35">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-3xl font-bold text-gray-900">{stats.portfolios}</div>
+            <TrendingUp className="w-6 h-6 text-green-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Portfolios</h3>
+          <div className="w-12 h-1 bg-gradient-to-r from-[#006B53] to-[#008F6F] rounded-full mb-3"></div>
+          <p className="text-sm text-gray-600">6 Increased from last month</p>
+        </div>
+
+        {/* AI Emails Card */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6 h-35">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-3xl font-bold text-gray-900">{stats.emails}</div>
+            <TrendingUp className="w-6 h-6 text-green-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Emails</h3>
+          <div className="w-12 h-1 bg-gradient-to-r from-[#006B53] to-[#008F6F] rounded-full mb-3"></div>
+          <p className="text-sm text-gray-600">2 Increased from last month</p>
+        </div>
+
+        {/* Referrals Card */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6 h-35">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-3xl font-bold text-gray-900">{stats.referrals}</div>
+            <div className="text-sm text-gray-500">On Discuss</div>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Referrals</h3>
+          <div className="w-12 h-1 bg-gradient-to-r from-[#006B53] to-[#008F6F] rounded-full mb-3"></div>
+          <p className="text-sm text-gray-600">Pending approval</p>
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Recent Activity
-            </h3>
+      {/* Middle Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Project Analytics */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Project Analytics</h3>
+          <div className="flex items-end justify-between h-32">
+            {[
+              { day: 'S', height: 65 },
+              { day: 'M', height: 45 },
+              { day: 'T', height: 55 },
+              { day: 'W', height: 75 },
+              { day: 'T', height: 35 },
+              { day: 'F', height: 60 },
+              { day: 'S', height: 50 }
+            ].map((item, index) => (
+              <div key={index} className="flex flex-col items-center">
+                <div className="text-xs text-gray-500 mb-2">{item.day}</div>
+                <div className="w-8 bg-[#006B53] rounded-t-sm" style={{ height: `${item.height}px` }}></div>
+                {index === 3 && <div className="text-xs text-[#006B53] font-medium mt-1">74%</div>}
+              </div>
+            ))}
           </div>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Your latest career updates and milestones
-          </p>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+        </div>
+
+        {/* Reminders */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Reminders</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  Application submitted
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Software Engineer at Tech Corp
-                </p>
+                <p className="font-medium text-gray-900">Meeting with Arc Company</p>
+                <p className="text-sm text-gray-500">02.00 pm - 04.00 pm</p>
+              </div>
+              <button className="bg-[#006B53] hover:bg-[#005A47] text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                <Play className="w-4 h-4 mr-2" />
+                Start Meeting
+              </button>
+                            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Section Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Team Collaboration */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-gray-900">Recent Activity</h3>
+            <button className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors duration-200">
+              + Add Member
+            </button>
+          </div>
+          <div className="space-y-4">
+            {activities.map((activity) => (
+              <div key={activity.id} className="flex items-start space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-[#006B53] to-[#008F6F] rounded-full flex items-center justify-center text-white font-medium text-sm">
+                  {activity.avatar}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">{activity.user}</p>
+                  <p className="text-sm text-gray-600">{activity.task}</p>
+                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${getStatusColor(activity.status)}`}>
+                    {activity.status.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Project Progress */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Applications Progress</h3>
+          <div className="flex items-center justify-center mb-6">
+            <div className="relative w-32 h-32">
+              {/* Donut Chart */}
+              <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 32 32">
+                <circle
+                  cx="16"
+                  cy="16"
+                  r="14"
+                  fill="none"
+                  stroke="#e5e7eb"
+                  strokeWidth="3"
+                />
+                <circle
+                  cx="16"
+                  cy="16"
+                  r="14"
+                  fill="none"
+                  stroke="#006B53"
+                  strokeWidth="3"
+                  strokeDasharray={`${2 * Math.PI * 14 * 0.41} ${2 * Math.PI * 14}`}
+                  strokeDashoffset="0"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-2xl font-bold text-[#006B53]">41%</span>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  Interview scheduled
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Product Manager at Startup Inc
-                </p>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-[#006B53] rounded-full mr-2"></div>
+                <span className="text-sm text-gray-600">Completed</span>
               </div>
+              <span className="text-sm font-medium text-gray-900">41%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+                <span className="text-sm text-gray-600">In Progress</span>
+              </div>
+              <span className="text-sm font-medium text-gray-900">35%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
+                <span className="text-sm text-gray-600">Pending</span>
+              </div>
+              <span className="text-sm font-medium text-gray-900">24%</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Network Insights
-            </h3>
-          </div>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Connect with professionals in your field
-          </p>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  New connections
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  This week
-                </p>
-              </div>
-              <span className="text-2xl font-bold text-blue-600">5</span>
+        {/* Time Tracker */}
+        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Time Tracker</h3>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-[#006B53] mb-6">01:24:08</div>
+            <div className="flex justify-center space-x-4">
+              <button className="w-12 h-12 bg-[#006B53] hover:bg-[#005A47] text-white rounded-full flex items-center justify-center transition-colors duration-200">
+                <Play className="w-5 h-5" />
+              </button>
+              <button className="w-12 h-12 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors duration-200">
+                <Square className="w-5 h-5" />
+              </button>
             </div>
-            <Button className="w-full h-10">
-              View Network
-            </Button>
           </div>
+        </div>
+      </div>
+
+      {/* Project List */}
+      <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-gray-900">Projects</h3>
+          <button className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors duration-200">
+            + New
+          </button>
+        </div>
+        <div className="space-y-4">
+          {projects.map((project) => (
+            <div key={project.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <project.icon className="w-5 h-5 text-[#006B53]" />
+                <span className="font-medium text-gray-900">{project.name}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-500">Due: {project.dueDate}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
