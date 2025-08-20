@@ -35,6 +35,7 @@ model User {
   logs             Log[]
   searchHistory    SearchHistory[]
   notifications    Notification[]
+  atsScansHistory  AtsScan[]
 }
 
 model JobDescription {
@@ -135,6 +136,35 @@ model Notification {
   archived   Boolean  @default(false)
   
   user User @relation(fields: [userId], references: [id])
+}
+
+model AtsScan {
+  id           String   @id @default(cuid())
+  userId       String?
+  fileName     String
+  fileType     String
+  jdText       String?   // optional job description used in comparison
+  parsedJson   Json      // structured parsed resume (name, email, phone, education, experience[], skills[])
+  matchScore   Int       // 0..100
+  missingSkills String[] @default([])
+  extraSkills   String[] @default([])
+  createdAt    DateTime  @default(now())
+  
+  user User? @relation(fields: [userId], references: [id])
+  keywords AtsKeywordStat[]
+}
+
+model AtsKeywordStat {
+  id           String   @id @default(cuid())
+  scanId       String
+  keyword      String
+  inResume     Boolean
+  inJobDesc    Boolean
+  weight       Float    @default(1)
+  
+  scan AtsScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  
+  @@index([scanId])
 }
 
 
