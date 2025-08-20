@@ -18,6 +18,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import SmartSearch from './SmartSearch';
 import NotificationBell from './notifications/NotificationBell';
+import UpgradeModal from './modals/UpgradeModal';
 
 import { useUserStore } from '@/stores/useUserStore';
 import { useTheme } from '@/contexts/ThemeProvider';
@@ -41,6 +42,7 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
   const [userDisplayName, setUserDisplayName] = useState('User');
   const [userEmail, setUserEmail] = useState('user@example.com');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showThemeSubmenu, setShowThemeSubmenu] = useState(false);
   const [plan, setPlan] = useState<'free' | 'premium'>('free');
   const isPremium = plan === 'premium';
@@ -209,7 +211,10 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
           {/* Right: Notifications, Upgrade, User */}
           <div className="flex items-center space-x-4">
             {/* Upgrade Button */}
-            <button className="bg-[#006B53] dark:bg-[#00d4aa] text-white dark:text-black px-4 py-2 rounded-lg font-medium hover:bg-[#005A47] dark:hover:bg-[#00b894] transition-colors">
+            <button 
+              onClick={() => setShowUpgradeModal(true)}
+              className="bg-[#006B53] dark:bg-[#00d4aa] text-white dark:text-black px-4 py-2 rounded-lg font-medium hover:bg-[#005A47] dark:hover:bg-[#00b894] transition-colors"
+            >
               UPGRADE
             </button>
 
@@ -341,6 +346,12 @@ export default function Topbar({ sidebarCollapsed, onToggleSidebar }: TopbarProp
           </div>
         </div>
       </div>
+      
+      {/* Upgrade Modal */}
+      <UpgradeModal 
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+      />
     </>
   );
 }
