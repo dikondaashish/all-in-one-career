@@ -1,26 +1,24 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bell, X, Check, CheckCheck, MoreVertical, Archive } from 'lucide-react';
-import { useNotifications } from '@/hooks/useNotifications';
+import { Bell, X, Check, CheckCheck } from 'lucide-react';
+import { useNotifications, NotificationTab, Notification } from '@/hooks/useNotifications';
+import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
-import toast from 'react-hot-toast';
-
-type FilterType = 'unread' | 'all' | 'archived';
 
 export default function NotificationBell() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, archiveNotification, isLoading } = useNotifications();
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<NotificationTab>('unread');
+  const { notifications, unreadCount, markAsRead, markAllAsRead, isLoading, archiveNotification, restoreNotification, unreadNotifications } = useNotifications(activeTab);
   const [isOpen, setIsOpen] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<FilterType>('unread');
-  const [showMenuFor, setShowMenuFor] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [toasts, setToasts] = useState<Array<{ id: string; title: string; message: string; url?: string }>>([]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        setShowMenuFor(null); // Also close any open menus
       }
     };
 
@@ -35,46 +33,6 @@ export default function NotificationBell() {
   const handleMarkAllRead = async () => {
     await markAllAsRead();
   };
-
-  const handleArchive = async (notificationId: string) => {
-    setShowMenuFor(null); // Close the menu
-    const success = await archiveNotification(notificationId);
-    if (success) {
-      toast.success('Notification moved to archive');
-      
-      // Force a re-render by updating the active filter
-      // This ensures the UI updates immediately
-      setTimeout(() => {
-        setActiveFilter(activeFilter); // Trigger re-render
-      }, 50);
-    } else {
-      toast.error('Failed to archive notification');
-    }
-  };
-
-  // Filter notifications based on active filter
-  const filteredNotifications = notifications.filter(notification => {
-    switch (activeFilter) {
-      case 'unread':
-        return !notification.isRead && !notification.archived;
-      case 'archived':
-        return notification.archived;
-      case 'all':
-        return true;
-      default:
-        return !notification.isRead && !notification.archived;
-    }
-  });
-
-  // Debug logging to see what's happening
-  console.log('NotificationBell Debug:', {
-    totalNotifications: notifications.length,
-    unreadCount: notifications.filter(n => !n.isRead && !n.archived).length,
-    archivedCount: notifications.filter(n => n.archived).length,
-    activeFilter,
-    filteredNotificationsCount: filteredNotifications.length,
-    notifications: notifications.map(n => ({ id: n.id, archived: n.archived, isRead: n.isRead }))
-  });
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -106,8 +64,53 @@ export default function NotificationBell() {
     }
   };
 
+  // Toast for new unread notifications (compare prev vs current unread ids)
+  const prevUnreadRef = useRef<string[]>([]);
+  useEffect(() => {
+    const list = (unreadNotifications as Notification[]) || [];
+    const currentIds = list.map(n => n.id);
+    const prev = prevUnreadRef.current;
+    const newIds = currentIds.filter(id => !prev.includes(id));
+    if (newIds.length > 0) {
+      const newItems = list.filter(n => newIds.includes(n.id));
+      newItems.forEach((n: Notification) => {
+        const url = n?.metadata?.url || n?.url;
+        setToasts(prevToasts => ([...prevToasts, { id: n.id, title: n.title, message: n.message, url }]));
+      });
+    }
+    prevUnreadRef.current = currentIds;
+  }, [unreadNotifications]);
+
+  const removeToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
+
+  const Toasts = () => (
+    <div className="fixed bottom-4 right-4 space-y-2 z-[100]">
+      {toasts.map(t => (
+        <div key={t.id} className="max-w-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-md shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="font-semibold mb-1">{t.title}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">{t.message}</div>
+          <div className="flex justify-end gap-2">
+            {t.url && (
+              <button
+                onClick={() => {
+                  removeToast(t.id);
+                  try { router.push(t.url as string); } catch { window.location.href = t.url as string; }
+                }}
+                className="px-2 py-1 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700"
+              >
+                View
+              </button>
+            )}
+            <button onClick={() => removeToast(t.id)} className="px-2 py-1 text-sm rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600">Dismiss</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="relative" ref={dropdownRef}>
+      <Toasts />
       {/* Notification Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -124,47 +127,42 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {/* Notification Dropdown */}
+      {/* Notification Dropdown */
+      }
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-96 overflow-hidden">
           {/* Header */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Notifications
-              </h3>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            {/* Filter Chips */}
-            <div className="flex gap-2">
-              {([
-                { key: 'unread', label: 'Unread', count: notifications.filter(n => !n.isRead && !n.archived).length },
-                { key: 'all', label: 'All', count: notifications.length },
-                { key: 'archived', label: 'Archived', count: notifications.filter(n => n.archived).length }
-              ] as const).map(({ key, label, count }) => (
-                <button
-                  key={key}
-                  onClick={() => setActiveFilter(key)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    activeFilter === key
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {label} ({count})
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Notifications
+            </h3>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          {/* Mark All Read Button - only show for unread filter */}
-          {activeFilter === 'unread' && unreadCount > 0 && (
+          {/* Tabs */}
+          <div className="px-3 pt-3 flex gap-2 border-b border-gray-200 dark:border-gray-700">
+            {([
+              { key: 'unread', label: 'Unread' },
+              { key: 'all', label: 'All' },
+              { key: 'archived', label: 'Archived' },
+            ] as Array<{ key: NotificationTab; label: string }>).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={`px-3 py-1.5 rounded-md text-sm ${activeTab === t.key ? 'bg-blue-600 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Mark All Read Button */}
+          {unreadCount > 0 && activeTab !== 'archived' && (
             <div className="p-3 border-b border-gray-200 dark:border-gray-700">
               <button
                 onClick={handleMarkAllRead}
@@ -182,14 +180,12 @@ export default function NotificationBell() {
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
                 Loading notifications...
               </div>
-            ) : filteredNotifications.length === 0 ? (
+            ) : notifications.length === 0 ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                {activeFilter === 'unread' ? 'No unread notifications' :
-                 activeFilter === 'archived' ? 'No archived notifications' :
-                 'No notifications'}
+                No notifications
               </div>
             ) : (
-              filteredNotifications.map((notification) => (
+              notifications.map((notification) => (
                 <div
                   key={notification.id}
                   className={`p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer ${
@@ -230,7 +226,7 @@ export default function NotificationBell() {
                         </span>
                         
                         <div className="flex items-center gap-2">
-                          {!notification.isRead && (
+                          {!notification.isRead && activeTab !== 'archived' && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -241,34 +237,27 @@ export default function NotificationBell() {
                               <Check className="w-4 h-4" />
                             </button>
                           )}
-                          
-                          {/* Three-dot menu for archive */}
-                          <div className="relative">
+                          {activeTab !== 'archived' ? (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setShowMenuFor(showMenuFor === notification.id ? null : notification.id);
+                                archiveNotification(notification);
                               }}
-                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                             >
-                              <MoreVertical className="w-4 h-4" />
+                              Archive
                             </button>
-                            
-                            {showMenuFor === notification.id && (
-                              <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleArchive(notification.id);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                >
-                                  <Archive className="w-4 h-4" />
-                                  Archive
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                restoreNotification(notification);
+                              }}
+                              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                              Restore
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
