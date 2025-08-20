@@ -180,5 +180,32 @@ export function notificationsRouter(prisma: PrismaClient): Router {
     }
   });
 
+  // DELETE /api/notifications/:id - Permanently delete a notification
+  router.delete('/:id', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.uid;
+      const notificationId = req.params.id;
+
+      // Check if notification exists and belongs to user
+      const notification = await prisma.notification.findFirst({
+        where: { id: notificationId, userId }
+      });
+
+      if (!notification) {
+        return res.status(404).json({ error: 'Notification not found' });
+      }
+
+      // Permanently delete the notification
+      await prisma.notification.delete({
+        where: { id: notificationId }
+      });
+
+      res.json({ success: true, message: 'Notification deleted permanently' });
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      res.status(500).json({ error: 'Failed to delete notification' });
+    }
+  });
+
   return router;
 }
