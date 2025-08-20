@@ -3,9 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { useNotifications } from '@/hooks/useNotifications';
-import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
 import { 
   Plus, 
   Upload,
@@ -46,18 +43,6 @@ interface ProjectItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-interface NotificationData {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  isRead: boolean;
-  archived: boolean;
-  metadata?: {
-    url?: string;
-  };
-}
-
 export default function DashboardPage() {
   // STEP 6: Wrap dashboard with ProtectedRoute to prevent flashing
   return (
@@ -68,8 +53,6 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const router = useRouter();
-  const { setOnNewNotification, markAsRead } = useNotifications();
   const [stats] = useState<DashboardStats>({
     atsScans: 24,
     portfolios: 10,
@@ -108,70 +91,6 @@ function DashboardContent() {
       }
     }
   }, [isClient]);
-
-  // Set up new notification handler for toast popups
-  useEffect(() => {
-    const handleNewNotification = (notification: NotificationData) => {
-      // Only show toast if user is on dashboard and not inside notification dropdown
-      const notificationDropdown = document.querySelector('[class*="notification"]');
-      if (!notificationDropdown?.contains(document.activeElement)) {
-        const truncatedMessage = notification.message.length > 100 
-          ? notification.message.substring(0, 100) + '...' 
-          : notification.message;
-        
-        toast.custom((t) => (
-          <div className={`${
-            t.visible ? 'animate-enter' : 'animate-leave'
-          } max-w-sm w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-            <div className="flex-1 w-0 p-4">
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <div className="text-2xl">
-                    {notification.type === 'FEATURE' ? '🚀' :
-                     notification.type === 'SYSTEM' ? '⚙️' :
-                     notification.type === 'TASK' ? '📋' :
-                     notification.type === 'PROMOTION' ? '🎉' : '📢'}
-                  </div>
-                </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    {notification.title}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {truncatedMessage}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex border-l border-gray-200">
-              <button
-                onClick={async () => {
-                  toast.dismiss(t.id);
-                  await markAsRead(notification.id);
-                  if (notification.metadata?.url) {
-                    router.push(notification.metadata.url);
-                  }
-                }}
-                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-blue-600 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                View
-              </button>
-            </div>
-          </div>
-        ), {
-          duration: 5000,
-          position: 'bottom-right',
-        });
-      }
-    };
-
-    setOnNewNotification(handleNewNotification);
-
-    // Cleanup function
-    return () => {
-      setOnNewNotification(null);
-    };
-  }, [setOnNewNotification, markAsRead, router]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
