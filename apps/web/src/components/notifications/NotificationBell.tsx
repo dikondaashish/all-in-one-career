@@ -1,17 +1,22 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bell, X, Check, CheckCheck, MoreVertical, Archive, ArchiveRestore } from 'lucide-react';
+import { Bell, X, Check, CheckCheck, MoreVertical, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import { useNotificationsEnhanced, type NotificationTab, type Notification } from '@/hooks/useNotificationsEnhanced';
 import { useToast } from '@/components/notifications/ToastContainer';
+import { useConfirmation } from '@/components/ui/ConfirmationDialog';
+import NotificationDetailModal from '@/components/notifications/NotificationDetailModal';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function NotificationBell() {
   const [activeTab, setActiveTab] = useState<NotificationTab>('unread');
   const [isOpen, setIsOpen] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
+  const { showConfirmation } = useConfirmation();
 
   // Hook for handling new notifications and toasts
   const handleNewNotification = (notification: Notification) => {
@@ -46,6 +51,7 @@ export default function NotificationBell() {
     markAllAsRead, 
     archiveNotification, 
     restoreNotification, 
+    deleteNotification,
     isLoading 
   } = useNotificationsEnhanced({ 
     tab: activeTab, 
@@ -114,9 +120,48 @@ export default function NotificationBell() {
     }
   };
 
+  const handleDelete = async (notificationId: string) => {
+    try {
+      const confirmed = await showConfirmation({
+        title: 'Delete Notification',
+        message: 'Are you sure you want to permanently delete this notification? This action cannot be undone.',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        variant: 'destructive'
+      });
+
+      if (!confirmed) return;
+
+      await deleteNotification(notificationId);
+      setActiveMenuId(null);
+      showToast({
+        icon: '🗑️',
+        title: 'Notification Deleted',
+        message: 'Notification has been permanently deleted.'
+      });
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      showToast({
+        icon: '❌',
+        title: 'Delete Failed',
+        message: 'Failed to delete notification. Please try again.'
+      });
+    }
+  };
+
   const toggleMenu = (notificationId: string, event: React.MouseEvent) => {
     event.stopPropagation();
     setActiveMenuId(activeMenuId === notificationId ? null : notificationId);
+  };
+
+  const handleNotificationContentClick = (notification: Notification) => {
+    setSelectedNotification(notification);
+    setIsDetailModalOpen(true);
+    setActiveMenuId(null);
+    // Mark as read when opening detail modal
+    if (!notification.isRead) {
+      markAsRead(notification.id);
+    }
   };
 
   const getTypeIcon = (type: string) => {
@@ -243,96 +288,113 @@ export default function NotificationBell() {
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer relative ${
+                  className={`border-b border-gray-100 dark:border-gray-700 relative ${
                     !notification.isRead ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                   }`}
-                  onClick={() => handleNotificationClick(notification.id)}
                 >
-                  <div className="flex items-start gap-3">
-                    {/* Type Icon */}
-                    <div className="text-lg">{getTypeIcon(notification.type)}</div>
-                    
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(notification.type)}`}>
-                          {notification.type}
-                        </span>
-                        {!notification.isRead && (
-                          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                        )}
-                      </div>
-                      
-                      <h4 className={`text-sm font-medium mb-1 ${
-                        !notification.isRead 
-                          ? 'text-gray-900 dark:text-white' 
-                          : 'text-gray-700 dark:text-gray-300'
-                      }`}>
-                        {notification.title}
-                      </h4>
-                      
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
-                        {notification.message}
-                      </p>
-                      
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-                        </span>
+                  <div className="flex">
+                    {/* Main clickable content area */}
+                    <div
+                      className="flex-1 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                      onClick={() => handleNotificationContentClick(notification)}
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Type Icon */}
+                        <div className="text-lg">{getTypeIcon(notification.type)}</div>
                         
-                        <div className="flex items-center gap-2">
-                          {!notification.isRead && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleNotificationClick(notification.id);
-                              }}
-                              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                          )}
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(notification.type)}`}>
+                              {notification.type}
+                            </span>
+                            {!notification.isRead && (
+                              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                            )}
+                          </div>
                           
-                          {/* Three-dot menu */}
-                          <div className="relative">
-                            <button
-                              onClick={(e) => toggleMenu(notification.id, e)}
-                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded"
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
+                          <h4 className={`text-sm font-medium mb-1 ${
+                            !notification.isRead 
+                              ? 'text-gray-900 dark:text-white' 
+                              : 'text-gray-700 dark:text-gray-300'
+                          }`}>
+                            {notification.title}
+                          </h4>
+                          
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
+                            {notification.message}
+                          </p>
+                          
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                            </span>
                             
-                            {/* Dropdown Menu */}
-                            {activeMenuId === notification.id && (
-                              <div className="absolute right-0 top-8 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 min-w-[120px]">
-                                {activeTab === 'archived' ? (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleRestore(notification.id);
-                                    }}
-                                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                                  >
-                                    <ArchiveRestore className="w-4 h-4" />
-                                    Restore
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleArchive(notification.id);
-                                    }}
-                                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                                  >
-                                    <Archive className="w-4 h-4" />
-                                    Archive
-                                  </button>
-                                )}
-                              </div>
+                            {!notification.isRead && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleNotificationClick(notification.id);
+                                }}
+                                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
                         </div>
                       </div>
+                    </div>
+                    
+                    {/* Three-dot menu (separate from clickable area) */}
+                    <div className="relative p-2 flex items-start">
+                      <button
+                        onClick={(e) => toggleMenu(notification.id, e)}
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                      
+                      {/* Dropdown Menu */}
+                      {activeMenuId === notification.id && (
+                        <div className="absolute right-0 top-10 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 min-w-[140px]">
+                          {activeTab === 'archived' ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRestore(notification.id);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                            >
+                              <ArchiveRestore className="w-4 h-4" />
+                              Restore
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleArchive(notification.id);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                            >
+                              <Archive className="w-4 h-4" />
+                              Archive
+                            </button>
+                          )}
+                          
+                          {/* Delete option */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(notification.id);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -341,6 +403,17 @@ export default function NotificationBell() {
           </div>
         </div>
       )}
+      
+      {/* Notification Detail Modal */}
+      <NotificationDetailModal
+        notification={selectedNotification}
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedNotification(null);
+        }}
+        onMarkAsRead={markAsRead}
+      />
     </div>
   );
 }
