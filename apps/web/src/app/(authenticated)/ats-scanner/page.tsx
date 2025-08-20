@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, FileText, Brain, Target, TrendingUp, Clock, Trash2, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAtsScanner, AtsScanResult, AtsScanHistoryItem, AtsScanDetail } from '@/hooks/useAtsScanner';
 import { useToast } from '@/components/notifications/ToastContainer';
@@ -22,12 +22,7 @@ export default function AtsScannerPage() {
   const { scanResume, getAtsHistory, getScanDetail, deleteScan, isScanning, isLoadingHistory } = useAtsScanner();
   const { showToast } = useToast();
 
-  // Load history on component mount
-  useState(() => {
-    loadHistory();
-  });
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       const historyData = await getAtsHistory(10, 0);
       setHistory(historyData.scans);
@@ -39,7 +34,12 @@ export default function AtsScannerPage() {
         message: 'Failed to load scan history'
       });
     }
-  };
+  }, [getAtsHistory, showToast]);
+
+  // Load history on component mount
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   const handleFileSelect = (selectedFile: File) => {
     const allowedTypes = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'];
