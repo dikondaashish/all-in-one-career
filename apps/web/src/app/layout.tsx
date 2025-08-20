@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeProvider";
-import { Toaster } from 'react-hot-toast';
+import { Toaster } from "react-hot-toast";
 
 // Force dynamic rendering to prevent static generation issues with theme system
 export const dynamic = 'force-dynamic';
@@ -39,7 +39,23 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             {children}
-            <Toaster />
+            <Toaster 
+              position="bottom-right"
+              toastOptions={{
+                duration: 5000,
+                style: {
+                  background: '#363636',
+                  color: '#fff',
+                },
+                success: {
+                  duration: 3000,
+                  iconTheme: {
+                    primary: '#00d4aa',
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
           </AuthProvider>
         </ThemeProvider>
       </body>
