@@ -43,7 +43,7 @@ export default function AdminLogsPage() {
     setError('');
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/logs`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/admin/logs`, {
         headers: {
           'Authorization': `Bearer ${user ? await user.getIdToken() : ''}`,
         },

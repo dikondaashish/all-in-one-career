@@ -3,7 +3,7 @@
  * Handles PDF, Word, and text file content extraction
  */
 
-// Support PDF, DOCX, DOC, and TXT files
+// Currently only support DOCX files as configured in the backend
 export const processFile = async (file: File): Promise<string> => {
   if (file.type === 'text/plain') {
     return await file.text();
@@ -11,9 +11,9 @@ export const processFile = async (file: File): Promise<string> => {
              file.type === 'application/msword') {
     return await processWordViaAPI(file);
   } else if (file.type === 'application/pdf') {
-    return await processPdfViaAPI(file);
+    throw new Error('PDF files are currently not supported. Please upload a DOC or DOCX file instead.');
   } else {
-    throw new Error('Unsupported file type. Please upload PDF, DOC, DOCX, or TXT files.');
+    throw new Error('Unsupported file type. Please upload DOC, DOCX, or TXT files.');
   }
 };
 
@@ -21,8 +21,7 @@ const processWordViaAPI = async (file: File): Promise<string> => {
   const formData = new FormData();
   formData.append('file', file);
   
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-  const response = await fetch(`${API_BASE_URL}/api/upload/extract-text`, {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/upload/extract-text`, {
     method: 'POST',
     body: formData
   });
@@ -36,55 +35,12 @@ const processWordViaAPI = async (file: File): Promise<string> => {
   return result.text || '';
 };
 
-export const processPdfViaAPI = async (file: File, { fallback = false }: { fallback?: boolean } = {}): Promise<string> => {
-  // For PDF files, we'll extract text through a direct API call
-  // since the main ATS scan endpoint now handles PDF processing
-  const formData = new FormData();
-  formData.append('file', file);
-  
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-  const url = `${API_BASE_URL}/api/upload/extract-text${fallback ? '?fallback=true' : ''}`;
-  const response = await fetch(url, {
-    method: 'POST',
-    body: formData
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    
-    // Handle specific error status codes
-    switch (response.status) {
-      case 422:
-        throw new Error('This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.');
-      
-      case 503:
-        throw new Error('PDF processing is temporarily unavailable. You can retry with fallback or upload DOCX.');
-      
-      case 400:
-        throw new Error((errorData && (errorData.message || errorData.code)) || 'Unable to process this PDF file. Please try uploading in DOCX format for best results.');
-      
-      case 413:
-        throw new Error('File too large. Maximum size is 10MB.');
-      
-      case 415:
-        throw new Error('Unsupported file type. Please use PDF, DOC, DOCX, or TXT files.');
-      
-      default:
-        throw new Error(errorData.error || 'Failed to extract text from PDF. Please try uploading in DOCX format.');
-    }
-  }
-  
-  const result = await response.json();
-  return result.text || '';
-};
-
 /**
  * Validate file before processing
  */
 export const validateFile = (file: File): { isValid: boolean; error?: string } => {
   const maxSize = 10 * 1024 * 1024; // 10MB
   const allowedTypes = [
-    'application/pdf',
     'text/plain',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword'
@@ -93,14 +49,14 @@ export const validateFile = (file: File): { isValid: boolean; error?: string } =
   if (!allowedTypes.includes(file.type)) {
     return {
       isValid: false,
-      error: 'Unsupported file type. Please use PDF, DOC, DOCX, or TXT files.'
+      error: 'Only DOC, DOCX, and TXT files are supported. PDF support coming soon.'
     };
   }
 
   if (file.size > maxSize) {
     return {
       isValid: false,
-      error: 'File too large. Maximum size is 10MB.'
+      error: 'File size must be under 10MB'
     };
   }
 
@@ -119,10 +75,10 @@ export const validateFile = (file: File): { isValid: boolean; error?: string } =
  */
 export const getFileTypeDisplay = (file: File): string => {
   const typeMap: { [key: string]: string } = {
-    'application/pdf': 'PDF Document',
     'text/plain': 'Text File',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word Document (DOCX)',
-    'application/msword': 'Word Document (DOC)'
+    'application/msword': 'Word Document (DOC)',
+    'application/pdf': 'PDF Document'
   };
 
   return typeMap[file.type] || 'Unknown File Type';

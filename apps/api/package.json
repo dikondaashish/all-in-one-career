@@ -6,7 +6,6 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "test:firebase": "node test-firebase-admin.js",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "tsx src/index.ts"
@@ -28,8 +27,6 @@
     "mammoth": "^1.10.0",
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
-    "pdf-parse": "^1.1.1",
-    "pdfjs-dist": "^5.4.54",
     "pino": "^9.9.0",
     "pino-pretty": "^13.1.1",
     "stopword": "^3.1.5",

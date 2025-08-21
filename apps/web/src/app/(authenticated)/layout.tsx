@@ -34,19 +34,10 @@ export default function AuthenticatedLayout({
 
   // Check authentication at layout level
   useEffect(() => {
-    if (!loading) {
-      // Check if user has JWT token as fallback
-      const hasJWTToken = localStorage.getItem('token');
-      
-      if (!user && !isGuest && !hasJWTToken) {
-        // User is not authenticated, not in guest mode, and has no JWT token
-        console.log('Unauthenticated user redirected from authenticated layout');
-        router.push('/');
-      } else if (hasJWTToken && !user && !loading) {
-        // User has JWT token but Firebase user is not loaded yet
-        // This is normal during JWT restoration, don't redirect
-        console.log('JWT token found, waiting for user state restoration...');
-      }
+    if (!loading && !user && !isGuest) {
+      // User is not authenticated and not in guest mode, redirect to login
+      console.log('Unauthenticated user redirected from authenticated layout');
+      router.push('/');
     }
   }, [user, loading, isGuest, router]);
 
@@ -59,8 +50,8 @@ export default function AuthenticatedLayout({
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  // Show loading while checking auth state or during JWT restoration
-  if (loading || (localStorage.getItem('token') && !user && !isGuest)) {
+  // Show loading while checking auth state
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center">
         <div className="text-center">
@@ -72,7 +63,7 @@ export default function AuthenticatedLayout({
   }
 
   // If user is not authenticated and not in guest mode, don't render layout
-  if (!user && !isGuest && !localStorage.getItem('token')) {
+  if (!user && !isGuest) {
     return null; // Will redirect in useEffect
   }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { debounce } from 'lodash';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface RealTimeAnalysis {
   matchScore: number;
@@ -22,6 +23,7 @@ const initialState: RealTimeAnalysis = {
 
 export const useRealTimeAnalysis = (resumeText: string, jobDescription: string) => {
   const [analysis, setAnalysis] = useState<RealTimeAnalysis>(initialState);
+  const { user } = useAuth();
 
   const analyzeContent = useCallback(async (resume: string, jd: string) => {
     if (!resume?.trim() || !jd?.trim()) {
@@ -37,11 +39,12 @@ export const useRealTimeAnalysis = (resumeText: string, jobDescription: string) 
     setAnalysis(prev => ({ ...prev, isAnalyzing: true, error: undefined }));
 
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const response = await fetch(`${API_BASE_URL}/api/ats/analyze-preview`, {
+      const token = await user?.getIdToken();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/ats/analyze-preview`, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ 
           resumeText: resume.trim(), 
@@ -73,7 +76,7 @@ export const useRealTimeAnalysis = (resumeText: string, jobDescription: string) 
         error: error instanceof Error ? error.message : 'Analysis failed'
       }));
     }
-  }, []);
+  }, [user]);
 
   // Debounced analysis function
   const debouncedAnalyze = useMemo(

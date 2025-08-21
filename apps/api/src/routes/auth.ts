@@ -185,54 +185,5 @@ export default function authRouter(prisma: PrismaClient): Router {
     }
   });
 
-  // STEP 3: JWT token validation endpoint
-  r.post('/validate', async (req: any, res) => {
-    try {
-      const authHeader = req.headers['authorization'];
-      const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
-      if (!token) {
-        return res.status(401).json({ error: 'Token required' });
-      }
-
-      // Verify JWT token
-      const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
-      const decoded = jwt.verify(token, jwtSecret) as { uid: string; email: string };
-      
-      // Get user data from database
-      const user = await prisma.user.findFirst({
-        where: { 
-          OR: [
-            { id: decoded.uid },
-            { email: decoded.email }
-          ]
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          profileImage: true,
-          theme: true
-        }
-      });
-
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      res.json({
-        uid: user.id,
-        email: user.email,
-        name: user.name,
-        profileImage: user.profileImage,
-        theme: user.theme
-      });
-
-    } catch (error) {
-      console.error('Token validation error:', error instanceof Error ? error.message : String(error));
-      res.status(401).json({ error: 'Invalid token' });
-    }
-  });
-
   return r;
 }

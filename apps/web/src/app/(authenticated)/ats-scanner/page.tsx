@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import ScanningProgress from '@/components/ats/ScanningProgress';
 import SavedResumes from '@/components/ats/SavedResumes';
 import RealTimePreview from '@/components/ats/RealTimePreview';
-import { processFile, validateFile, getFileTypeDisplay, formatFileSize, processPdfViaAPI } from '@/utils/fileProcessor';
+import { processFile, validateFile, getFileTypeDisplay, formatFileSize } from '@/utils/fileProcessor';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -91,7 +91,7 @@ const ResumeInputSection = ({
           ref={fileInputRef}
           type="file"
           className="hidden"
-          accept=".pdf,.doc,.docx,.txt"
+          accept=".doc,.docx"
           onChange={(e) => {
             if (e.target.files && e.target.files[0]) {
               handleFileSelect(e.target.files[0]);
@@ -114,8 +114,8 @@ const ResumeInputSection = ({
           </div>
         ) : (
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Drag & Drop or Upload — PDF, DOC, DOCX, TXT</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Max 10MB. We don&apos;t store source files; only parsed text.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Drag & Drop or Upload</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">DOC, DOCX, TXT files only</p>
           </div>
         )}
       </div>
@@ -218,37 +218,11 @@ export default function AtsScannerPage() {
       console.error('File processing error:', error);
       const errorMsg = error instanceof Error ? error.message : 'Failed to process file';
       setErrors(prev => ({ ...prev, file: errorMsg }));
-
-      // If PDF failed, offer retry with fallback or DOCX suggestion
-      if (file && file.type === 'application/pdf') {
-        showToast({
-          icon: '📄',
-          title: 'PDF Processing Issue',
-          message: 'We can retry with a fallback method or upload DOCX instead.',
-          ctaText: 'Retry Fallback',
-          onView: async () => {
-            try {
-              const extracted = await processPdfViaAPI(file, { fallback: true });
-              if (extracted && extracted.trim().length > 0) {
-                setResumeText(extracted);
-                showToast({
-                  icon: '✅',
-                  title: 'Fallback Succeeded',
-                  message: `Extracted ${extracted.length} characters from ${file.name}`
-                });
-              } else {
-                throw new Error('No text could be extracted from the file');
-              }
-            } catch (fallbackErr) {
-              const msg = fallbackErr instanceof Error ? fallbackErr.message : 'Fallback failed';
-              showToast({ icon: '❌', title: 'Fallback Failed', message: msg });
-            }
-          }
-        });
-      } else {
-        showToast({ icon: '❌', title: 'Processing Failed', message: errorMsg });
-      }
-
+      showToast({
+        icon: '❌',
+        title: 'Processing Failed',
+        message: errorMsg
+      });
       // Keep the file reference for retry, but clear text
       setResumeText('');
     } finally {
@@ -345,11 +319,9 @@ export default function AtsScannerPage() {
       
       let errorMessage = 'Failed to scan resume';
       if (error instanceof Error) {
-        if (error.message.includes('scanned images') || error.message.includes('OCR')) {
-          errorMessage = 'This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.';
-        } else if (error.message.includes('not supported')) {
-          errorMessage = 'File format not supported. Please use PDF, DOC, DOCX, or TXT format.';
-        } else if (error.message.includes('too large') || error.message.includes('10MB')) {
+        if (error.message.includes('not supported')) {
+          errorMessage = 'File format not supported. Please use DOC or DOCX format.';
+        } else if (error.message.includes('too large')) {
           errorMessage = 'File too large. Please use a file under 10MB.';
         } else if (error.message.includes('Authentication')) {
           errorMessage = 'Please log in to continue scanning.';
@@ -513,7 +485,7 @@ export default function AtsScannerPage() {
                 For best results:
               </h4>
               <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                <li>• Upload your resume in PDF, DOC, DOCX, or TXT format</li>
+                <li>• Upload your resume in DOC or DOCX format</li>
                 <li>• Include the complete job description you&apos;re applying for</li>
                 <li>• Ensure your resume includes contact information and skills</li>
               </ul>
