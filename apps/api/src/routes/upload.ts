@@ -1,9 +1,8 @@
-import express from 'express';
+import express, { Router } from 'express';
 import multer from 'multer';
-import mammoth from 'mammoth';
-import path from 'path';
+import { extractTextFromPdf, extractTextFromDocx, extractTextFromTxt } from '../utils/fileParser';
 
-const router = express.Router();
+const router: Router = express.Router();
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -12,6 +11,7 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
+      'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
       'text/plain'
@@ -20,7 +20,7 @@ const upload = multer({
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only DOC, DOCX, and TXT files are supported'), false);
+      cb(new Error('Only PDF, DOC, DOCX, and TXT files are supported'));
     }
   },
   storage: multer.memoryStorage() // Store in memory for processing
@@ -39,16 +39,19 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
     let extractedText = '';
 
     switch (file.mimetype) {
+      case 'application/pdf':
+        extractedText = await extractTextFromPdf(file.buffer);
+        break;
       case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
       case 'application/msword':
-        extractedText = await extractFromWord(file.buffer);
+        extractedText = await extractTextFromDocx(file.buffer);
         break;
       case 'text/plain':
-        extractedText = file.buffer.toString('utf-8');
+        extractedText = await extractTextFromTxt(file.buffer);
         break;
       default:
-        return res.status(400).json({ 
-          error: 'Unsupported file type. Only DOC, DOCX, and TXT files are supported.' 
+        return res.status(415).json({ 
+          error: 'Unsupported file type. Only PDF, DOC, DOCX, and TXT files are supported.' 
         });
     }
 
@@ -81,9 +84,16 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
     
     if (error instanceof multer.MulterError) {
       if (error.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'File too large. Maximum size is 10MB.' });
+        return res.status(413).json({ error: 'File too large. Maximum size is 10MB.' });
       }
       return res.status(400).json({ error: error.message });
+    }
+    
+    // Handle specific PDF errors
+    if (error.message.includes('scanned images') || error.message.includes('PDF_SCANNED')) {
+      return res.status(422).json({ 
+        error: 'This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.' 
+      });
     }
     
     res.status(500).json({ 
@@ -92,22 +102,6 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
   }
 });
 
-/**
- * Extract text from Word documents using mammoth
- */
-const extractFromWord = async (buffer: Buffer): Promise<string> => {
-  try {
-    const result = await mammoth.extractRawText({ buffer });
-    
-    if (result.messages && result.messages.length > 0) {
-      console.log('Mammoth extraction messages:', result.messages);
-    }
-    
-    return result.value;
-  } catch (error) {
-    console.error('Word extraction error:', error);
-    throw new Error('Failed to extract text from Word document. Please ensure the file is not corrupted.');
-  }
-};
+
 
 export default router;

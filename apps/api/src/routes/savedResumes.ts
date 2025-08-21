@@ -194,7 +194,8 @@ export default function createSavedResumesRouter(prisma: PrismaClient): express.
       const updatedResume = await prisma.savedResume.update({
         where: { id },
         data: {
-          ...updateData,
+          ...(updateData.name !== undefined && { name: updateData.name }),
+          ...(updateData.content !== undefined && { content: updateData.content }),
           lastUsed: new Date()
         }
       });

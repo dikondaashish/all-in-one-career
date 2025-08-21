@@ -17,20 +17,29 @@ import {
 
 const router = Router();
 
+// File validation constants
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain'
+]);
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.txt']);
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 // Multer configuration for file uploads
 const upload = multer({
   dest: 'temp/',
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: MAX_FILE_SIZE,
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.doc', '.docx'];
     const ext = path.extname(file.originalname).toLowerCase();
     
-    if (allowedTypes.includes(ext)) {
+    if (ALLOWED_EXTENSIONS.has(ext) && ALLOWED_MIME_TYPES.has(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only DOC and DOCX files are currently supported. PDF support coming soon.'));
+      cb(new Error('Unsupported file type. Please use PDF, DOC, DOCX, or TXT files.'));
     }
   }
 });
@@ -194,9 +203,23 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
         });
       }
       
-      // Handle specific error types
-      if (error.message.includes('PDF parsing') || error.message.includes('not supported')) {
-        return res.status(400).json({ error: error.message });
+      // Handle specific error types with proper HTTP status codes
+      if (error.message.includes('scanned images') || error.message.includes('PDF_SCANNED')) {
+        return res.status(422).json({ 
+          error: 'This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.' 
+        });
+      }
+      
+      if (error.message.includes('File too large') || error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ 
+          error: 'File too large. Maximum size is 10MB.' 
+        });
+      }
+      
+      if (error.message.includes('Unsupported file type') || error.message.includes('not supported')) {
+        return res.status(415).json({ 
+          error: 'Unsupported file type. Please use PDF, DOC, DOCX, or TXT files.' 
+        });
       }
       
       res.status(500).json({ 
@@ -393,14 +416,14 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
       const resumeWords = new Set(
         resumeText.toLowerCase()
           .split(/\s+/)
-          .filter(word => word.length > 3)
-          .map(word => word.replace(/[^\w]/g, ''))
+          .filter((word: string) => word.length > 3)
+          .map((word: string) => word.replace(/[^\w]/g, ''))
       );
       
       const jdWords = jobDescription.toLowerCase()
         .split(/\s+/)
-        .filter(word => word.length > 3)
-        .map(word => word.replace(/[^\w]/g, ''));
+        .filter((word: string) => word.length > 3)
+        .map((word: string) => word.replace(/[^\w]/g, ''));
       
       const jdWordsUnique = Array.from(new Set(jdWords));
       
