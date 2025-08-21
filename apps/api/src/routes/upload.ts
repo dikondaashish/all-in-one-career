@@ -1,6 +1,7 @@
 import express, { Router } from 'express';
 import multer from 'multer';
 import { extractTextFromPdf, extractTextFromDocx, extractTextFromTxt } from '../utils/fileParser';
+import { getPdfParsingStatus } from '../utils/pdfUtils';
 
 const router: Router = express.Router();
 
@@ -40,7 +41,31 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
 
     switch (file.mimetype) {
       case 'application/pdf':
-        extractedText = await extractTextFromPdf(file.buffer);
+        try {
+          extractedText = await extractTextFromPdf(file.buffer);
+        } catch (pdfError: any) {
+          console.error('PDF processing failed:', pdfError.message);
+          
+          // Check if it's a module loading issue
+          if (pdfError.message.includes('unavailable') || 
+              pdfError.message.includes('PDF parsing is currently unavailable')) {
+            return res.status(503).json({ 
+              error: 'PDF processing is temporarily unavailable. Please upload your document in DOCX format.' 
+            });
+          }
+          
+          // Check if it's a scanned PDF issue
+          if (pdfError.message.includes('scanned images') || pdfError.message.includes('OCR')) {
+            return res.status(422).json({ 
+              error: 'This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.' 
+            });
+          }
+          
+          // For other PDF errors, suggest DOCX as alternative
+          return res.status(400).json({ 
+            error: 'Unable to process this PDF file. Please try uploading in DOCX format for best results.' 
+          });
+        }
         break;
       case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
       case 'application/msword':
@@ -102,6 +127,28 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
   }
 });
 
-
+// GET /api/upload/pdf-status - Check PDF parsing status
+router.get('/pdf-status', async (req, res) => {
+  try {
+    console.log('PDF status check requested');
+    const status = await getPdfParsingStatus();
+    
+    res.json({
+      ...status,
+      timestamp: new Date().toISOString(),
+      nodeVersion: process.version,
+      platform: process.platform
+    });
+    
+  } catch (error: any) {
+    console.error('PDF status check failed:', error);
+    res.status(500).json({
+      available: false,
+      error: 'Status check failed',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 export default router;
