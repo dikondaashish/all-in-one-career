@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Download, FileText, FileSpreadsheet, File } from 'lucide-react';
+import { FileText, FileSpreadsheet, File } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 interface ATSAnalysis {
@@ -68,10 +68,18 @@ interface ResumeData {
   content: string;
   wordCount: number;
   characterCount: number;
-  sections: any[];
+  sections: ResumeSection[];
   source: 'manual' | 'file' | 'url';
   filename?: string;
   extractedAt: Date;
+}
+
+interface ResumeSection {
+  type: 'personal' | 'experience' | 'education' | 'skills' | 'projects' | 'summary';
+  content: string;
+  keywords: string[];
+  startIndex: number;
+  endIndex: number;
 }
 
 interface JobDescription {

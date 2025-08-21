@@ -628,11 +628,11 @@ export class ATSAnalysisEngine {
     const optionalSections = ['education', 'projects', 'summary'];
 
     requiredSections.forEach(required => {
-      if (sectionTypes.includes(required as any)) score += 30;
+      if (sectionTypes.includes(required as ResumeSection['type'])) score += 30;
     });
 
     optionalSections.forEach(optional => {
-      if (sectionTypes.includes(optional as any)) score += 3;
+      if (sectionTypes.includes(optional as ResumeSection['type'])) score += 3;
     });
 
     return Math.min(100, score);
