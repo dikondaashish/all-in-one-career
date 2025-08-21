@@ -467,14 +467,36 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
       // Parse resume fields
       const parsedResume = extractResumeFields(text);
 
-      // Calculate match score using existing logic
-      const { score, missingSkills, extraSkills } = calculateMatchScore(text, jdText);
+      // Extract skills from both texts with proper error handling FIRST
+      let resumeSkills: string[] = [];
+      let jdSkills: string[] = [];
       
-      // Extract skills from both texts
-      const resumeSkills = extractSkills(text);
-      const jdSkills = extractSkills(jdText);
+      try {
+        resumeSkills = extractSkills(text) || [];
+        if (!Array.isArray(resumeSkills)) {
+          console.warn('extractSkills returned non-array for resume text:', typeof resumeSkills);
+          resumeSkills = [];
+        }
+      } catch (error) {
+        console.error('Error extracting resume skills:', error);
+        resumeSkills = [];
+      }
+      
+      try {
+        jdSkills = extractSkills(jdText) || [];
+        if (!Array.isArray(jdSkills)) {
+          console.warn('extractSkills returned non-array for JD text:', typeof jdSkills);
+          jdSkills = [];
+        }
+      } catch (error) {
+        console.error('Error extracting JD skills:', error);
+        jdSkills = [];
+      }
 
-      // Generate keywords analysis
+      // Calculate match score using extracted skills arrays
+      const { score, missingSkills, extraSkills } = calculateMatchScore(resumeSkills, jdSkills);
+
+      // Generate keywords analysis with null-safe operations
       const keywords = [];
       const allSkills = [...new Set([...resumeSkills, ...jdSkills])];
       
@@ -489,7 +511,7 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
         });
       }
 
-      // Save to database
+      // Save to database with null-safe arrays
       const atsScansHistory = await prisma.atsScan.create({
         data: {
           userId,
@@ -497,9 +519,9 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
           fileType: path.extname(originalname).toLowerCase(),
           jdText,
           parsedJson: parsedResume,
-          matchScore: score,
-          missingSkills,
-          extraSkills
+          matchScore: score || 0,
+          missingSkills: Array.isArray(missingSkills) ? missingSkills : [],
+          extraSkills: Array.isArray(extraSkills) ? extraSkills : []
         }
       });
 
@@ -520,17 +542,19 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
 
       return res.json({
         scanId: atsScansHistory.id,
-        score,
-        present: resumeSkills.filter(skill => jdSkills.includes(skill)),
-        missing: missingSkills,
+        score: score || 0,
+        present: Array.isArray(resumeSkills) && Array.isArray(jdSkills) 
+          ? resumeSkills.filter(skill => jdSkills.includes(skill)) 
+          : [],
+        missing: Array.isArray(missingSkills) ? missingSkills : [],
         extractedChars: text.length,
         summary: {
-          name: parsedResume.name,
-          email: parsedResume.email,
-          phone: parsedResume.phone,
-          skills: resumeSkills
+          name: parsedResume.name || '',
+          email: parsedResume.email || '',
+          phone: parsedResume.phone || '',
+          skills: Array.isArray(resumeSkills) ? resumeSkills : []
         },
-        keywords,
+        keywords: Array.isArray(keywords) ? keywords : [],
         analyzedAt: new Date().toISOString()
       });
 
