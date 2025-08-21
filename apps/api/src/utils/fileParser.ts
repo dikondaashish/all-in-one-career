@@ -1,28 +1,18 @@
 import mammoth from 'mammoth';
 import fs from 'fs';
-import pdfParse from 'pdf-parse';
+import { extractPdfText, isPdfParsingAvailable } from './pdfUtils';
 
 /**
- * Extract text from PDF file
+ * Extract text from PDF file using production-safe implementation
  */
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  try {
-    const data = await pdfParse(buffer);
-    const text = data.text || '';
-    
-    // Check if PDF has extractable text
-    if (text.trim().length < 30) {
-      throw new Error('PDF_SCANNED');
-    }
-    
-    return text;
-  } catch (error) {
-    console.error('Error extracting text from PDF:', error);
-    if (error instanceof Error && error.message === 'PDF_SCANNED') {
-      throw new Error('This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.');
-    }
-    throw new Error('Failed to extract text from PDF file. Please ensure the file is not corrupted.');
+  // Check if PDF parsing is available first
+  const isAvailable = await isPdfParsingAvailable();
+  if (!isAvailable) {
+    throw new Error('PDF parsing is currently unavailable. Please upload your resume in DOCX format for now.');
   }
+  
+  return await extractPdfText(buffer);
 }
 
 /**
