@@ -14,25 +14,35 @@ let pdfParseModule: any = null;
 async function loadPdfParse() {
   if (!pdfParseModule) {
     try {
+      console.log('Attempting to load pdf-parse module...');
+      
       // Try multiple import methods for better compatibility
       try {
         pdfParseModule = require('pdf-parse');
         console.log('PDF parsing module loaded successfully via require');
       } catch (requireError: any) {
         console.log('Require failed, trying dynamic import:', requireError.message);
-        const dynamicImport = await import('pdf-parse');
-        pdfParseModule = dynamicImport.default || dynamicImport;
-        console.log('PDF parsing module loaded successfully via dynamic import');
+        try {
+          const dynamicImport = await import('pdf-parse');
+          pdfParseModule = dynamicImport.default || dynamicImport;
+          console.log('PDF parsing module loaded successfully via dynamic import');
+        } catch (importError: any) {
+          console.error('Dynamic import also failed:', importError.message);
+          throw new Error(`Both require and import failed: ${requireError.message}, ${importError.message}`);
+        }
       }
       
       // Test if the module is actually callable
       if (typeof pdfParseModule !== 'function') {
-        throw new Error('pdf-parse module is not a function');
+        throw new Error(`pdf-parse module is not a function, got: ${typeof pdfParseModule}`);
       }
       
-    } catch (error) {
+      console.log('PDF parsing module validation successful');
+      
+    } catch (error: any) {
       console.error('Failed to load pdf-parse module:', error);
-      throw new Error('PDF parsing is currently unavailable due to server configuration. Please upload your document in DOCX format.');
+      pdfParseModule = null; // Reset on failure
+      throw new Error(`PDF parsing is currently unavailable due to server configuration: ${error.message}. Please upload your document in DOCX format.`);
     }
   }
   return pdfParseModule;
@@ -196,8 +206,33 @@ function validatePdfContent(text: string, pdfData: any): void {
 export async function isPdfParsingAvailable(): Promise<boolean> {
   try {
     await loadPdfParse();
+    console.log('PDF parsing availability check: AVAILABLE');
     return true;
-  } catch {
+  } catch (error: any) {
+    console.log('PDF parsing availability check: UNAVAILABLE -', error.message);
     return false;
+  }
+}
+
+/**
+ * Get PDF parsing status with detailed information
+ */
+export async function getPdfParsingStatus(): Promise<{
+  available: boolean;
+  error?: string;
+  details?: string;
+}> {
+  try {
+    await loadPdfParse();
+    return { 
+      available: true,
+      details: 'PDF parsing module loaded and ready'
+    };
+  } catch (error: any) {
+    return { 
+      available: false,
+      error: error.message,
+      details: 'PDF parsing module failed to load or initialize'
+    };
   }
 }
