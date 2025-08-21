@@ -18,21 +18,18 @@ import {
 
 const router = Router();
 
-// Multer configuration for file uploads
+// Multer configuration for file uploads (memory storage for better performance)
 const upload = multer({
-  dest: 'temp/',
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.doc', '.docx'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    
-    if (allowedTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only DOC and DOCX files are currently supported. PDF support coming soon.'));
-    }
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (_req, file, cb) => {
+    const ok = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+      'application/msword'
+    ].includes(file.mimetype);
+    cb(ok ? null : (new Error('Unsupported file type') as any), ok);
   }
 });
 
@@ -424,32 +421,19 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
     }
   });
 
-  // ===== NEW: Simple multipart upload endpoint =====
-  const fileUpload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-    fileFilter: (_req, file, cb) => {
-      const ok = [
-        'application/pdf',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'text/plain',
-        'application/msword'
-      ].includes(file.mimetype);
-      cb(ok ? null : (new Error('Unsupported file type') as any), ok);
-    }
-  });
-
-  router.post('/scan-file', fileUpload.single('file'), async (req: any, res) => {
+  // ===== NEW: Multipart upload endpoint =====
+  router.post('/scan-file', upload.single('file'), async (req: express.Request, res: express.Response) => {
     try {
       const jdText = String(req.body?.jdText || '').trim();
       if (!jdText || jdText.length < 20) {
         return res.status(400).json({ error: 'jdText is required (≥20 chars)' });
       }
-      if (!req.file) {
+      const file = req.file as Express.Multer.File;
+      if (!file) {
         return res.status(400).json({ error: 'file is required' });
       }
 
-      const { buffer, mimetype, originalname } = req.file;
+      const { buffer, mimetype, originalname } = file;
       const { text } = await extractTextFromBuffer(mimetype, originalname, buffer);
 
       // If no selectable text (e.g., scanned image PDF)
@@ -482,11 +466,12 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
       const jd = await prisma.jobDescription.create({ data: { title: 'JD', company: '', content: jdText } });
 
       return res.json({ score, present, missing, jdId: jd.id, extractedChars: text.length });
-    } catch (err: any) {
-      if (err?.code === 'PDF_PASSWORD') {
-        return res.status(423).json({ error: 'PDF_LOCKED', message: err.message });
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error?.code === 'PDF_PASSWORD') {
+        return res.status(423).json({ error: 'PDF_LOCKED', message: error.message || 'PDF is password protected' });
       }
-      return res.status(400).json({ error: 'UPLOAD_PARSE_ERROR', message: String(err?.message || err) });
+      return res.status(400).json({ error: 'UPLOAD_PARSE_ERROR', message: error?.message || String(err) });
     }
   });
 
