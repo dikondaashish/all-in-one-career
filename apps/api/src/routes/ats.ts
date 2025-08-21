@@ -19,12 +19,12 @@ const router = Router();
 
 // File validation constants
 const ALLOWED_MIME_TYPES = new Set([
-  // 'application/pdf', // Temporarily disabled due to deployment issues
+  'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/plain'
 ]);
-const ALLOWED_EXTENSIONS = new Set([/* '.pdf', */ '.doc', '.docx', '.txt']);
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.txt']);
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Multer configuration for file uploads
@@ -39,7 +39,7 @@ const upload = multer({
     if (ALLOWED_EXTENSIONS.has(ext) && ALLOWED_MIME_TYPES.has(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Unsupported file type. Please use DOC, DOCX, or TXT files. PDF support temporarily disabled.'));
+      cb(new Error('Unsupported file type. Please use PDF, DOC, DOCX, or TXT files.'));
     }
   }
 });
@@ -218,7 +218,7 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
       
       if (error.message.includes('Unsupported file type') || error.message.includes('not supported')) {
         return res.status(415).json({ 
-          error: 'Unsupported file type. Please use DOC, DOCX, or TXT files. PDF support temporarily disabled.' 
+          error: 'Unsupported file type. Please use PDF, DOC, DOCX, or TXT files.' 
         });
       }
       
