@@ -9,11 +9,21 @@ import { useAuth } from '@/contexts/AuthContext';
 import ScanningProgress from '@/components/ats/ScanningProgress';
 import SavedResumes from '@/components/ats/SavedResumes';
 import RealTimePreview from '@/components/ats/RealTimePreview';
-import { processFile, validateFile, getFileTypeDisplay, formatFileSize } from '@/utils/fileProcessor';
+import { validateFile, getFileTypeDisplay, formatFileSize } from '@/utils/fileProcessor';
 import { SAMPLE_ATS_SCAN_DATA } from '@/data/sampleAtsData';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
+
+// Types for the simplified upload endpoint
+type ScanSuccess = {
+  score: number;
+  present: string[];
+  missing: string[];
+  jdId: string;
+  extractedChars?: number;
+};
+type ScanError = { error: string; message?: string };
 
 // Components
 interface ResumeInputSectionProps {
@@ -168,13 +178,85 @@ export default function AtsScannerPage() {
   });
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [showSavedResumes, setShowSavedResumes] = useState(false);
-  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  
+  // New state for simplified upload
+  const [uploadResult, setUploadResult] = useState<ScanSuccess | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isScanning } = useAtsScanner();
   const { showToast } = useToast();
   const router = useRouter();
   const { user } = useAuth();
+
+  // Helper function for friendly error messages
+  function friendlyErrorMessage(msg: string): string {
+    if (/NO_TEXT_IN_FILE/i.test(msg)) return 'Couldn\'t read text. Is this a scanned image PDF? Please upload an OCR copy or DOCX/TXT.';
+    if (/PDF_LOCKED/i.test(msg)) return 'This PDF is password-protected. Please unlock it and try again.';
+    if (/Unsupported file type/i.test(msg)) return 'Unsupported file. Please upload PDF, DOCX or TXT.';
+    return msg;
+  }
+
+  // New simplified upload handler
+  async function handleDirectUpload(file: File) {
+    setIsUploading(true);
+    setErrors({});
+    setUploadResult(null);
+
+    try {
+      if (!jobDescription || jobDescription.trim().length < 20) {
+        throw new Error('Please paste the full job description (at least 20 characters) before uploading.');
+      }
+
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('jdText', jobDescription);
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/ats/scan-file`, {
+        method: 'POST',
+        body: fd
+      });
+      const data = (await res.json()) as ScanSuccess | ScanError;
+
+      if (!res.ok) {
+        const msg = (data as ScanError).message || (data as ScanError).error || 'Scan failed';
+        throw new Error(msg);
+      }
+
+      // Normalize arrays to avoid .map on non-array
+      const successData = data as ScanSuccess;
+      const present = Array.isArray(successData.present) ? successData.present : [];
+      const missing = Array.isArray(successData.missing) ? successData.missing : [];
+
+      const result: ScanSuccess = {
+        score: successData.score ?? 0,
+        present,
+        missing,
+        jdId: successData.jdId ?? '',
+        extractedChars: successData.extractedChars
+      };
+
+      setUploadResult(result);
+      showToast({
+        icon: '🎉',
+        title: 'Scan Complete!',
+        message: `Match score: ${result.score}%. Found ${result.present.length} matching keywords.`
+      });
+    } catch (e: unknown) {
+      const errorMsg = friendlyErrorMessage(
+        e instanceof Error ? e.message : 'Scan failed'
+      );
+      setErrors({ upload: errorMsg });
+      showToast({
+        icon: '❌',
+        title: 'Scan Failed',
+        message: errorMsg
+      });
+      setUploadResult(null);
+    } finally {
+      setIsUploading(false);
+    }
+  }
 
   const handleFileSelect = async (selectedFile: File) => {
     // Clear previous errors
@@ -194,43 +276,9 @@ export default function AtsScannerPage() {
     }
     
     setFile(selectedFile);
-    setIsProcessingFile(true);
     
-    try {
-      showToast({
-        icon: '📄',
-        title: 'Processing File',
-        message: `Processing ${getFileTypeDisplay(selectedFile)} (${formatFileSize(selectedFile.size)})...`
-      });
-
-      // Process the file to extract text
-      const extractedText = await processFile(selectedFile);
-      
-      if (extractedText && extractedText.trim().length > 0) {
-        setResumeText(extractedText);
-        showToast({
-          icon: '✅',
-          title: 'File Processed',
-          message: `Successfully extracted ${extractedText.length} characters from ${selectedFile.name}`
-        });
-      } else {
-        throw new Error('No text could be extracted from the file');
-      }
-      
-    } catch (error) {
-      console.error('File processing error:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to process file';
-      setErrors(prev => ({ ...prev, file: errorMsg }));
-      showToast({
-        icon: '❌',
-        title: 'Processing Failed',
-        message: errorMsg
-      });
-      // Keep the file reference for retry, but clear text
-      setResumeText('');
-    } finally {
-      setIsProcessingFile(false);
-    }
+    // Use direct upload to new endpoint instead of processing file locally
+    await handleDirectUpload(selectedFile);
   };
 
   const simulateProgress = () => {
@@ -437,7 +485,7 @@ export default function AtsScannerPage() {
             handleFileSelect={handleFileSelect}
             errors={errors}
             onShowSavedResumes={() => setShowSavedResumes(true)}
-            isProcessingFile={isProcessingFile}
+            isProcessingFile={isUploading}
           />
           
           {/* Job Description Column */}
@@ -534,6 +582,81 @@ export default function AtsScannerPage() {
             </div>
           </div>
         </div>
+
+        {/* Upload Results */}
+        {isUploading && (
+          <div className="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <span className="ml-3 text-gray-600 dark:text-gray-400">Analyzing resume...</span>
+            </div>
+          </div>
+        )}
+
+        {errors.upload && (
+          <div className="mt-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <p className="text-red-600 dark:text-red-400">{errors.upload}</p>
+          </div>
+        )}
+
+        {uploadResult && (
+          <div className="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Scan Results
+                </h3>
+                <div className="text-2xl font-bold text-blue-600">
+                  {uploadResult.score}%
+                </div>
+              </div>
+              
+              {uploadResult.extractedChars && (
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Extracted {uploadResult.extractedChars} characters from your resume
+                </p>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-medium text-green-700 dark:text-green-400 mb-2">
+                    Matching Keywords ({uploadResult.present.length})
+                  </h4>
+                  <ul className="list-disc ml-5 space-y-1">
+                    {(uploadResult.present ?? []).slice(0, 20).map((k, idx) => (
+                      <li key={`present-${idx}`} className="text-sm text-gray-600 dark:text-gray-400">
+                        {k}
+                      </li>
+                    ))}
+                  </ul>
+                  {uploadResult.present.length > 20 && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      +{uploadResult.present.length - 20} more matches
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-amber-700 dark:text-amber-400 mb-2">
+                    Missing Keywords ({uploadResult.missing.length})
+                  </h4>
+                  <ul className="list-disc ml-5 space-y-1">
+                    {(uploadResult.missing ?? []).slice(0, 20).map((k, idx) => (
+                      <li key={`missing-${idx}`} className="text-sm text-gray-600 dark:text-gray-400">
+                        {k}
+                      </li>
+                    ))}
+                  </ul>
+                  {uploadResult.missing.length > 20 && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      +{uploadResult.missing.length - 20} more missing
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Scanning Progress Modal */}
         <ScanningProgress 

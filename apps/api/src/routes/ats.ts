@@ -424,7 +424,7 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
     }
   });
 
-  // ===== NEW: Multipart upload endpoint =====
+  // ===== NEW: Simple multipart upload endpoint =====
   const fileUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
@@ -445,131 +445,48 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
       if (!jdText || jdText.length < 20) {
         return res.status(400).json({ error: 'jdText is required (≥20 chars)' });
       }
-      
       if (!req.file) {
         return res.status(400).json({ error: 'file is required' });
       }
 
       const { buffer, mimetype, originalname } = req.file;
-      const userId = req.user?.uid;
-
-      // Extract text using the new extractor
       const { text } = await extractTextFromBuffer(mimetype, originalname, buffer);
 
+      // If no selectable text (e.g., scanned image PDF)
       if (!text || text.replace(/\s+/g, '').length < 50) {
-        // Likely scanned image PDF or empty—no selectable text
         return res.status(422).json({
           error: 'NO_TEXT_IN_FILE',
-          message: 'Could not read text from the file. If it is a scanned PDF/image, please use an OCR-scanned copy or upload DOCX/TXT.'
+          message: 'Could not read text. If this is a scanned PDF, upload an OCR copy or DOCX/TXT.'
         });
       }
 
-      // Parse resume fields
-      const parsedResume = extractResumeFields(text);
+      // === reuse existing keyword/score logic ===
+      const normalize = (s: string) =>
+        s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w: string) => w.length > 2);
 
-      // Extract skills from both texts with proper error handling FIRST
-      let resumeSkills: string[] = [];
-      let jdSkills: string[] = [];
-      
-      try {
-        resumeSkills = extractSkills(text) || [];
-        if (!Array.isArray(resumeSkills)) {
-          console.warn('extractSkills returned non-array for resume text:', typeof resumeSkills);
-          resumeSkills = [];
-        }
-      } catch (error) {
-        console.error('Error extracting resume skills:', error);
-        resumeSkills = [];
-      }
-      
-      try {
-        jdSkills = extractSkills(jdText) || [];
-        if (!Array.isArray(jdSkills)) {
-          console.warn('extractSkills returned non-array for JD text:', typeof jdSkills);
-          jdSkills = [];
-        }
-      } catch (error) {
-        console.error('Error extracting JD skills:', error);
-        jdSkills = [];
-      }
+      const jdWords = normalize(jdText);
+      const resumeWords = new Set(normalize(text));
 
-      // Calculate match score using extracted skills arrays
-      const { score, missingSkills, extraSkills } = calculateMatchScore(resumeSkills, jdSkills);
+      const jdFreq: Record<string, number> = {};
+      jdWords.forEach((w: string) => (jdFreq[w] = (jdFreq[w] || 0) + 1));
 
-      // Generate keywords analysis with null-safe operations
-      const keywords = [];
-      const allSkills = [...new Set([...resumeSkills, ...jdSkills])];
-      
-      for (const skill of allSkills) {
-        const inResume = resumeSkills.includes(skill);
-        const inJobDesc = jdSkills.includes(skill);
-        keywords.push({
-          keyword: skill,
-          inResume,
-          inJobDesc,
-          weight: inJobDesc ? (inResume ? 2.0 : 1.5) : 1.0
-        });
-      }
+      const topJD = Object.entries(jdFreq)
+        .sort((a,b)=>b[1]-a[1])
+        .slice(0,60)
+        .map(([w])=>w);
 
-      // Save to database with null-safe arrays
-      const atsScansHistory = await prisma.atsScan.create({
-        data: {
-          userId,
-          fileName: originalname,
-          fileType: path.extname(originalname).toLowerCase(),
-          jdText,
-          parsedJson: parsedResume,
-          matchScore: score || 0,
-          missingSkills: Array.isArray(missingSkills) ? missingSkills : [],
-          extraSkills: Array.isArray(extraSkills) ? extraSkills : []
-        }
-      });
+      const present = topJD.filter((w: string) => resumeWords.has(w));
+      const missing = topJD.filter((w: string) => !resumeWords.has(w));
+      const score = Math.round((present.length / (present.length + missing.length)) * 100);
 
-      // Save keyword stats
-      for (const keyword of keywords) {
-        await prisma.atsKeywordStat.create({
-          data: {
-            scanId: atsScansHistory.id,
-            keyword: keyword.keyword,
-            inResume: keyword.inResume,
-            inJobDesc: keyword.inJobDesc,
-            weight: keyword.weight
-          }
-        });
-      }
+      const jd = await prisma.jobDescription.create({ data: { title: 'JD', company: '', content: jdText } });
 
-      console.log(`File scan completed: ${originalname}, Score: ${score}%, User: ${userId}`);
-
-      return res.json({
-        scanId: atsScansHistory.id,
-        score: score || 0,
-        present: Array.isArray(resumeSkills) && Array.isArray(jdSkills) 
-          ? resumeSkills.filter(skill => jdSkills.includes(skill)) 
-          : [],
-        missing: Array.isArray(missingSkills) ? missingSkills : [],
-        extractedChars: text.length,
-        summary: {
-          name: parsedResume.name || '',
-          email: parsedResume.email || '',
-          phone: parsedResume.phone || '',
-          skills: Array.isArray(resumeSkills) ? resumeSkills : []
-        },
-        keywords: Array.isArray(keywords) ? keywords : [],
-        analyzedAt: new Date().toISOString()
-      });
-
+      return res.json({ score, present, missing, jdId: jd.id, extractedChars: text.length });
     } catch (err: any) {
-      console.error('File scan error:', err);
-      
-      const msg = String(err?.message || err);
       if (err?.code === 'PDF_PASSWORD') {
-        return res.status(423).json({ error: 'PDF_LOCKED', message: msg });
+        return res.status(423).json({ error: 'PDF_LOCKED', message: err.message });
       }
-      
-      return res.status(400).json({ 
-        error: 'UPLOAD_PARSE_ERROR', 
-        message: msg 
-      });
+      return res.status(400).json({ error: 'UPLOAD_PARSE_ERROR', message: String(err?.message || err) });
     }
   });
 
