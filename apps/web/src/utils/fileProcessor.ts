@@ -36,14 +36,15 @@ const processWordViaAPI = async (file: File): Promise<string> => {
   return result.text || '';
 };
 
-const processPdfViaAPI = async (file: File): Promise<string> => {
+export const processPdfViaAPI = async (file: File, { fallback = false }: { fallback?: boolean } = {}): Promise<string> => {
   // For PDF files, we'll extract text through a direct API call
   // since the main ATS scan endpoint now handles PDF processing
   const formData = new FormData();
   formData.append('file', file);
   
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-  const response = await fetch(`${API_BASE_URL}/api/upload/extract-text`, {
+  const url = `${API_BASE_URL}/api/upload/extract-text${fallback ? '?fallback=true' : ''}`;
+  const response = await fetch(url, {
     method: 'POST',
     body: formData
   });
@@ -57,10 +58,10 @@ const processPdfViaAPI = async (file: File): Promise<string> => {
         throw new Error('This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.');
       
       case 503:
-        throw new Error('PDF processing is temporarily unavailable. Please upload your document in DOCX format.');
+        throw new Error('PDF processing is temporarily unavailable. You can retry with fallback or upload DOCX.');
       
       case 400:
-        throw new Error(errorData.error || 'Unable to process this PDF file. Please try uploading in DOCX format for best results.');
+        throw new Error((errorData && (errorData.message || errorData.code)) || 'Unable to process this PDF file. Please try uploading in DOCX format for best results.');
       
       case 413:
         throw new Error('File too large. Maximum size is 10MB.');
