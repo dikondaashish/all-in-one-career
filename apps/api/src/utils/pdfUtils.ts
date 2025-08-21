@@ -14,11 +14,25 @@ let pdfParseModule: any = null;
 async function loadPdfParse() {
   if (!pdfParseModule) {
     try {
-      // Use dynamic require to avoid static import issues
-      pdfParseModule = require('pdf-parse');
+      // Try multiple import methods for better compatibility
+      try {
+        pdfParseModule = require('pdf-parse');
+        console.log('PDF parsing module loaded successfully via require');
+      } catch (requireError: any) {
+        console.log('Require failed, trying dynamic import:', requireError.message);
+        const dynamicImport = await import('pdf-parse');
+        pdfParseModule = dynamicImport.default || dynamicImport;
+        console.log('PDF parsing module loaded successfully via dynamic import');
+      }
+      
+      // Test if the module is actually callable
+      if (typeof pdfParseModule !== 'function') {
+        throw new Error('pdf-parse module is not a function');
+      }
+      
     } catch (error) {
       console.error('Failed to load pdf-parse module:', error);
-      throw new Error('PDF parsing is currently unavailable. Please upload your document in DOCX format.');
+      throw new Error('PDF parsing is currently unavailable due to server configuration. Please upload your document in DOCX format.');
     }
   }
   return pdfParseModule;
@@ -28,8 +42,25 @@ async function loadPdfParse() {
  * Extract text from PDF buffer with enhanced error handling
  */
 export async function extractPdfText(buffer: Buffer): Promise<string> {
+  let pdfParse;
+  
   try {
-    const pdfParse = await loadPdfParse();
+    console.log('Loading PDF parsing module...');
+    pdfParse = await loadPdfParse();
+    console.log('PDF parsing module loaded successfully');
+    
+  } catch (loadError) {
+    console.error('Failed to load PDF parsing module:', loadError);
+    throw loadError; // Re-throw the specific error from loadPdfParse
+  }
+  
+  try {
+    // Validate buffer
+    if (!buffer || buffer.length === 0) {
+      throw new Error('Invalid PDF buffer');
+    }
+    
+    console.log(`Starting PDF parsing for buffer of size: ${buffer.length} bytes`);
     
     // Configuration for stable parsing
     const options = {
@@ -38,16 +69,24 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
       disableCombineTextItems: false
     };
     
-    console.log('Starting PDF parsing...');
     const startTime = Date.now();
     
     const data = await pdfParse(buffer, options);
     
     const parseTime = Date.now() - startTime;
     console.log(`PDF parsing completed in ${parseTime}ms`);
+    console.log(`PDF data:`, { 
+      numpages: data?.numpages, 
+      textLength: data?.text?.length,
+      hasInfo: !!data?.info 
+    });
     
-    if (!data || !data.text) {
-      throw new Error('No text content found in PDF');
+    if (!data) {
+      throw new Error('PDF parsing returned no data');
+    }
+    
+    if (!data.text) {
+      throw new Error('No text content found in PDF - document may be image-based');
     }
     
     const rawText = data.text;
@@ -67,12 +106,13 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
       // Re-throw custom errors as-is
       if (error.message.includes('scanned images') || 
           error.message.includes('OCR') || 
-          error.message.includes('unavailable')) {
+          error.message.includes('unavailable') ||
+          error.message.includes('image-based')) {
         throw error;
       }
       
       // Handle specific pdf-parse errors
-      if (error.message.includes('Invalid PDF')) {
+      if (error.message.includes('Invalid PDF') || error.message.includes('PDF parsing returned')) {
         throw new Error('Invalid or corrupted PDF file. Please try a different file or use DOCX format.');
       }
       
@@ -83,10 +123,14 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
       if (error.message.includes('file size') || error.message.includes('too large')) {
         throw new Error('PDF file is too large or complex. Please try a smaller file or use DOCX format.');
       }
+      
+      if (error.message.includes('Invalid PDF buffer')) {
+        throw new Error('Invalid PDF file format. Please ensure the file is a valid PDF.');
+      }
     }
     
-    // Generic fallback error
-    throw new Error('Unable to extract text from PDF. Please try uploading in DOCX format for best results.');
+    // Generic fallback error with more helpful message
+    throw new Error('Unable to extract text from this PDF. The file may be image-based or corrupted. Please try uploading in DOCX format for best results.');
   }
 }
 
