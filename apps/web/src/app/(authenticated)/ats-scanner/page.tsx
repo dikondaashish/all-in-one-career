@@ -91,7 +91,7 @@ const ResumeInputSection = ({
           ref={fileInputRef}
           type="file"
           className="hidden"
-          accept=".doc,.docx"
+          accept=".pdf,.doc,.docx,.txt"
           onChange={(e) => {
             if (e.target.files && e.target.files[0]) {
               handleFileSelect(e.target.files[0]);
@@ -114,8 +114,8 @@ const ResumeInputSection = ({
           </div>
         ) : (
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Drag & Drop or Upload</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">DOC, DOCX, TXT files only</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Drag & Drop or Upload — PDF, DOC, DOCX, TXT</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Max 10MB. We don&apos;t store source files; only parsed text.</p>
           </div>
         )}
       </div>
@@ -319,9 +319,11 @@ export default function AtsScannerPage() {
       
       let errorMessage = 'Failed to scan resume';
       if (error instanceof Error) {
-        if (error.message.includes('not supported')) {
-          errorMessage = 'File format not supported. Please use DOC or DOCX format.';
-        } else if (error.message.includes('too large')) {
+        if (error.message.includes('scanned images') || error.message.includes('OCR')) {
+          errorMessage = 'This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.';
+        } else if (error.message.includes('not supported')) {
+          errorMessage = 'File format not supported. Please use PDF, DOC, DOCX, or TXT format.';
+        } else if (error.message.includes('too large') || error.message.includes('10MB')) {
           errorMessage = 'File too large. Please use a file under 10MB.';
         } else if (error.message.includes('Authentication')) {
           errorMessage = 'Please log in to continue scanning.';
@@ -485,7 +487,7 @@ export default function AtsScannerPage() {
                 For best results:
               </h4>
               <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                <li>• Upload your resume in DOC or DOCX format</li>
+                <li>• Upload your resume in PDF, DOC, DOCX, or TXT format</li>
                 <li>• Include the complete job description you&apos;re applying for</li>
                 <li>• Ensure your resume includes contact information and skills</li>
               </ul>

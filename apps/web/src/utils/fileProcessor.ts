@@ -3,7 +3,7 @@
  * Handles PDF, Word, and text file content extraction
  */
 
-// Currently only support DOCX files as configured in the backend
+// Support PDF, DOCX, DOC, and TXT files
 export const processFile = async (file: File): Promise<string> => {
   if (file.type === 'text/plain') {
     return await file.text();
@@ -11,9 +11,9 @@ export const processFile = async (file: File): Promise<string> => {
              file.type === 'application/msword') {
     return await processWordViaAPI(file);
   } else if (file.type === 'application/pdf') {
-    throw new Error('PDF files are currently not supported. Please upload a DOC or DOCX file instead.');
+    return await processPdfViaAPI(file);
   } else {
-    throw new Error('Unsupported file type. Please upload DOC, DOCX, or TXT files.');
+    throw new Error('Unsupported file type. Please upload PDF, DOC, DOCX, or TXT files.');
   }
 };
 
@@ -36,12 +36,37 @@ const processWordViaAPI = async (file: File): Promise<string> => {
   return result.text || '';
 };
 
+const processPdfViaAPI = async (file: File): Promise<string> => {
+  // For PDF files, we'll extract text through a direct API call
+  // since the main ATS scan endpoint now handles PDF processing
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const response = await fetch(`${API_BASE_URL}/api/upload/extract-text`, {
+    method: 'POST',
+    body: formData
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    if (response.status === 422) {
+      throw new Error('This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.');
+    }
+    throw new Error(errorData.error || 'Failed to extract text from PDF');
+  }
+  
+  const result = await response.json();
+  return result.text || '';
+};
+
 /**
  * Validate file before processing
  */
 export const validateFile = (file: File): { isValid: boolean; error?: string } => {
   const maxSize = 10 * 1024 * 1024; // 10MB
   const allowedTypes = [
+    'application/pdf',
     'text/plain',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword'
@@ -50,14 +75,14 @@ export const validateFile = (file: File): { isValid: boolean; error?: string } =
   if (!allowedTypes.includes(file.type)) {
     return {
       isValid: false,
-      error: 'Only DOC, DOCX, and TXT files are supported. PDF support coming soon.'
+      error: 'Unsupported file type. Please use PDF, DOC, DOCX, or TXT files.'
     };
   }
 
   if (file.size > maxSize) {
     return {
       isValid: false,
-      error: 'File size must be under 10MB'
+      error: 'File too large. Maximum size is 10MB.'
     };
   }
 
@@ -76,10 +101,10 @@ export const validateFile = (file: File): { isValid: boolean; error?: string } =
  */
 export const getFileTypeDisplay = (file: File): string => {
   const typeMap: { [key: string]: string } = {
+    'application/pdf': 'PDF Document',
     'text/plain': 'Text File',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word Document (DOCX)',
-    'application/msword': 'Word Document (DOC)',
-    'application/pdf': 'PDF Document'
+    'application/msword': 'Word Document (DOC)'
   };
 
   return typeMap[file.type] || 'Unknown File Type';
