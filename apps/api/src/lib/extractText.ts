@@ -1,41 +1,50 @@
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import * as mammoth from 'mammoth';
+// IMPORTANT: use the legacy build that works in Node
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 
 export type Extracted = { text: string; meta: { mime: string; bytes: number; pages?: number } };
 
 export async function extractTextFromFile(mime: string, originalName: string, buf: Buffer): Promise<Extracted> {
   const base = { mime, bytes: buf.byteLength };
 
-  const isPDF  = mime === 'application/pdf' || originalName.toLowerCase().endsWith('.pdf');
-  const isDOCX = mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-              || originalName.toLowerCase().endsWith('.docx');
-  const isTXT  = mime.startsWith('text/') || originalName.toLowerCase().endsWith('.txt');
-  const isDOC  = mime === 'application/msword' || originalName.toLowerCase().endsWith('.doc');
+  const lower = originalName.toLowerCase();
+  const isPDF  = mime === 'application/pdf' || lower.endsWith('.pdf');
+  const isDOCX = mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || lower.endsWith('.docx');
+  const isTXT  = mime.startsWith('text/') || lower.endsWith('.txt');
+  const isDOC  = mime === 'application/msword' || lower.endsWith('.doc');
 
   if (isPDF) {
     try {
+      // Avoid worker & font/FS quirks in server environments like Render
+      // NOTE: text extraction does NOT require canvas.
       const loadingTask = pdfjsLib.getDocument({
-        data: buf,
-        useSystemFonts: true,
-        verbosity: 0
+        data: new Uint8Array(buf),
+        disableWorker: true,
+        // below options tend to reduce font/FS hassle in containers:
+        useSystemFonts: false,
+        disableFontFace: true,
+        isEvalSupported: false,
       });
+
       const pdf = await loadingTask.promise;
-      
-      let fullText = '';
-      const numPages = pdf.numPages;
-      
-      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
+      let parts: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        // content.items contains TextItem objects with .str
+        const pageText = (content.items as any[])
+          .map((it) => (typeof it?.str === 'string' ? it.str : ''))
+          .filter(Boolean)
           .join(' ');
-        fullText += pageText + ' ';
+        parts.push(pageText);
       }
-      
-      pdf.destroy();
-      const text = fullText.trim();
-      return { text, meta: { ...base, pages: numPages } };
+      const text = parts.join('\n').trim();
+
+      // cleanup to be nice in long-lived processes
+      try { await pdf.cleanup(); } catch {}
+      try { await loadingTask.destroy(); } catch {}
+
+      return { text, meta: { ...base, pages: pdf.numPages } };
     } catch (err: any) {
       const msg = String(err?.message || err);
       if (msg.toLowerCase().includes('password') || msg.toLowerCase().includes('encrypted')) {
