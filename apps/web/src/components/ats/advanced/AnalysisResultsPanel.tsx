@@ -82,10 +82,18 @@ interface ResumeData {
   content: string;
   wordCount: number;
   characterCount: number;
-  sections: any[];
+  sections: ResumeSection[];
   source: 'manual' | 'file' | 'url';
   filename?: string;
   extractedAt: Date;
+}
+
+interface ResumeSection {
+  type: 'personal' | 'experience' | 'education' | 'skills' | 'projects' | 'summary';
+  content: string;
+  keywords: string[];
+  startIndex: number;
+  endIndex: number;
 }
 
 interface JobDescription {
@@ -304,7 +312,7 @@ export const AnalysisResultsPanel: React.FC<AnalysisResultsPanelProps> = ({
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setActiveTab(id as any)}
+            onClick={() => setActiveTab(id as 'overview' | 'keywords' | 'sections' | 'recommendations' | 'detailed')}
             className={`flex items-center gap-2 px-6 py-3 text-sm font-medium whitespace-nowrap ${
               activeTab === id
                 ? 'text-blue-600 border-b-2 border-blue-600'

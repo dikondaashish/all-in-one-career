@@ -213,7 +213,7 @@ export const URLExtractor: React.FC<URLExtractorProps> = ({
           💡 Tips for better extraction
         </h4>
         <ul className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-          <li>• Make sure your LinkedIn profile is public or you're logged in</li>
+          <li>• Make sure your LinkedIn profile is public or you&apos;re logged in</li>
           <li>• GitHub profiles work best with a detailed README</li>
           <li>• Portfolio sites should have clear resume/about sections</li>
           <li>• Google Drive links should be publicly accessible</li>
