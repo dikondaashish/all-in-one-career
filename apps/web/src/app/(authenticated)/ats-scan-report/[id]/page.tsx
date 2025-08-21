@@ -228,7 +228,7 @@ const SearchabilitySection = ({ scan }: { scan: AtsScanDetail }) => {
 };
 
 const HardSkillsSection = ({ scan }: { scan: AtsScanDetail }) => {
-  const resumeSkills = scan.parsedJson.skills;
+  const resumeSkills = scan.parsedJson.skills || [];
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
@@ -262,16 +262,16 @@ const HardSkillsSection = ({ scan }: { scan: AtsScanDetail }) => {
       </div>
       
       {/* Missing Skills Alert */}
-      {scan.missingSkills.length > 0 && (
+      {(scan.missingSkills || []).length > 0 && (
         <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <div className="flex items-start space-x-2">
             <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-red-700 dark:text-red-300">
-                Missing {scan.missingSkills.length} skills from job description
+                Missing {(scan.missingSkills || []).length} skills from job description
               </p>
               <div className="mt-2 flex flex-wrap gap-1">
-                {scan.missingSkills.slice(0, 5).map((skill, index) => (
+                {(scan.missingSkills || []).slice(0, 5).map((skill, index) => (
                   <span 
                     key={index}
                     className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded"
@@ -279,9 +279,9 @@ const HardSkillsSection = ({ scan }: { scan: AtsScanDetail }) => {
                     {skill}
                   </span>
                 ))}
-                {scan.missingSkills.length > 5 && (
+                {(scan.missingSkills || []).length > 5 && (
                   <span className="text-xs text-red-600 dark:text-red-400 px-2 py-1">
-                    +{scan.missingSkills.length - 5} more
+                    +{(scan.missingSkills || []).length - 5} more
                   </span>
                 )}
               </div>
@@ -307,10 +307,10 @@ const RecruiterTipsSection = ({ scan }: { scan: AtsScanDetail }) => {
       description: "Add more quantifiable achievements to demonstrate your impact and stand out to recruiters."
     },
     {
-      type: scan.missingSkills.length > 0 ? "error" : "good" as const,
+      type: (scan.missingSkills || []).length > 0 ? "error" : "good" as const,
       title: "Keyword Optimization",
-      description: scan.missingSkills.length > 0 
-        ? `Consider adding ${scan.missingSkills.length} missing keywords from the job description.`
+      description: (scan.missingSkills || []).length > 0 
+        ? `Consider adding ${(scan.missingSkills || []).length} missing keywords from the job description.`
         : "Your resume includes relevant keywords from the job description."
     }
   ];
@@ -446,16 +446,16 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
             />
             
             <KeywordSuggestions 
-              missingSkills={scan.missingSkills}
+              missingSkills={scan.missingSkills || []}
               jobDescription={scan.jdText || ''}
               analysis={{
-                missingHighImpactKeywords: scan.missingSkills.slice(0, 5),
-                missingTechnicalSkills: scan.missingSkills.filter(skill => 
+                missingHighImpactKeywords: (scan.missingSkills || []).slice(0, 5),
+                missingTechnicalSkills: (scan.missingSkills || []).filter(skill => 
                   ['javascript', 'python', 'sql', 'aws', 'react', 'node'].some(tech => 
                     skill.toLowerCase().includes(tech)
                   )
                 ),
-                missingSoftSkills: scan.missingSkills.filter(skill => 
+                missingSoftSkills: (scan.missingSkills || []).filter(skill => 
                   ['leadership', 'communication', 'teamwork', 'management'].some(soft => 
                     skill.toLowerCase().includes(soft)
                   )

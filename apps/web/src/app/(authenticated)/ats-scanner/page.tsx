@@ -255,7 +255,7 @@ export default function AtsScannerPage() {
       showToast({
         icon: '🎉',
         title: 'Scan Complete!',
-        message: `Match score: ${result.score}%. Found ${result.present.length} matching keywords.`
+        message: `Match score: ${result.score}%. Found ${(result.present ?? []).length} matching keywords.`
       });
     } catch (e: unknown) {
       const errorMsg = friendlyErrorMessage(
@@ -636,7 +636,7 @@ export default function AtsScannerPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h4 className="font-medium text-green-700 dark:text-green-400 mb-2">
-                    Matching Keywords ({uploadResult.present.length})
+                    Matching Keywords ({(uploadResult.present ?? []).length})
                   </h4>
                   <ul className="list-disc ml-5 space-y-1">
                     {(uploadResult.present ?? []).slice(0, 20).map((k, idx) => (
@@ -645,16 +645,16 @@ export default function AtsScannerPage() {
                       </li>
                     ))}
                   </ul>
-                  {uploadResult.present.length > 20 && (
+                  {(uploadResult.present ?? []).length > 20 && (
                     <p className="text-xs text-gray-500 mt-2">
-                      +{uploadResult.present.length - 20} more matches
+                      +{(uploadResult.present ?? []).length - 20} more matches
                     </p>
                   )}
                 </div>
 
                 <div>
                   <h4 className="font-medium text-amber-700 dark:text-amber-400 mb-2">
-                    Missing Keywords ({uploadResult.missing.length})
+                    Missing Keywords ({(uploadResult.missing ?? []).length})
                   </h4>
                   <ul className="list-disc ml-5 space-y-1">
                     {(uploadResult.missing ?? []).slice(0, 20).map((k, idx) => (
@@ -663,9 +663,9 @@ export default function AtsScannerPage() {
                       </li>
                     ))}
                   </ul>
-                  {uploadResult.missing.length > 20 && (
+                  {(uploadResult.missing ?? []).length > 20 && (
                     <p className="text-xs text-gray-500 mt-2">
-                      +{uploadResult.missing.length - 20} more missing
+                      +{(uploadResult.missing ?? []).length - 20} more missing
                     </p>
                   )}
                 </div>
