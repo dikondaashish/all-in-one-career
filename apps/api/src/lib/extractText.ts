@@ -1,6 +1,6 @@
 import * as mammoth from 'mammoth';
-// IMPORTANT: use the legacy build that works in Node
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+// IMPORTANT: use the legacy build that works in Node (ESM for TypeScript compatibility)
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 export type Extracted = { text: string; meta: { mime: string; bytes: number; pages?: number } };
 
@@ -19,12 +19,10 @@ export async function extractTextFromFile(mime: string, originalName: string, bu
       // NOTE: text extraction does NOT require canvas.
       const loadingTask = pdfjsLib.getDocument({
         data: new Uint8Array(buf),
-        disableWorker: true,
-        // below options tend to reduce font/FS hassle in containers:
+        // Server-safe options (TypeScript may not know all options)
         useSystemFonts: false,
-        disableFontFace: true,
-        isEvalSupported: false,
-      });
+        verbosity: 0
+      } as any);
 
       const pdf = await loadingTask.promise;
       let parts: string[] = [];
