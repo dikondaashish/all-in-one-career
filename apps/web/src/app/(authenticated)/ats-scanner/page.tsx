@@ -6,6 +6,7 @@ import { useAtsScanner } from '@/hooks/useAtsScanner';
 import { useToast } from '@/components/notifications/ToastContainer';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { getAuth } from 'firebase/auth';
 import ScanningProgress from '@/components/ats/ScanningProgress';
 import SavedResumes from '@/components/ats/SavedResumes';
 import RealTimePreview from '@/components/ats/RealTimePreview';
@@ -189,6 +190,20 @@ export default function AtsScannerPage() {
   const router = useRouter();
   const { user } = useAuth();
 
+  // Helper function for authenticated requests
+  async function authFetch(url: string, init?: RequestInit) {
+    const auth = getAuth();
+    const currentUser = auth.currentUser || null;
+    const token = currentUser ? await currentUser.getIdToken() : null;
+    return fetch(url, {
+      ...init,
+      headers: {
+        ...(init?.headers || {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  }
+
   // Helper function for friendly error messages
   function friendlyErrorMessage(msg: string): string {
     if (/NO_TEXT_IN_FILE/i.test(msg)) return 'Couldn\'t read text. Is this a scanned image PDF? Please upload an OCR copy or DOCX/TXT.';
@@ -212,7 +227,7 @@ export default function AtsScannerPage() {
       fd.append('file', file);
       fd.append('jdText', jobDescription);
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/ats/scan-file`, {
+      const res = await authFetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/ats/scan-file`, {
         method: 'POST',
         body: fd
       });
@@ -611,9 +626,10 @@ export default function AtsScannerPage() {
                 </div>
               </div>
               
-              {uploadResult.extractedChars && (
+              {file && (
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Extracted {uploadResult.extractedChars} characters from your resume
+                  File: {file.name} ({formatFileSize(file.size)})
+                  {uploadResult.extractedChars && ` • Extracted ${uploadResult.extractedChars} characters`}
                 </p>
               )}
 
