@@ -49,26 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check Firebase configuration on mount
   useEffect(() => {
-    // Validate Firebase configuration
-    const requiredEnvVars = [
-      'NEXT_PUBLIC_FIREBASE_API_KEY',
-      'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-      'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-      'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
-      'NEXT_PUBLIC_FIREBASE_SENDER_ID',
-      'NEXT_PUBLIC_FIREBASE_APP_ID'
-    ];
-    
-    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-    
-    if (missingVars.length > 0) {
-      console.error('❌ Firebase configuration incomplete. Missing environment variables:');
-      missingVars.forEach(varName => console.error(`   ${varName}`));
-      console.error('Please set these environment variables in your .env.local file');
-      console.error('You can copy from env.example and fill in your Firebase project values');
-    } else {
-      console.log('✅ Firebase configuration appears complete');
-    }
+    // Firebase configuration is now handled in next.config.js with fallback values
+    // This prevents the configuration errors from blocking the app
   }, []);
 
   // Restore user state from JWT token on mount
