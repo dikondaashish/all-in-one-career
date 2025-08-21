@@ -20,7 +20,7 @@ const upload = multer({
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF, DOC, DOCX, and TXT files are supported'));
+      cb(new Error('Only PDF, DOC, DOCX, and TXT files are supported.'));
     }
   },
   storage: multer.memoryStorage() // Store in memory for processing
