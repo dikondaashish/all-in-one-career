@@ -475,5 +475,436 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
     }
   });
 
+  // URL content extraction endpoint
+  router.post('/extract-url', async (req, res) => {
+    try {
+      const { url } = req.body;
+
+      if (!url) {
+        return res.status(400).json({ message: 'URL is required' });
+      }
+
+      // Validate URL
+      let validUrl: URL;
+      try {
+        validUrl = new URL(url);
+      } catch {
+        return res.status(400).json({ message: 'Invalid URL format' });
+      }
+
+      // Check if it's a supported platform
+      const supportedPlatforms = [
+        /linkedin\.com/i,
+        /github\.com/i,
+        /drive\.google\.com/i,
+        /dropbox\.com/i,
+        /onedrive\.live\.com/i
+      ];
+
+      const isSupported = supportedPlatforms.some(pattern => pattern.test(validUrl.hostname));
+      
+      if (!isSupported) {
+        return res.status(400).json({ 
+          message: 'URL platform not supported',
+          supportedPlatforms: ['LinkedIn', 'GitHub', 'Google Drive', 'Dropbox', 'OneDrive']
+        });
+      }
+
+      let extractedContent = '';
+
+      if (validUrl.hostname.includes('linkedin.com')) {
+        extractedContent = await extractLinkedInProfile(url);
+      } else if (validUrl.hostname.includes('github.com')) {
+        extractedContent = await extractGitHubProfile(url);
+      } else if (validUrl.hostname.includes('drive.google.com')) {
+        extractedContent = await extractGoogleDriveContent(url);
+      } else {
+        extractedContent = await extractGenericWebContent(url);
+      }
+
+      res.json({
+        success: true,
+        content: extractedContent,
+        url: url,
+        platform: detectPlatform(validUrl.hostname)
+      });
+
+    } catch (error) {
+      console.error('URL extraction error:', error);
+      res.status(500).json({
+        message: 'Failed to extract content from URL',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Job portal scraping endpoint
+  router.post('/scrape-job', async (req, res) => {
+    try {
+      const { url } = req.body;
+
+      if (!url) {
+        return res.status(400).json({ message: 'URL is required' });
+      }
+
+      // Validate URL
+      let validUrl: URL;
+      try {
+        validUrl = new URL(url);
+      } catch {
+        return res.status(400).json({ message: 'Invalid URL format' });
+      }
+
+      // Check if it's a supported job portal
+      const jobPortals = [
+        { name: 'LinkedIn Jobs', pattern: /linkedin\.com\/jobs/i },
+        { name: 'Indeed', pattern: /indeed\.com/i },
+        { name: 'Glassdoor', pattern: /glassdoor\.com/i },
+        { name: 'Monster', pattern: /monster\.com/i },
+        { name: 'ZipRecruiter', pattern: /ziprecruiter\.com/i },
+        { name: 'Dice', pattern: /dice\.com/i },
+        { name: 'Stack Overflow Jobs', pattern: /stackoverflow\.com\/jobs/i }
+      ];
+
+      const portal = jobPortals.find(p => p.pattern.test(url));
+      
+      if (!portal) {
+        // Try generic scraping for unsupported platforms
+        const content = await extractGenericWebContent(url);
+        return res.json({
+          success: true,
+          content,
+          url,
+          platform: 'Generic',
+          detected: false
+        });
+      }
+
+      let jobDescription = '';
+
+      switch (portal.name) {
+        case 'LinkedIn Jobs':
+          jobDescription = await scrapeLinkedInJob(url);
+          break;
+        case 'Indeed':
+          jobDescription = await scrapeIndeedJob(url);
+          break;
+        case 'Glassdoor':
+          jobDescription = await scrapeGlassdoorJob(url);
+          break;
+        default:
+          jobDescription = await extractGenericWebContent(url);
+      }
+
+      res.json({
+        success: true,
+        content: jobDescription,
+        url,
+        platform: portal.name,
+        detected: true
+      });
+
+    } catch (error) {
+      console.error('Job scraping error:', error);
+      res.status(500).json({
+        message: 'Failed to scrape job description',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   return router;
+}
+
+// Helper functions for URL extraction
+async function extractLinkedInProfile(url: string): Promise<string> {
+  const puppeteer = require('puppeteer');
+  const browser = await puppeteer.launch({ 
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
+  
+  try {
+    const page = await browser.newPage();
+    
+    // Set user agent to avoid detection
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Extract profile information using string-based evaluation
+    const content = await page.evaluate(`(() => {
+      const sections = [];
+      
+      // Name and title
+      const name = document.querySelector('h1')?.textContent?.trim();
+      if (name) sections.push('Name: ' + name);
+      
+      const title = document.querySelector('.text-body-medium')?.textContent?.trim();
+      if (title) sections.push('Title: ' + title);
+      
+      // About section
+      const about = document.querySelector('[data-section="summary"] .pv-shared-text-with-see-more span')?.textContent?.trim();
+      if (about) sections.push('About: ' + about);
+      
+      // Experience
+      const experiences = Array.from(document.querySelectorAll('[data-section="experience"] .pvs-list__item--line-separated'))
+        .map(exp => exp.textContent?.trim())
+        .filter(Boolean);
+      
+      if (experiences.length) {
+        sections.push('Experience:');
+        sections.push(...experiences);
+      }
+      
+      // Education
+      const education = Array.from(document.querySelectorAll('[data-section="education"] .pvs-list__item--line-separated'))
+        .map(edu => edu.textContent?.trim())
+        .filter(Boolean);
+      
+      if (education.length) {
+        sections.push('Education:');
+        sections.push(...education);
+      }
+      
+      return sections.join('\\n\\n');
+    })()`);
+    
+    return content || 'Unable to extract LinkedIn profile content';
+    
+  } finally {
+    await browser.close();
+  }
+}
+
+async function extractGitHubProfile(url: string): Promise<string> {
+  const axios = require('axios');
+  const { parse } = require('node-html-parser');
+  
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 30000
+    });
+    
+    const root = parse(response.data);
+    const sections = [];
+    
+    // Profile name and bio
+    const name = root.querySelector('.vcard-fullname')?.text;
+    if (name) sections.push(`Name: ${name}`);
+    
+    const bio = root.querySelector('.user-profile-bio')?.text?.trim();
+    if (bio) sections.push(`Bio: ${bio}`);
+    
+    // README content
+    const readme = root.querySelector('[data-target="readme-toc.content"]')?.text?.trim();
+    if (readme) sections.push(`README: ${readme}`);
+    
+    // Repository descriptions
+    const repos = root.querySelectorAll('.repo-list-item .repo-list-description')
+      .map((repo: any) => repo.text?.trim())
+      .filter(Boolean);
+    
+    if (repos.length) {
+      sections.push('Repositories:');
+      sections.push(...repos.slice(0, 10)); // Limit to top 10 repos
+    }
+    
+    return sections.join('\n\n') || 'Unable to extract GitHub profile content';
+    
+  } catch (error) {
+    throw new Error(`Failed to extract GitHub profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+async function extractGoogleDriveContent(url: string): Promise<string> {
+  const axios = require('axios');
+  
+  // Extract file ID from Google Drive URL
+  const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (!fileIdMatch) {
+    throw new Error('Invalid Google Drive URL format');
+  }
+  
+  const fileId = fileIdMatch[1];
+  const exportUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  
+  try {
+    const response = await axios.get(exportUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 30000
+    });
+    
+    return response.data;
+    
+  } catch (error) {
+    throw new Error(`Failed to extract Google Drive content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+async function extractGenericWebContent(url: string): Promise<string> {
+  const puppeteer = require('puppeteer');
+  const browser = await puppeteer.launch({ 
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
+  
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Extract main content using string-based evaluation
+    const content = await page.evaluate(`(() => {
+      // Remove script and style elements
+      const scripts = document.querySelectorAll('script, style, nav, header, footer');
+      scripts.forEach(el => el.remove());
+      
+      // Try to find main content areas
+      const contentSelectors = [
+        'main',
+        '[role="main"]',
+        '.main-content',
+        '.content',
+        'article',
+        '.post-content',
+        '.entry-content'
+      ];
+      
+      for (const selector of contentSelectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+          return element.textContent?.trim() || '';
+        }
+      }
+      
+      // Fall back to body content
+      return document.body.textContent?.trim() || '';
+    })()`);
+    
+    return content || 'Unable to extract content from URL';
+    
+  } finally {
+    await browser.close();
+  }
+}
+
+// Job portal specific scrapers
+async function scrapeLinkedInJob(url: string): Promise<string> {
+  const puppeteer = require('puppeteer');
+  const browser = await puppeteer.launch({ 
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
+  
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    const jobData = await page.evaluate(`(() => {
+      const sections = [];
+      
+      // Job title
+      const title = document.querySelector('.top-card-layout__title')?.textContent?.trim();
+      if (title) sections.push('Job Title: ' + title);
+      
+      // Company
+      const company = document.querySelector('.topcard__flavor-row .topcard__flavor--black-link')?.textContent?.trim();
+      if (company) sections.push('Company: ' + company);
+      
+      // Job description
+      const description = document.querySelector('.description__text')?.textContent?.trim();
+      if (description) sections.push('Description: ' + description);
+      
+      return sections.join('\\n\\n');
+    })()`);
+    
+    return jobData || 'Unable to extract LinkedIn job posting';
+    
+  } finally {
+    await browser.close();
+  }
+}
+
+async function scrapeIndeedJob(url: string): Promise<string> {
+  const axios = require('axios');
+  const { parse } = require('node-html-parser');
+  
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 30000
+    });
+    
+    const root = parse(response.data);
+    const sections = [];
+    
+    // Job title
+    const title = root.querySelector('[data-testid="jobsearch-JobInfoHeader-title"]')?.text?.trim();
+    if (title) sections.push(`Job Title: ${title}`);
+    
+    // Company
+    const company = root.querySelector('[data-testid="inlineHeader-companyName"]')?.text?.trim();
+    if (company) sections.push(`Company: ${company}`);
+    
+    // Job description
+    const description = root.querySelector('#jobDescriptionText')?.text?.trim();
+    if (description) sections.push(`Description: ${description}`);
+    
+    return sections.join('\n\n') || 'Unable to extract Indeed job posting';
+    
+  } catch (error) {
+    throw new Error(`Failed to scrape Indeed job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+async function scrapeGlassdoorJob(url: string): Promise<string> {
+  const axios = require('axios');
+  const { parse } = require('node-html-parser');
+  
+  // Glassdoor has strong anti-bot measures, so this is a simplified version
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 30000
+    });
+    
+    const root = parse(response.data);
+    const sections = [];
+    
+    // Extract any visible job content
+    const jobContent = root.querySelector('.jobDescriptionContent')?.text?.trim() ||
+                      root.querySelector('.desc')?.text?.trim() ||
+                      root.querySelector('[data-test="job-description"]')?.text?.trim();
+    
+    if (jobContent) {
+      sections.push(`Job Description: ${jobContent}`);
+    }
+    
+    return sections.join('\n\n') || 'Unable to extract Glassdoor job posting (may require authentication)';
+    
+  } catch (error) {
+    throw new Error(`Failed to scrape Glassdoor job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+function detectPlatform(hostname: string): string {
+  if (hostname.includes('linkedin.com')) return 'LinkedIn';
+  if (hostname.includes('github.com')) return 'GitHub';
+  if (hostname.includes('drive.google.com')) return 'Google Drive';
+  if (hostname.includes('dropbox.com')) return 'Dropbox';
+  if (hostname.includes('onedrive.live.com')) return 'OneDrive';
+  return 'Generic';
 }

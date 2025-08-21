@@ -1,81 +1,114 @@
 import express from 'express';
 import multer from 'multer';
-import { extractTextFromFile } from '../lib/extractText';
+import fs from 'fs';
+const pdfParse = require('pdf-parse');
+import mammoth from 'mammoth';
 
 const router: express.Router = express.Router();
 
 // Configure multer for file uploads
-const upload = multer({ 
-  limits: { 
-    fileSize: 10 * 1024 * 1024 // 10MB limit
+const upload = multer({
+  dest: 'uploads/',
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
       'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'text/plain'
     ];
     
     if (allowedTypes.includes(file.mimetype)) {
-      cb(null as any, true);
+      cb(null, true);
     } else {
-      cb(new Error('Unsupported file type. Only PDF, DOC, DOCX, and TXT files are supported.') as any);
+      cb(new Error('File type not supported') as any, false);
     }
-  },
-  storage: multer.memoryStorage() // Store in memory for processing
+  }
 });
 
-// POST /api/upload/extract-text - Extract text from uploaded files
-router.post('/extract-text', upload.single('file'), async (req: any, res) => {
+// Text extraction endpoint
+router.post('/extract-text', upload.single('file'), async (req, res) => {
   try {
-    const file = req.file;
-    if (!file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    console.log(`Processing file: ${file.originalname} (${file.mimetype})`);
+    const filePath = req.file.path;
+    const fileType = req.file.mimetype;
+    let extractedText = '';
 
-    // Use the unified text extraction utility
-    const { text: extractedText } = await extractTextFromFile(
-      file.mimetype, 
-      file.originalname, 
-      file.buffer
-    );
+    try {
+      switch (fileType) {
+        case 'application/pdf':
+          extractedText = await extractPDFText(filePath);
+          break;
+        
+        case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+          extractedText = await extractDocxText(filePath);
+          break;
+        
+        case 'application/msword':
+          extractedText = await extractDocText(filePath);
+          break;
+        
+        case 'text/plain':
+          extractedText = await extractTextFile(filePath);
+          break;
+        
+        default:
+          throw new Error('Unsupported file type');
+      }
 
-    // Basic validation
-    if (!extractedText || extractedText.trim().length === 0) {
-      return res.status(400).json({ 
-        error: 'No text could be extracted from the file. Please ensure the file contains readable text.' 
+      // Clean up uploaded file
+      fs.unlinkSync(filePath);
+
+      res.json({
+        success: true,
+        text: extractedText,
+        filename: req.file.originalname,
+        size: req.file.size,
+        type: fileType
       });
+
+    } catch (extractionError) {
+      // Clean up uploaded file even if extraction fails
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      throw extractionError;
     }
 
-    if (extractedText.length < 50) {
-      return res.status(400).json({ 
-        error: 'Extracted text is too short. Please upload a complete resume.' 
-      });
-    }
-
-    console.log(`Successfully extracted ${extractedText.length} characters from ${file.originalname}`);
-
-    res.json({ 
-      text: extractedText,
-      filename: file.originalname,
-      size: file.size,
-      type: file.mimetype,
-      wordCount: extractedText.split(/\s+/).length,
-      extractedAt: new Date().toISOString()
-    });
-
-  } catch (error: unknown) {
-    console.error('File processing error:', error);
-    
-    const err = error as Error;
-    res.status(500).json({ 
-      error: 'Failed to process file', 
-      message: err.message || 'Unknown error occurred'
+  } catch (error) {
+    console.error('File extraction error:', error);
+    res.status(500).json({
+      message: 'Failed to extract text from file',
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
+
+// Helper functions for file extraction
+async function extractPDFText(filePath: string): Promise<string> {
+  const buffer = fs.readFileSync(filePath);
+  const data = await pdfParse(buffer);
+  return data.text;
+}
+
+async function extractDocxText(filePath: string): Promise<string> {
+  const result = await mammoth.extractRawText({ path: filePath });
+  return result.value;
+}
+
+async function extractDocText(filePath: string): Promise<string> {
+  // For older .doc files, you might need a different library
+  // For now, return an error message
+  throw new Error('Legacy .doc files not supported. Please convert to .docx format.');
+}
+
+async function extractTextFile(filePath: string): Promise<string> {
+  return fs.readFileSync(filePath, 'utf-8');
+}
 
 export default router;
