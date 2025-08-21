@@ -172,11 +172,6 @@ export default function LandingPage() {
     }
   };
 
-  const handleAppleSignIn = () => {
-    // Apple Sign In is disabled
-    return;
-  };
-
   const handleForgotPassword = () => {
     router.push('/forgot-password');
   };

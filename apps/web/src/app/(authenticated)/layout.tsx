@@ -28,7 +28,7 @@ export default function AuthenticatedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading, isGuest, isAuthenticated } = useAuth();
+  const { user, loading, isGuest } = useAuth();
   const router = useRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 

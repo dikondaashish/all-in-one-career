@@ -1,11 +1,8 @@
 import useSWR from 'swr';
-import { useAuth } from '@/contexts/AuthContext';
 import { useRef, useEffect, useCallback } from 'react';
-import { User } from 'firebase/auth';
+import { useAuth } from '@/contexts/AuthContext';
 
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://all-in-one-career-api.onrender.com'
-  : 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export interface NotificationMetadata {
   url?: string;
@@ -63,7 +60,7 @@ export function useNotificationsEnhanced({
 
   const { data: notifications, error, isLoading, mutate } = useSWR(
     swrKey,
-    async ([url, userId]: [string, string]) => {
+    async ([url, _userId]: [string, string]) => {
       if (!user) throw new Error('User not authenticated');
       const token = await user.getIdToken();
       return fetcher(url, token);
