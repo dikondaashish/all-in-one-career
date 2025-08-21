@@ -10,6 +10,7 @@ import ScanningProgress from '@/components/ats/ScanningProgress';
 import SavedResumes from '@/components/ats/SavedResumes';
 import RealTimePreview from '@/components/ats/RealTimePreview';
 import { processFile, validateFile, getFileTypeDisplay, formatFileSize } from '@/utils/fileProcessor';
+import { SAMPLE_ATS_SCAN_DATA } from '@/data/sampleAtsData';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -365,13 +366,28 @@ export default function AtsScannerPage() {
     return data;
   };
 
-  const handleViewSample = () => {
-    // This would show a sample scan report
-    showToast({
-      icon: 'ℹ️',
-      title: 'Sample Scan',
-      message: 'Sample scan feature coming soon!'
-    });
+  const handleViewSample = async () => {
+    try {
+      // Store sample data in localStorage for the sample report
+      localStorage.setItem('sample-ats-scan', JSON.stringify(SAMPLE_ATS_SCAN_DATA));
+      
+      showToast({
+        icon: '🎯',
+        title: 'Loading Sample',
+        message: 'Opening sample ATS scan report with excellent metrics...'
+      });
+
+      // Redirect to the sample report
+      router.push(`/ats-scan-report/${SAMPLE_ATS_SCAN_DATA.scanId}`);
+      
+    } catch (error) {
+      console.error('Error loading sample:', error);
+      showToast({
+        icon: '❌',
+        title: 'Error',
+        message: 'Failed to load sample scan report'
+      });
+    }
   };
 
   const handlePowerEdit = () => {
