@@ -1,8 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import mammoth from 'mammoth';
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
-import path from 'path';
+import { extractTextFromFile } from '../lib/extractText';
 
 const router: express.Router = express.Router();
 
@@ -20,9 +18,9 @@ const upload = multer({
     ];
     
     if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
+      cb(null as any, true);
     } else {
-      cb(new Error('Only PDF, DOC, DOCX, and TXT files are supported') as any, false);
+      cb(new Error('Unsupported file type. Only PDF, DOC, DOCX, and TXT files are supported.') as any);
     }
   },
   storage: multer.memoryStorage() // Store in memory for processing
@@ -38,24 +36,12 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
 
     console.log(`Processing file: ${file.originalname} (${file.mimetype})`);
 
-    let extractedText = '';
-
-    switch (file.mimetype) {
-      case 'application/pdf':
-        extractedText = await extractFromPdf(file.buffer);
-        break;
-      case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-      case 'application/msword':
-        extractedText = await extractFromWord(file.buffer);
-        break;
-      case 'text/plain':
-        extractedText = file.buffer.toString('utf-8');
-        break;
-      default:
-        return res.status(400).json({ 
-          error: 'Unsupported file type. Only PDF, DOC, DOCX, and TXT files are supported.' 
-        });
-    }
+    // Use the unified text extraction utility
+    const { text: extractedText } = await extractTextFromFile(
+      file.mimetype, 
+      file.originalname, 
+      file.buffer
+    );
 
     // Basic validation
     if (!extractedText || extractedText.trim().length === 0) {
@@ -81,94 +67,15 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
       extractedAt: new Date().toISOString()
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('File processing error:', error);
     
-    if (error instanceof multer.MulterError) {
-      if (error.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'File too large. Maximum size is 10MB.' });
-      }
-      return res.status(400).json({ error: error.message });
-    }
-    
+    const err = error as Error;
     res.status(500).json({ 
-      error: 'Failed to extract text from file. Please try again or use a different file.' 
+      error: 'Failed to process file', 
+      message: err.message || 'Unknown error occurred'
     });
   }
 });
-
-/**
- * Extract text from PDF files using pdfjs-dist
- */
-const extractFromPdf = async (buffer: Buffer): Promise<string> => {
-  try {
-    // Convert Buffer to Uint8Array for pdfjs
-    const uint8Array = new Uint8Array(buffer);
-    
-    // Load the PDF document
-    const pdf = await pdfjs.getDocument({
-      data: uint8Array,
-      useSystemFonts: true
-    }).promise;
-    
-    let fullText = '';
-    
-    // Extract text from all pages
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      
-      // Combine text items with spaces
-      const pageText = textContent.items
-        .map((item: any) => {
-          // pdfjs TextItem has a 'str' property
-          return (item as { str?: string }).str || '';
-        })
-        .join(' ');
-      
-      fullText += pageText + '\n';
-    }
-    
-    if (!fullText || fullText.trim().length === 0) {
-      throw new Error('No text found in PDF. The file might be image-based or corrupted.');
-    }
-    
-    // Clean up the text - remove excessive whitespace and normalize line breaks
-    const cleanedText = fullText
-      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-      .replace(/\n\s*\n/g, '\n') // Remove empty lines
-      .trim();
-    
-    console.log(`PDF extraction successful: ${pdf.numPages} pages, ${cleanedText.length} characters`);
-    
-    return cleanedText;
-  } catch (error: any) {
-    console.error('PDF extraction error:', error);
-    
-    if (error.message?.includes('No text found')) {
-      throw error;
-    }
-    
-    throw new Error('Failed to extract text from PDF. Please ensure the file is not corrupted and contains readable text (not just images).');
-  }
-};
-
-/**
- * Extract text from Word documents using mammoth
- */
-const extractFromWord = async (buffer: Buffer): Promise<string> => {
-  try {
-    const result = await mammoth.extractRawText({ buffer });
-    
-    if (result.messages && result.messages.length > 0) {
-      console.log('Mammoth extraction messages:', result.messages);
-    }
-    
-    return result.value;
-  } catch (error) {
-    console.error('Word extraction error:', error);
-    throw new Error('Failed to extract text from Word document. Please ensure the file is not corrupted.');
-  }
-};
 
 export default router;
