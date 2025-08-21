@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import multer from 'multer';
-import { extractTextFromPdf, extractTextFromDocx, extractTextFromTxt } from '../utils/fileParser';
-import { getPdfParsingStatus } from '../utils/pdfUtils';
+import { extractTextFromDocx, extractTextFromTxt } from '../utils/fileParser';
+import { extractTextFromPdfService, PdfParseError, toClientError } from '../services/pdfParser';
 
 const router: Router = express.Router();
 
@@ -32,7 +32,7 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
   try {
     const file = req.file;
     if (!file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+      return res.status(400).json({ code: 'NO_FILE', message: 'No file uploaded' });
     }
 
     console.log(`Processing file: ${file.originalname} (${file.mimetype})`);
@@ -40,33 +40,18 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
     let extractedText = '';
 
     switch (file.mimetype) {
-      case 'application/pdf':
+      case 'application/pdf': {
+        const useFallback = req.query.fallback === 'true';
         try {
-          extractedText = await extractTextFromPdf(file.buffer);
-        } catch (pdfError: any) {
-          console.error('PDF processing failed:', pdfError.message);
-          
-          // Check if it's a module loading issue
-          if (pdfError.message.includes('unavailable') || 
-              pdfError.message.includes('PDF parsing is currently unavailable')) {
-            return res.status(503).json({ 
-              error: 'PDF processing is temporarily unavailable. Please upload your document in DOCX format.' 
-            });
-          }
-          
-          // Check if it's a scanned PDF issue
-          if (pdfError.message.includes('scanned images') || pdfError.message.includes('OCR')) {
-            return res.status(422).json({ 
-              error: 'This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.' 
-            });
-          }
-          
-          // For other PDF errors, suggest DOCX as alternative
-          return res.status(400).json({ 
-            error: 'Unable to process this PDF file. Please try uploading in DOCX format for best results.' 
-          });
+          // 20s cap to avoid provider timeouts
+          extractedText = await extractTextFromPdfService(file.buffer, { enableFallback: useFallback, timeoutMs: 20000 });
+        } catch (e: any) {
+          const err = e as PdfParseError;
+          const mapped = toClientError((err.code as any) || 'PDF_UNKNOWN', err.message);
+          return res.status(mapped.status).json(mapped.body);
         }
         break;
+      }
       case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
       case 'application/msword':
         extractedText = await extractTextFromDocx(file.buffer);
@@ -75,27 +60,22 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
         extractedText = await extractTextFromTxt(file.buffer);
         break;
       default:
-        return res.status(415).json({ 
-          error: 'Unsupported file type. Only PDF, DOC, DOCX, and TXT files are supported.' 
-        });
+        return res.status(415).json({ code: 'UNSUPPORTED_TYPE', message: 'Unsupported file type. Only PDF, DOC, DOCX, and TXT files are supported.' });
     }
 
     // Basic validation
     if (!extractedText || extractedText.trim().length === 0) {
-      return res.status(400).json({ 
-        error: 'No text could be extracted from the file. Please ensure the file contains readable text.' 
-      });
+      return res.status(400).json({ code: 'NO_TEXT', message: 'No text could be extracted from the file. Please ensure the file contains readable text.' });
     }
 
     if (extractedText.length < 50) {
-      return res.status(400).json({ 
-        error: 'Extracted text is too short. Please upload a complete resume.' 
-      });
+      return res.status(400).json({ code: 'TEXT_TOO_SHORT', message: 'Extracted text is too short. Please upload a complete resume.' });
     }
 
     console.log(`Successfully extracted ${extractedText.length} characters from ${file.originalname}`);
 
     res.json({ 
+      code: 'OK',
       text: extractedText,
       filename: file.originalname,
       size: file.size,
@@ -109,32 +89,22 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
     
     if (error instanceof multer.MulterError) {
       if (error.code === 'LIMIT_FILE_SIZE') {
-        return res.status(413).json({ error: 'File too large. Maximum size is 10MB.' });
+        return res.status(413).json({ code: 'FILE_TOO_LARGE', message: 'File too large. Maximum size is 10MB.' });
       }
-      return res.status(400).json({ error: error.message });
+      return res.status(400).json({ code: 'UPLOAD_ERROR', message: error.message });
     }
     
-    // Handle specific PDF errors
-    if (error.message.includes('scanned images') || error.message.includes('PDF_SCANNED')) {
-      return res.status(422).json({ 
-        error: 'This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.' 
-      });
-    }
-    
-    res.status(500).json({ 
-      error: 'Failed to extract text from file. Please try again or use a different file.' 
-    });
+    // Structured fallback error
+    res.status(500).json({ code: 'SERVER_ERROR', message: 'Failed to extract text from file. Please try again or use a different file.' });
   }
 });
 
 // GET /api/upload/pdf-status - Check PDF parsing status
 router.get('/pdf-status', async (req, res) => {
   try {
-    console.log('PDF status check requested');
-    const status = await getPdfParsingStatus();
-    
+    // Light-weight status for readiness probes
     res.json({
-      ...status,
+      available: true,
       timestamp: new Date().toISOString(),
       nodeVersion: process.version,
       platform: process.platform
