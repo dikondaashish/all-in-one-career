@@ -47,8 +47,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isGuest, setIsGuest] = useState(false);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
 
+  // Check Firebase configuration on mount
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    // Validate Firebase configuration
+    const requiredEnvVars = [
+      'NEXT_PUBLIC_FIREBASE_API_KEY',
+      'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+      'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+      'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
+      'NEXT_PUBLIC_FIREBASE_SENDER_ID',
+      'NEXT_PUBLIC_FIREBASE_APP_ID'
+    ];
+    
+    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    
+    if (missingVars.length > 0) {
+      console.error('❌ Firebase configuration incomplete. Missing environment variables:');
+      missingVars.forEach(varName => console.error(`   ${varName}`));
+      console.error('Please set these environment variables in your .env.local file');
+      console.error('You can copy from env.example and fill in your Firebase project values');
+    } else {
+      console.log('✅ Firebase configuration appears complete');
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user: User | null) => {
       setUser(user);
       setIsAuthenticated(!!user);
       setLoading(false);
@@ -73,6 +97,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async () => {
+    // Check if Firebase is properly configured
+    if (!auth || !provider || typeof auth.onAuthStateChanged !== 'function') {
+      throw new Error('Firebase is not properly configured. Please check your environment variables and try again.');
+    }
+    
+    // Check if Firebase has the required methods
+    if (typeof signInWithPopup !== 'function') {
+      throw new Error('Firebase authentication methods are not available. Please check your Firebase configuration.');
+    }
+    
     const maxRetries = 2;
     let lastError: Error | null = null;
     
@@ -220,6 +254,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithEmail = async (email: string, password: string) => {
+    // Check if Firebase is properly configured
+    if (!auth || typeof auth.onAuthStateChanged !== 'function') {
+      throw new Error('Firebase is not properly configured. Please check your environment variables and try again.');
+    }
+    
+    // Check if Firebase has the required methods
+    if (typeof signInWithEmailAndPassword !== 'function') {
+      throw new Error('Firebase authentication methods are not available. Please check your Firebase configuration.');
+    }
+    
     try {
       // STEP 2: Firebase authentication first
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
