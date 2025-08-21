@@ -1,4 +1,4 @@
-import pdfParse from 'pdf-parse';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import * as mammoth from 'mammoth';
 
 export type Extracted = { text: string; meta: { mime: string; bytes: number; pages?: number } };
@@ -13,17 +13,38 @@ export async function extractTextFromFile(mime: string, originalName: string, bu
   const isDOC  = mime === 'application/msword' || originalName.toLowerCase().endsWith('.doc');
 
   if (isPDF) {
-    const parsed = await pdfParse(buf).catch((err: any) => {
+    try {
+      const loadingTask = pdfjsLib.getDocument({
+        data: buf,
+        useSystemFonts: true,
+        verbosity: 0
+      });
+      const pdf = await loadingTask.promise;
+      
+      let fullText = '';
+      const numPages = pdf.numPages;
+      
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        fullText += pageText + ' ';
+      }
+      
+      pdf.destroy();
+      const text = fullText.trim();
+      return { text, meta: { ...base, pages: numPages } };
+    } catch (err: any) {
       const msg = String(err?.message || err);
-      if (msg.toLowerCase().includes('password')) {
+      if (msg.toLowerCase().includes('password') || msg.toLowerCase().includes('encrypted')) {
         const e: any = new Error('PDF is password-protected. Please unlock it and try again.');
         e.code = 'PDF_PASSWORD';
         throw e;
       }
       throw err;
-    });
-    const text = (parsed.text || '').trim();
-    return { text, meta: { ...base, pages: parsed.numpages } };
+    }
   }
 
   if (isDOCX) {
