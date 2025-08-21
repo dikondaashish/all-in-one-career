@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, Star, Zap, Check } from 'lucide-react';
+import { Upload, Star, Zap, Check, AlertCircle } from 'lucide-react';
 import { useAtsScanner } from '@/hooks/useAtsScanner';
 import { useToast } from '@/components/notifications/ToastContainer';
 import { useRouter } from 'next/navigation';
@@ -19,6 +19,7 @@ interface ResumeInputSectionProps {
   setIsDragOver: (isDragOver: boolean) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileSelect: (file: File) => void;
+  errors: {[key: string]: string};
 }
 
 const ResumeInputSection = ({ 
@@ -28,7 +29,8 @@ const ResumeInputSection = ({
   isDragOver, 
   setIsDragOver,
   fileInputRef,
-  handleFileSelect 
+  handleFileSelect,
+  errors
 }: ResumeInputSectionProps) => {
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -53,14 +55,21 @@ const ResumeInputSection = ({
         placeholder="Paste resume text..."
         value={resumeText}
         onChange={(e) => setResumeText(e.target.value)}
-        className="w-full h-64 p-4 border border-gray-200 dark:border-gray-600 rounded-lg resize-none mb-4 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+        className={`w-full h-64 p-4 border rounded-lg resize-none mb-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white ${
+          errors.resumeText ? 'border-red-500 dark:border-red-400' : 'border-gray-200 dark:border-gray-600'
+        }`}
       />
+      {errors.resumeText && (
+        <p className="text-red-500 dark:text-red-400 text-xs mb-4">{errors.resumeText}</p>
+      )}
       
       {/* File Upload Area */}
       <div 
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
           isDragOver 
             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+            : errors.file 
+            ? 'border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/20'
             : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
         }`}
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
@@ -92,6 +101,9 @@ const ResumeInputSection = ({
           </div>
         )}
       </div>
+      {errors.file && (
+        <p className="text-red-500 dark:text-red-400 text-xs mt-2">{errors.file}</p>
+      )}
     </div>
   );
 };
@@ -99,20 +111,27 @@ const ResumeInputSection = ({
 interface JobDescriptionSectionProps {
   jobDescription: string;
   setJobDescription: (description: string) => void;
+  errors: {[key: string]: string};
 }
 
-const JobDescriptionSection = ({ jobDescription, setJobDescription }: JobDescriptionSectionProps) => (
+const JobDescriptionSection = ({ jobDescription, setJobDescription, errors }: JobDescriptionSectionProps) => (
   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Job Description</h3>
     <textarea 
       placeholder="Copy and paste job description here"
       value={jobDescription}
       onChange={(e) => setJobDescription(e.target.value)}
-      className="w-full h-80 p-4 border border-gray-200 dark:border-gray-600 rounded-lg resize-none text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+      className={`w-full h-80 p-4 border rounded-lg resize-none text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white ${
+        errors.jobDescription ? 'border-red-500 dark:border-red-400' : 'border-gray-200 dark:border-gray-600'
+      }`}
     />
-    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-      Tip: Include requirements, skills, and qualifications for better analysis
-    </div>
+    {errors.jobDescription ? (
+      <p className="text-red-500 dark:text-red-400 text-xs mt-2">{errors.jobDescription}</p>
+    ) : (
+      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        Tip: Include requirements, skills, and qualifications for better analysis
+      </div>
+    )}
   </div>
 );
 
@@ -127,6 +146,7 @@ export default function AtsScannerPage() {
     progress: 0,
     isScanning: false
   });
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { scanResume, isScanning } = useAtsScanner();
@@ -134,22 +154,29 @@ export default function AtsScannerPage() {
   const router = useRouter();
 
   const handleFileSelect = (selectedFile: File) => {
+    // Clear previous errors
+    setErrors(prev => ({ ...prev, file: '' }));
+    
     const allowedTypes = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'];
     
     if (!allowedTypes.includes(selectedFile.type)) {
+      const errorMsg = 'Please upload a DOC or DOCX file. PDF support coming soon.';
+      setErrors(prev => ({ ...prev, file: errorMsg }));
       showToast({
         icon: '❌',
         title: 'Invalid File',
-        message: 'Please upload a DOC or DOCX file. PDF support coming soon.'
+        message: errorMsg
       });
       return;
     }
     
     if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
+      const errorMsg = 'File size must be under 10MB';
+      setErrors(prev => ({ ...prev, file: errorMsg }));
       showToast({
         icon: '❌',
         title: 'File Too Large',
-        message: 'File size must be under 10MB'
+        message: errorMsg
       });
       return;
     }
@@ -181,11 +208,28 @@ export default function AtsScannerPage() {
   };
 
   const handleScan = async () => {
+    // Clear previous errors
+    setErrors({});
+    
     if (!file && !resumeText.trim()) {
+      const errorMsg = 'Please upload a resume file or paste resume text';
+      setErrors({ input: errorMsg });
       showToast({
         icon: '⚠️',
         title: 'No Input',
-        message: 'Please upload a resume file or paste resume text'
+        message: errorMsg
+      });
+      return;
+    }
+
+    // Validate job description length
+    if (jobDescription.trim() && jobDescription.trim().length < 10) {
+      const errorMsg = 'Job description should be at least 10 characters long for meaningful analysis';
+      setErrors({ jobDescription: errorMsg });
+      showToast({
+        icon: '⚠️',
+        title: 'Job Description Too Short',
+        message: errorMsg
       });
       return;
     }
@@ -199,6 +243,17 @@ export default function AtsScannerPage() {
       
       // If no file but text is provided, create a temporary file
       if (!scanFile && resumeText.trim()) {
+        if (resumeText.trim().length < 50) {
+          const errorMsg = 'Resume text should be at least 50 characters long';
+          setErrors({ resumeText: errorMsg });
+          setScanProgress({ step: 0, progress: 0, isScanning: false });
+          showToast({
+            icon: '⚠️',
+            title: 'Resume Text Too Short',
+            message: errorMsg
+          });
+          return;
+        }
         const blob = new Blob([resumeText], { type: 'text/plain' });
         scanFile = new File([blob], 'resume-text.txt', { type: 'text/plain' });
       }
@@ -216,10 +271,25 @@ export default function AtsScannerPage() {
     } catch (error) {
       console.error('Scan failed:', error);
       setScanProgress({ step: 0, progress: 0, isScanning: false });
+      
+      let errorMessage = 'Failed to scan resume';
+      if (error instanceof Error) {
+        if (error.message.includes('not supported')) {
+          errorMessage = 'File format not supported. Please use DOC or DOCX format.';
+        } else if (error.message.includes('too large')) {
+          errorMessage = 'File too large. Please use a file under 10MB.';
+        } else if (error.message.includes('Authentication')) {
+          errorMessage = 'Please log in to continue scanning.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setErrors({ scan: errorMessage });
       showToast({
         icon: '❌',
         title: 'Scan Failed',
-        message: error instanceof Error ? error.message : 'Failed to scan resume'
+        message: errorMessage
       });
     }
   };
@@ -278,12 +348,14 @@ export default function AtsScannerPage() {
             setIsDragOver={setIsDragOver}
             fileInputRef={fileInputRef}
             handleFileSelect={handleFileSelect}
+            errors={errors}
           />
           
           {/* Job Description Column */}
           <JobDescriptionSection 
             jobDescription={jobDescription}
             setJobDescription={setJobDescription}
+            errors={errors}
           />
         </div>
 
@@ -325,6 +397,25 @@ export default function AtsScannerPage() {
             </button>
           </div>
         </div>
+
+        {/* Error Display */}
+        {(errors.input || errors.scan) && (
+          <div className="mt-8 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <div className="flex items-start space-x-3">
+              <div className="w-5 h-5 bg-red-500 rounded-full flex-shrink-0 mt-0.5 flex items-center justify-center">
+                <AlertCircle className="w-3 h-3 text-white" />
+              </div>
+              <div>
+                <h4 className="font-medium text-red-900 dark:text-red-100 mb-1">
+                  {errors.input ? 'Input Required' : 'Scan Error'}
+                </h4>
+                <p className="text-sm text-red-800 dark:text-red-200">
+                  {errors.input || errors.scan}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Instructions */}
         <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">

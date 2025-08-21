@@ -9,6 +9,24 @@ import { formatDistanceToNow } from 'date-fns';
 import { StatusBadge, ProgressRing } from '@/components/ats/shared';
 import { use } from 'react';
 
+// Extended types for enhanced analysis data
+interface SearchabilityItem {
+  title: string;
+  description: string;
+  status: 'good' | 'warning' | 'error';
+}
+
+interface RecruiterTip {
+  type: 'good' | 'warning' | 'error';
+  title: string;
+  description: string;
+}
+
+interface EnhancedAtsScanDetail extends AtsScanDetail {
+  searchabilityItems?: SearchabilityItem[];
+  recruiterTips?: RecruiterTip[];
+}
+
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
@@ -150,8 +168,8 @@ const SummaryCard = ({ scan }: { scan: AtsScanDetail }) => (
 );
 
 const SearchabilitySection = ({ scan }: { scan: AtsScanDetail }) => {
-  // Mock searchability data - this would come from enhanced backend
-  const searchabilityItems = [
+  // Use enhanced backend data if available, otherwise fall back to mock data
+  const searchabilityItems: SearchabilityItem[] = (scan as EnhancedAtsScanDetail).searchabilityItems || [
     {
       title: "ATS systems can read 100% of your resume",
       description: "Browsers can read all the content without errors",
@@ -265,8 +283,8 @@ const HardSkillsSection = ({ scan }: { scan: AtsScanDetail }) => {
 };
 
 const RecruiterTipsSection = ({ scan }: { scan: AtsScanDetail }) => {
-  // Mock recruiter tips - this would come from enhanced backend
-  const recruiterTips = [
+  // Use enhanced backend data if available, otherwise fall back to mock data  
+  const recruiterTips: RecruiterTip[] = (scan as EnhancedAtsScanDetail).recruiterTips || [
     {
       type: "good" as const,
       title: "Contact Information Complete",
