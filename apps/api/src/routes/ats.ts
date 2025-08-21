@@ -403,7 +403,7 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
         .filter((word: string) => word.length > 3)
         .map((word: string) => word.replace(/[^\w]/g, ''));
       
-      const jdWordsUnique = Array.from(new Set(jdWords));
+      const jdWordsUnique: string[] = Array.from(new Set(jdWords));
       
       const keywordMatches = jdWordsUnique.filter((word: string) => resumeWords.has(word));
 
