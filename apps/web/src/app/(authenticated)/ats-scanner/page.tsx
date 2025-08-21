@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import ScanningProgress from '@/components/ats/ScanningProgress';
 import SavedResumes from '@/components/ats/SavedResumes';
 import RealTimePreview from '@/components/ats/RealTimePreview';
-import { processFile, validateFile, getFileTypeDisplay, formatFileSize } from '@/utils/fileProcessor';
+import { processFile, validateFile, getFileTypeDisplay, formatFileSize, processPdfViaAPI } from '@/utils/fileProcessor';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
