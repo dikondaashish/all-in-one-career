@@ -9,7 +9,17 @@ export const processFile = async (file: File): Promise<string> => {
     return await file.text();
   } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
              file.type === 'application/msword') {
-    return await processWordViaAPI(file);
+    try {
+      // Try API first
+      return await processWordViaAPI(file);
+    } catch (error: unknown) {
+      // Fallback to client-side processing if API fails
+      if (error instanceof Error && error.message?.includes('Unable to connect to document processing service')) {
+        console.warn('API unavailable, falling back to client-side processing');
+        return await processWordClientSide(file);
+      }
+      throw error;
+    }
   } else if (file.type === 'application/pdf') {
     throw new Error('PDF files are currently not supported. Please upload a DOC or DOCX file instead.');
   } else {
@@ -21,18 +31,57 @@ const processWordViaAPI = async (file: File): Promise<string> => {
   const formData = new FormData();
   formData.append('file', file);
   
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/upload/extract-text`, {
-    method: 'POST',
-    body: formData
-  });
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
   
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Failed to extract text from document');
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/upload/extract-text`, {
+      method: 'POST',
+      body: formData,
+      // Add timeout to prevent hanging
+      signal: AbortSignal.timeout(30000) // 30 second timeout
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to extract text from document (${response.status})`);
+    }
+    
+    const result = await response.json();
+    return result.text || '';
+  } catch (error: unknown) {
+    // Handle specific connection errors
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Document processing timed out. Please try again with a smaller file.');
+    }
+    if (error instanceof Error && (error.message?.includes('Failed to fetch') || error.message?.includes('ERR_CONNECTION_REFUSED'))) {
+      throw new Error('Unable to connect to document processing service. Please check your internet connection and try again.');
+    }
+    throw error;
   }
-  
-  const result = await response.json();
-  return result.text || '';
+};
+
+/**
+ * Fallback client-side Word document processing using mammoth
+ */
+const processWordClientSide = async (file: File): Promise<string> => {
+  try {
+    // Dynamic import to reduce bundle size
+    const mammoth = await import('mammoth');
+    
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    
+    if (result.value.trim().length === 0) {
+      throw new Error('No text could be extracted from the document. Please ensure it contains readable text.');
+    }
+    
+    return result.value;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message?.includes('No text could be extracted')) {
+      throw error;
+    }
+    throw new Error('Failed to process Word document. Please try uploading a different file or convert to TXT format.');
+  }
 };
 
 /**
