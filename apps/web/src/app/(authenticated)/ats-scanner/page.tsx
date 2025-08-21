@@ -171,7 +171,7 @@ export default function AtsScannerPage() {
   const [resumeText, setResumeText] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
-  const [availableScans] = useState(4); // This would come from user data
+
   const [scanProgress, setScanProgress] = useState({
     step: 0,
     progress: 0,
@@ -255,7 +255,7 @@ export default function AtsScannerPage() {
       showToast({
         icon: '🎉',
         title: 'Scan Complete!',
-        message: `Match score: ${result.score}%. Found ${result.present.length} matching keywords.`
+        message: `Match score: ${result.score}%. Found ${(result.present ?? []).length} matching keywords.`
       });
     } catch (e: unknown) {
       const errorMsg = friendlyErrorMessage(
@@ -462,15 +462,6 @@ export default function AtsScannerPage() {
     });
   };
 
-  const handleUpgrade = () => {
-    // This would open upgrade modal
-    showToast({
-      icon: '⭐',
-      title: 'Upgrade',
-      message: 'Upgrade options coming soon!'
-    });
-  };
-
   const canScan = (file || resumeText.trim()) && !isScanning && !scanProgress.isScanning;
 
   return (
@@ -511,43 +502,29 @@ export default function AtsScannerPage() {
           />
         </div>
 
-        {/* Bottom Action Bar */}
-        <div className="flex justify-between items-center bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-lg">
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Available scans: <span className="font-medium">{availableScans}</span>
-            </span>
-            <button 
-              onClick={handleUpgrade}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              Upgrade
-            </button>
-          </div>
-          
-          <div className="flex space-x-3">
-            <button 
-              onClick={handlePowerEdit}
-              className="px-4 py-2 bg-yellow-400 text-gray-900 rounded-lg hover:bg-yellow-500 transition-colors flex items-center font-medium"
-            >
-              <Zap className="w-4 h-4 mr-2" />
-              Power Edit
-            </button>
-            <button 
-              onClick={handleScan}
-              disabled={!canScan}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium min-w-[100px]"
-            >
-              {scanProgress.isScanning ? (
-                <div className="flex items-center">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Scanning...
-                </div>
-              ) : (
-                'Scan'
-              )}
-            </button>
-          </div>
+        {/* Action Buttons */}
+        <div className="flex justify-end space-x-3">
+          <button 
+            onClick={handlePowerEdit}
+            className="px-4 py-2 bg-yellow-400 text-gray-900 rounded-lg hover:bg-yellow-500 transition-colors flex items-center font-medium"
+          >
+            <Zap className="w-4 h-4 mr-2" />
+            Power Edit
+          </button>
+          <button 
+            onClick={handleScan}
+            disabled={!canScan}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium min-w-[100px]"
+          >
+            {scanProgress.isScanning ? (
+              <div className="flex items-center">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                Scanning...
+              </div>
+            ) : (
+              'Scan'
+            )}
+          </button>
         </div>
 
         {/* Real-time Preview */}
@@ -636,7 +613,7 @@ export default function AtsScannerPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h4 className="font-medium text-green-700 dark:text-green-400 mb-2">
-                    Matching Keywords ({uploadResult.present.length})
+                    Matching Keywords ({(uploadResult.present ?? []).length})
                   </h4>
                   <ul className="list-disc ml-5 space-y-1">
                     {(uploadResult.present ?? []).slice(0, 20).map((k, idx) => (
@@ -645,16 +622,16 @@ export default function AtsScannerPage() {
                       </li>
                     ))}
                   </ul>
-                  {uploadResult.present.length > 20 && (
+                  {(uploadResult.present ?? []).length > 20 && (
                     <p className="text-xs text-gray-500 mt-2">
-                      +{uploadResult.present.length - 20} more matches
+                      +{(uploadResult.present ?? []).length - 20} more matches
                     </p>
                   )}
                 </div>
 
                 <div>
                   <h4 className="font-medium text-amber-700 dark:text-amber-400 mb-2">
-                    Missing Keywords ({uploadResult.missing.length})
+                    Missing Keywords ({(uploadResult.missing ?? []).length})
                   </h4>
                   <ul className="list-disc ml-5 space-y-1">
                     {(uploadResult.missing ?? []).slice(0, 20).map((k, idx) => (
@@ -663,9 +640,9 @@ export default function AtsScannerPage() {
                       </li>
                     ))}
                   </ul>
-                  {uploadResult.missing.length > 20 && (
+                  {(uploadResult.missing ?? []).length > 20 && (
                     <p className="text-xs text-gray-500 mt-2">
-                      +{uploadResult.missing.length - 20} more missing
+                      +{(uploadResult.missing ?? []).length - 20} more missing
                     </p>
                   )}
                 </div>
