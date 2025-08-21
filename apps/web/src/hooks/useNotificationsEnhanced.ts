@@ -58,13 +58,14 @@ export function useNotificationsEnhanced({
   const { user } = useAuth();
   const previousNotificationsRef = useRef<Notification[]>([]);
 
-  // Create SWR key with tab parameter
-  const swrKey = user ? [`/api/notifications?tab=${tab}`, user] : null;
+  // Create SWR key with tab parameter (using user.uid for stability)
+  const swrKey = user ? [`/api/notifications?tab=${tab}`, user.uid] : null;
 
   const { data: notifications, error, isLoading, mutate } = useSWR(
     swrKey,
-    async ([url, userObj]: [string, User]) => {
-      const token = await userObj.getIdToken();
+    async ([url, userId]: [string, string]) => {
+      if (!user) throw new Error('User not authenticated');
+      const token = await user.getIdToken();
       return fetcher(url, token);
     },
     {
