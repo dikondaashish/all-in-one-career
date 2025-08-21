@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, Auth, User } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -35,9 +35,9 @@ const validateFirebaseConfig = () => {
   return true;
 };
 
-let app: any;
-let auth: any;
-let provider: any;
+let app: FirebaseApp | undefined;
+let auth: Auth;
+let provider: GoogleAuthProvider;
 
 try {
   if (validateFirebaseConfig()) {
@@ -55,12 +55,12 @@ try {
     onAuthStateChanged: () => {
       throw new Error('Firebase is not configured. Please set your environment variables.');
     }
-  };
+  } as unknown as Auth;
   provider = {
     addScope: () => {
       throw new Error('Firebase is not configured. Please set your environment variables.');
     }
-  };
+  } as unknown as GoogleAuthProvider;
 }
 
 export { auth, provider };
