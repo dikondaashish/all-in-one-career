@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import mammoth from 'mammoth';
-import pdfParse from 'pdf-parse';
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import path from 'path';
 
 const router = express.Router();
@@ -98,23 +98,48 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
 });
 
 /**
- * Extract text from PDF files using pdf-parse
+ * Extract text from PDF files using pdfjs-dist
  */
 const extractFromPdf = async (buffer: Buffer): Promise<string> => {
   try {
-    const data = await pdfParse(buffer);
+    // Convert Buffer to Uint8Array for pdfjs
+    const uint8Array = new Uint8Array(buffer);
     
-    if (!data.text || data.text.trim().length === 0) {
+    // Load the PDF document
+    const pdf = await pdfjs.getDocument({
+      data: uint8Array,
+      useSystemFonts: true
+    }).promise;
+    
+    let fullText = '';
+    
+    // Extract text from all pages
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      
+      // Combine text items with spaces
+      const pageText = textContent.items
+        .map((item: any) => {
+          // pdfjs TextItem has a 'str' property
+          return (item as { str?: string }).str || '';
+        })
+        .join(' ');
+      
+      fullText += pageText + '\n';
+    }
+    
+    if (!fullText || fullText.trim().length === 0) {
       throw new Error('No text found in PDF. The file might be image-based or corrupted.');
     }
     
     // Clean up the text - remove excessive whitespace and normalize line breaks
-    const cleanedText = data.text
+    const cleanedText = fullText
       .replace(/\s+/g, ' ') // Replace multiple spaces with single space
       .replace(/\n\s*\n/g, '\n') // Remove empty lines
       .trim();
     
-    console.log(`PDF extraction successful: ${data.numpages} pages, ${cleanedText.length} characters`);
+    console.log(`PDF extraction successful: ${pdf.numPages} pages, ${cleanedText.length} characters`);
     
     return cleanedText;
   } catch (error: any) {
