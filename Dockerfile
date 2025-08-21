@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy monorepo root package-manager files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Install pnpm and install all workspace deps
-RUN corepack enable && corepack prepare pnpm@latest --activate && pnpm config set ignore-script false
+# Install pnpm v9 (stable, reduces approve-builds warnings) and install all workspace deps
+RUN corepack enable && corepack prepare pnpm@9.12.2 --activate && pnpm config set ignore-script false
 RUN pnpm install --frozen-lockfile
 
 # Copy the entire monorepo into the container
