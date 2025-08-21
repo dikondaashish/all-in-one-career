@@ -60,7 +60,7 @@ export function useNotificationsEnhanced({
 
   const { data: notifications, error, isLoading, mutate } = useSWR(
     swrKey,
-    async ([url, _userId]: [string, string]) => {
+    async ([url]: [string, string]) => {
       if (!user) throw new Error('User not authenticated');
       const token = await user.getIdToken();
       return fetcher(url, token);

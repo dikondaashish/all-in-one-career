@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import SmartSearch from './SmartSearch';
 import NotificationBell from './notifications/NotificationBell';
 import UpgradeModal from './modals/UpgradeModal';
+import Image from 'next/image';
 
 import { useUserStore } from '@/stores/useUserStore';
 import { useTheme } from '@/contexts/ThemeProvider';
@@ -232,7 +233,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                   {dbLoading ? (
                     <div className="w-6 h-6 bg-white/30 rounded-full" />
                   ) : resolvedAvatar ? (
-                    <img src={resolvedAvatar} alt="Profile" className="w-full h-full object-cover" />
+                    <Image src={resolvedAvatar} alt="Profile" fill className="object-cover" />
                   ) : (
                     <span className="text-white font-medium text-sm">{userDisplayName.charAt(0).toUpperCase()}</span>
                   )}
@@ -251,7 +252,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                         {dbLoading ? (
                           <div className="w-4 h-4 bg-white/30 rounded-full" />
                         ) : resolvedAvatar ? (
-                          <img src={resolvedAvatar} alt="Profile" className="w-full h-full object-cover" />
+                          <Image src={resolvedAvatar} alt="Profile" fill className="object-cover" />
                         ) : (
                           <span className="text-white text-xs font-medium">{userDisplayName.charAt(0).toUpperCase()}</span>
                         )}

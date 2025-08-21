@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import Image from 'next/image';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -128,12 +129,13 @@ export default function RegisterPage() {
                   Profile Photo (Optional)
                 </label>
                 <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative">
                     {formData.profileImage ? (
-                      <img
+                      <Image
                         src={URL.createObjectURL(formData.profileImage)}
                         alt="Profile preview"
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
                       />
                     ) : (
                       <span className="text-gray-500 text-lg">
