@@ -58,7 +58,7 @@ export default function ReferralsPage() {
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/referrals/suggest?company=${encodeURIComponent(company)}&role=${encodeURIComponent(role)}`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/referrals/suggest?company=${encodeURIComponent(company)}&role=${encodeURIComponent(role)}`,
         {
           headers: {
             'Content-Type': 'application/json',

@@ -48,7 +48,7 @@ export default function TrackerPage() {
     setError('');
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/applications`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/applications`, {
         headers: {
           'Authorization': `Bearer ${user ? await user.getIdToken() : ''}`,
         },
@@ -103,7 +103,7 @@ export default function TrackerPage() {
     setError('');
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/applications`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/applications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

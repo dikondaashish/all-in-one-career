@@ -355,7 +355,7 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
   };
 
   const { data: scan, error, isLoading } = useSWR<AtsScanDetail>(
-    user ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/ats/scans/${resolvedParams.id}` : null,
+    user ? `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/ats/scans/${resolvedParams.id}` : null,
     fetcher
   );
 

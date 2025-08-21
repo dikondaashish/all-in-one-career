@@ -1,9 +1,9 @@
-import express, { Router } from 'express';
+import express from 'express';
 import multer from 'multer';
-import { extractTextFromDocx, extractTextFromTxt } from '../utils/fileParser';
-import { extractTextFromPdfService, PdfParseError, toClientError } from '../services/pdfParser';
+import mammoth from 'mammoth';
+import path from 'path';
 
-const router: Router = express.Router();
+const router = express.Router();
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -12,7 +12,6 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
-      'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
       'text/plain'
@@ -21,7 +20,7 @@ const upload = multer({
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF, DOC, DOCX, and TXT files are supported.'));
+      cb(new Error('Only DOC, DOCX, and TXT files are supported'), false);
     }
   },
   storage: multer.memoryStorage() // Store in memory for processing
@@ -32,7 +31,7 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
   try {
     const file = req.file;
     if (!file) {
-      return res.status(400).json({ code: 'NO_FILE', message: 'No file uploaded' });
+      return res.status(400).json({ error: 'No file uploaded' });
     }
 
     console.log(`Processing file: ${file.originalname} (${file.mimetype})`);
@@ -40,42 +39,35 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
     let extractedText = '';
 
     switch (file.mimetype) {
-      case 'application/pdf': {
-        const useFallback = req.query.fallback === 'true';
-        try {
-          // 20s cap to avoid provider timeouts
-          extractedText = await extractTextFromPdfService(file.buffer, { enableFallback: useFallback, timeoutMs: 20000 });
-        } catch (e: any) {
-          const err = e as PdfParseError;
-          const mapped = toClientError((err.code as any) || 'PDF_UNKNOWN', err.message);
-          return res.status(mapped.status).json(mapped.body);
-        }
-        break;
-      }
       case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
       case 'application/msword':
-        extractedText = await extractTextFromDocx(file.buffer);
+        extractedText = await extractFromWord(file.buffer);
         break;
       case 'text/plain':
-        extractedText = await extractTextFromTxt(file.buffer);
+        extractedText = file.buffer.toString('utf-8');
         break;
       default:
-        return res.status(415).json({ code: 'UNSUPPORTED_TYPE', message: 'Unsupported file type. Only PDF, DOC, DOCX, and TXT files are supported.' });
+        return res.status(400).json({ 
+          error: 'Unsupported file type. Only DOC, DOCX, and TXT files are supported.' 
+        });
     }
 
     // Basic validation
     if (!extractedText || extractedText.trim().length === 0) {
-      return res.status(400).json({ code: 'NO_TEXT', message: 'No text could be extracted from the file. Please ensure the file contains readable text.' });
+      return res.status(400).json({ 
+        error: 'No text could be extracted from the file. Please ensure the file contains readable text.' 
+      });
     }
 
     if (extractedText.length < 50) {
-      return res.status(400).json({ code: 'TEXT_TOO_SHORT', message: 'Extracted text is too short. Please upload a complete resume.' });
+      return res.status(400).json({ 
+        error: 'Extracted text is too short. Please upload a complete resume.' 
+      });
     }
 
     console.log(`Successfully extracted ${extractedText.length} characters from ${file.originalname}`);
 
     res.json({ 
-      code: 'OK',
       text: extractedText,
       filename: file.originalname,
       size: file.size,
@@ -89,36 +81,33 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
     
     if (error instanceof multer.MulterError) {
       if (error.code === 'LIMIT_FILE_SIZE') {
-        return res.status(413).json({ code: 'FILE_TOO_LARGE', message: 'File too large. Maximum size is 10MB.' });
+        return res.status(400).json({ error: 'File too large. Maximum size is 10MB.' });
       }
-      return res.status(400).json({ code: 'UPLOAD_ERROR', message: error.message });
+      return res.status(400).json({ error: error.message });
     }
     
-    // Structured fallback error
-    res.status(500).json({ code: 'SERVER_ERROR', message: 'Failed to extract text from file. Please try again or use a different file.' });
+    res.status(500).json({ 
+      error: 'Failed to extract text from file. Please try again or use a different file.' 
+    });
   }
 });
 
-// GET /api/upload/pdf-status - Check PDF parsing status
-router.get('/pdf-status', async (req, res) => {
+/**
+ * Extract text from Word documents using mammoth
+ */
+const extractFromWord = async (buffer: Buffer): Promise<string> => {
   try {
-    // Light-weight status for readiness probes
-    res.json({
-      available: true,
-      timestamp: new Date().toISOString(),
-      nodeVersion: process.version,
-      platform: process.platform
-    });
+    const result = await mammoth.extractRawText({ buffer });
     
-  } catch (error: any) {
-    console.error('PDF status check failed:', error);
-    res.status(500).json({
-      available: false,
-      error: 'Status check failed',
-      details: error.message,
-      timestamp: new Date().toISOString()
-    });
+    if (result.messages && result.messages.length > 0) {
+      console.log('Mammoth extraction messages:', result.messages);
+    }
+    
+    return result.value;
+  } catch (error) {
+    console.error('Word extraction error:', error);
+    throw new Error('Failed to extract text from Word document. Please ensure the file is not corrupted.');
   }
-});
+};
 
 export default router;

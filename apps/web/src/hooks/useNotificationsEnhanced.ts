@@ -1,8 +1,11 @@
 import useSWR from 'swr';
-import { useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRef, useEffect, useCallback } from 'react';
+import { User } from 'firebase/auth';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://all-in-one-career-api.onrender.com'
+  : 'http://localhost:4000';
 
 export interface NotificationMetadata {
   url?: string;
@@ -55,14 +58,13 @@ export function useNotificationsEnhanced({
   const { user } = useAuth();
   const previousNotificationsRef = useRef<Notification[]>([]);
 
-  // Create SWR key with tab parameter (using user.uid for stability)
-  const swrKey = user ? [`/api/notifications?tab=${tab}`, user.uid] : null;
+  // Create SWR key with tab parameter
+  const swrKey = user ? [`/api/notifications?tab=${tab}`, user] : null;
 
   const { data: notifications, error, isLoading, mutate } = useSWR(
     swrKey,
-    async ([url]: [string, string]) => {
-      if (!user) throw new Error('User not authenticated');
-      const token = await user.getIdToken();
+    async ([url, userObj]: [string, User]) => {
+      const token = await userObj.getIdToken();
       return fetcher(url, token);
     },
     {

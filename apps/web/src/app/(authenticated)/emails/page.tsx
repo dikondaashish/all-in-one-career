@@ -66,7 +66,7 @@ export default function EmailsPage() {
     setResult(null);
 
     try {
-      const response = await fetch('/api/emails', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/emails`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

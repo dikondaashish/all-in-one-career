@@ -5,7 +5,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Camera, Save } from 'lucide-react';
 import RouteGuard from '@/components/RouteGuard';
 import { useUserStore } from '@/stores/useUserStore';
-import Image from 'next/image';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -415,11 +414,10 @@ function ProfileContent() {
                     </div>
                   )}
                   {profile?.profileImage ? (
-                    <Image 
-                      src={profile.profileImage}
-                      alt="Profile"
-                      fill
-                      className="object-cover"
+                    <img 
+                      src={profile.profileImage} 
+                      alt="Profile" 
+                      className="w-24 h-24 rounded-full object-cover"
                     />
                   ) : (
                     getInitials(profile?.firstName || 'U', profile?.lastName || 'S')
