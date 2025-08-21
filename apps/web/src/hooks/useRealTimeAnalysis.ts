@@ -37,7 +37,8 @@ export const useRealTimeAnalysis = (resumeText: string, jobDescription: string) 
     setAnalysis(prev => ({ ...prev, isAnalyzing: true, error: undefined }));
 
     try {
-      const response = await fetch('/api/ats/analyze-preview', {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${API_BASE_URL}/api/ats/analyze-preview`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
