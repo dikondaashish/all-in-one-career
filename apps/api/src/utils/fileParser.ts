@@ -1,15 +1,28 @@
 import mammoth from 'mammoth';
 import fs from 'fs';
+import pdfParse from 'pdf-parse';
 
 /**
  * Extract text from PDF file
- * Note: PDF parsing is currently not available due to deployment stability issues.
- * Please use DOCX files for best results.
  */
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  // For MVP, we'll focus on DOCX support as it's more reliable
-  // PDF parsing requires complex dependencies that may not work in all environments
-  throw new Error('PDF parsing is currently not supported. Please upload a DOCX file instead for best results.');
+  try {
+    const data = await pdfParse(buffer);
+    const text = data.text || '';
+    
+    // Check if PDF has extractable text
+    if (text.trim().length < 30) {
+      throw new Error('PDF_SCANNED');
+    }
+    
+    return text;
+  } catch (error) {
+    console.error('Error extracting text from PDF:', error);
+    if (error instanceof Error && error.message === 'PDF_SCANNED') {
+      throw new Error('This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.');
+    }
+    throw new Error('Failed to extract text from PDF file. Please ensure the file is not corrupted.');
+  }
 }
 
 /**
@@ -26,6 +39,18 @@ export async function extractTextFromDocx(buffer: Buffer): Promise<string> {
 }
 
 /**
+ * Extract text from TXT file
+ */
+export async function extractTextFromTxt(buffer: Buffer): Promise<string> {
+  try {
+    return buffer.toString('utf8');
+  } catch (error) {
+    console.error('Error extracting text from TXT:', error);
+    throw new Error('Failed to extract text from TXT file. Please ensure the file is not corrupted.');
+  }
+}
+
+/**
  * Extract text from file based on type
  */
 export async function extractTextFromFile(filePath: string, fileType: string): Promise<string> {
@@ -33,12 +58,14 @@ export async function extractTextFromFile(filePath: string, fileType: string): P
   
   switch (fileType.toLowerCase()) {
     case '.pdf':
-      throw new Error('PDF files are currently not supported. Please upload a DOCX file instead.');
+      return extractTextFromPdf(buffer);
     case '.docx':
     case '.doc':
       return extractTextFromDocx(buffer);
+    case '.txt':
+      return extractTextFromTxt(buffer);
     default:
-      throw new Error(`Unsupported file type: ${fileType}. Please upload a DOC or DOCX file.`);
+      throw new Error(`Unsupported file type: ${fileType}. Please upload a PDF, DOC, DOCX, or TXT file.`);
   }
 }
 
@@ -48,11 +75,13 @@ export async function extractTextFromFile(filePath: string, fileType: string): P
 export async function extractTextFromBuffer(buffer: Buffer, fileType: string): Promise<string> {
   switch (fileType.toLowerCase()) {
     case '.pdf':
-      throw new Error('PDF files are currently not supported. Please upload a DOCX file instead.');
+      return extractTextFromPdf(buffer);
     case '.docx':
     case '.doc':
       return extractTextFromDocx(buffer);
+    case '.txt':
+      return extractTextFromTxt(buffer);
     default:
-      throw new Error(`Unsupported file type: ${fileType}. Please upload a DOC or DOCX file.`);
+      throw new Error(`Unsupported file type: ${fileType}. Please upload a PDF, DOC, DOCX, or TXT file.`);
   }
 }
