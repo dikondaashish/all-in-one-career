@@ -115,7 +115,7 @@ const ResumeInputSection = ({
         ) : (
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Drag & Drop or Upload</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">DOC, DOCX, TXT files only</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">PDF, DOC, DOCX, TXT files only</p>
           </div>
         )}
       </div>
@@ -485,7 +485,7 @@ export default function AtsScannerPage() {
                 For best results:
               </h4>
               <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                <li>• Upload your resume in DOC or DOCX format</li>
+                <li>• Upload your resume in PDF, DOC, or DOCX format</li>
                 <li>• Include the complete job description you&apos;re applying for</li>
                 <li>• Ensure your resume includes contact information and skills</li>
               </ul>

@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import mammoth from 'mammoth';
+import pdfParse from 'pdf-parse';
 import path from 'path';
 
 const router = express.Router();
@@ -12,6 +13,7 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
+      'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
       'text/plain'
@@ -20,7 +22,7 @@ const upload = multer({
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only DOC, DOCX, and TXT files are supported'), false);
+      cb(new Error('Only PDF, DOC, DOCX, and TXT files are supported'), false);
     }
   },
   storage: multer.memoryStorage() // Store in memory for processing
@@ -39,6 +41,9 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
     let extractedText = '';
 
     switch (file.mimetype) {
+      case 'application/pdf':
+        extractedText = await extractFromPdf(file.buffer);
+        break;
       case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
       case 'application/msword':
         extractedText = await extractFromWord(file.buffer);
@@ -48,7 +53,7 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
         break;
       default:
         return res.status(400).json({ 
-          error: 'Unsupported file type. Only DOC, DOCX, and TXT files are supported.' 
+          error: 'Unsupported file type. Only PDF, DOC, DOCX, and TXT files are supported.' 
         });
     }
 
@@ -91,6 +96,37 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
     });
   }
 });
+
+/**
+ * Extract text from PDF files using pdf-parse
+ */
+const extractFromPdf = async (buffer: Buffer): Promise<string> => {
+  try {
+    const data = await pdfParse(buffer);
+    
+    if (!data.text || data.text.trim().length === 0) {
+      throw new Error('No text found in PDF. The file might be image-based or corrupted.');
+    }
+    
+    // Clean up the text - remove excessive whitespace and normalize line breaks
+    const cleanedText = data.text
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .replace(/\n\s*\n/g, '\n') // Remove empty lines
+      .trim();
+    
+    console.log(`PDF extraction successful: ${data.numpages} pages, ${cleanedText.length} characters`);
+    
+    return cleanedText;
+  } catch (error: any) {
+    console.error('PDF extraction error:', error);
+    
+    if (error.message?.includes('No text found')) {
+      throw error;
+    }
+    
+    throw new Error('Failed to extract text from PDF. Please ensure the file is not corrupted and contains readable text (not just images).');
+  }
+};
 
 /**
  * Extract text from Word documents using mammoth
