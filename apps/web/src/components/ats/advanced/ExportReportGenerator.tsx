@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Download, FileText, FileSpreadsheet, File } from 'lucide-react';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 
 interface ATSAnalysis {
   overall_score: number;
