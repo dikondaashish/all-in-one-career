@@ -218,11 +218,37 @@ export default function AtsScannerPage() {
       console.error('File processing error:', error);
       const errorMsg = error instanceof Error ? error.message : 'Failed to process file';
       setErrors(prev => ({ ...prev, file: errorMsg }));
-      showToast({
-        icon: '❌',
-        title: 'Processing Failed',
-        message: errorMsg
-      });
+
+      // If PDF failed, offer retry with fallback or DOCX suggestion
+      if (file && file.type === 'application/pdf') {
+        showToast({
+          icon: '📄',
+          title: 'PDF Processing Issue',
+          message: 'We can retry with a fallback method or upload DOCX instead.',
+          ctaText: 'Retry Fallback',
+          onView: async () => {
+            try {
+              const extracted = await processPdfViaAPI(file, { fallback: true });
+              if (extracted && extracted.trim().length > 0) {
+                setResumeText(extracted);
+                showToast({
+                  icon: '✅',
+                  title: 'Fallback Succeeded',
+                  message: `Extracted ${extracted.length} characters from ${file.name}`
+                });
+              } else {
+                throw new Error('No text could be extracted from the file');
+              }
+            } catch (fallbackErr) {
+              const msg = fallbackErr instanceof Error ? fallbackErr.message : 'Fallback failed';
+              showToast({ icon: '❌', title: 'Fallback Failed', message: msg });
+            }
+          }
+        });
+      } else {
+        showToast({ icon: '❌', title: 'Processing Failed', message: errorMsg });
+      }
+
       // Keep the file reference for retry, but clear text
       setResumeText('');
     } finally {
