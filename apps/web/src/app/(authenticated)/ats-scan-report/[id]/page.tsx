@@ -36,9 +36,10 @@ export const dynamic = 'force-dynamic';
 interface ReportHeaderProps {
   scan: AtsScanDetail;
   onBack: () => void;
+  isSample?: boolean;
 }
 
-const ReportHeader = ({ scan, onBack }: ReportHeaderProps) => (
+const ReportHeader = ({ scan, onBack, isSample }: ReportHeaderProps) => (
   <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
     <div className="max-w-6xl mx-auto px-4 py-4">
       <div className="flex items-center justify-between">
@@ -51,9 +52,16 @@ const ReportHeader = ({ scan, onBack }: ReportHeaderProps) => (
             Back to Scanner
           </button>
           <div className="border-l border-gray-300 dark:border-gray-600 pl-4">
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-              ATS Scan Report
-            </h1>
+            <div className="flex items-center space-x-3">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                ATS Scan Report
+              </h1>
+              {isSample && (
+                <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full">
+                  Sample Report
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               {scan.fileName} • Scanned {formatDistanceToNow(new Date(scan.createdAt), { addSuffix: true })}
             </p>
@@ -343,6 +351,16 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
   const { user } = useAuth();
   
   const fetcher = async (url: string) => {
+    // Check if this is a sample scan request
+    if (resolvedParams.id === 'sample-scan-demo-123') {
+      const sampleData = localStorage.getItem('sample-ats-scan');
+      if (sampleData) {
+        return JSON.parse(sampleData);
+      }
+      throw new Error('Sample data not found');
+    }
+
+    // Regular API fetch for real scans
     if (!user) throw new Error('User not authenticated');
     const token = await user.getIdToken();
     const res = await fetch(url, {
@@ -355,7 +373,10 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
   };
 
   const { data: scan, error, isLoading } = useSWR<AtsScanDetail>(
-    user ? `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/ats/scans/${resolvedParams.id}` : null,
+    // Allow sample scans without authentication, require user for real scans
+    (user || resolvedParams.id === 'sample-scan-demo-123') 
+      ? `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/ats/scans/${resolvedParams.id}`
+      : null,
     fetcher
   );
 
@@ -393,7 +414,7 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <ReportHeader scan={scan} onBack={handleBack} />
+      <ReportHeader scan={scan} onBack={handleBack} isSample={resolvedParams.id === 'sample-scan-demo-123'} />
       
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 py-8">
