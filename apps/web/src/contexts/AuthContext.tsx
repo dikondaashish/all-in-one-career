@@ -71,6 +71,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Restore user state from JWT token on mount
+  useEffect(() => {
+    const restoreUserFromToken = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (token && !user) {
+          console.log('JWT token found, attempting to restore user state...');
+          
+          // Set a timeout for the restoration process
+          const restorationTimeout = setTimeout(() => {
+            console.log('JWT restoration timeout, clearing token');
+            localStorage.removeItem('token');
+            setIsAuthenticated(false);
+            setIsGuest(false);
+          }, 10000); // 10 second timeout
+          
+          // Validate token with backend to get user info
+          try {
+            const API_BASE_URL = process.env.NODE_ENV === 'production' 
+              ? 'https://all-in-one-career-api.onrender.com'
+              : 'http://localhost:4000';
+            
+            const response = await fetch(`${API_BASE_URL}/api/auth/validate`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            clearTimeout(restorationTimeout);
+            
+            if (response.ok) {
+              const userData = await response.json();
+              console.log('JWT token validated, user data:', userData);
+              
+              // Create a proper user object from the validated data
+              const restoredUser = {
+                uid: userData.uid,
+                email: userData.email,
+                displayName: userData.name || userData.email?.split('@')[0] || 'User',
+                photoURL: userData.profileImage || null
+              } as User;
+              
+              setUser(restoredUser);
+              setIsAuthenticated(true);
+              setIsGuest(false);
+              
+              // Populate Zustand store
+              useUserStore.getState().setUser({
+                id: restoredUser.uid,
+                name: restoredUser.displayName || 'User',
+                email: restoredUser.email || '',
+                avatarUrl: restoredUser.photoURL || '',
+                profileImage: restoredUser.photoURL || ''
+              });
+              
+              console.log('User state fully restored from JWT token');
+            } else {
+              console.log('JWT token invalid, clearing token');
+              localStorage.removeItem('token');
+              setIsAuthenticated(false);
+              setIsGuest(false);
+            }
+          } catch (validationError) {
+            clearTimeout(restorationTimeout);
+            console.log('Could not validate JWT token, using fallback restoration:', validationError);
+            
+            // Fallback: create a basic user state to prevent redirect loops
+            // This allows the user to stay on the dashboard while we try to restore Firebase state
+            setIsAuthenticated(true);
+            setIsGuest(false);
+            
+            // Don't set a mock user, let Firebase handle the actual user state
+            console.log('Using fallback authentication state');
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring user from token:', error);
+      }
+    };
+    
+    restoreUserFromToken();
+  }, [user]);
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user: User | null) => {
       setUser(user);
