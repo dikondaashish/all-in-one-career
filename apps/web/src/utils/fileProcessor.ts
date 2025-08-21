@@ -50,10 +50,27 @@ const processPdfViaAPI = async (file: File): Promise<string> => {
   
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    if (response.status === 422) {
-      throw new Error('This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.');
+    
+    // Handle specific error status codes
+    switch (response.status) {
+      case 422:
+        throw new Error('This PDF appears to be scanned images. OCR isn\'t enabled yet. Please upload a text-based PDF or DOCX.');
+      
+      case 503:
+        throw new Error('PDF processing is temporarily unavailable. Please upload your document in DOCX format.');
+      
+      case 400:
+        throw new Error(errorData.error || 'Unable to process this PDF file. Please try uploading in DOCX format for best results.');
+      
+      case 413:
+        throw new Error('File too large. Maximum size is 10MB.');
+      
+      case 415:
+        throw new Error('Unsupported file type. Please use PDF, DOC, DOCX, or TXT files.');
+      
+      default:
+        throw new Error(errorData.error || 'Failed to extract text from PDF. Please try uploading in DOCX format.');
     }
-    throw new Error(errorData.error || 'Failed to extract text from PDF');
   }
   
   const result = await response.json();

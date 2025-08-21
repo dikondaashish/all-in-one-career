@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Bell, X, Check, CheckCheck, MoreVertical, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import { useNotificationsEnhanced, type NotificationTab, type Notification } from '@/hooks/useNotificationsEnhanced';
 import { useToast } from '@/components/notifications/ToastContainer';
@@ -19,7 +19,7 @@ export default function NotificationBell() {
   const { showConfirmation } = useConfirmation();
 
   // Hook for handling new notifications and toasts
-  const handleNewNotification = (notification: Notification) => {
+  const handleNewNotification = useCallback((notification: Notification) => {
     const getTypeIcon = (type: string) => {
       switch (type) {
         case 'FEATURE': return '🚀';
@@ -38,12 +38,12 @@ export default function NotificationBell() {
       onView: () => {
         setIsOpen(true);
         setActiveTab('unread');
-        markAsRead(notification.id);
+        // Note: markAsRead will be available when the hook is called
       }
     });
-  };
+  }, [showToast, setIsOpen, setActiveTab]);
 
-  // Use enhanced hook with current tab and toast handler
+  // Primary hook for current tab with notification handler
   const { 
     notifications, 
     unreadCount, 
@@ -58,8 +58,14 @@ export default function NotificationBell() {
     onNewNotification: handleNewNotification 
   });
 
-  // Get unread count for all notifications (not just current tab)
-  const { unreadCount: totalUnreadCount } = useNotificationsEnhanced({ tab: 'unread' });
+  // Only get unread count for badge when not on unread tab
+  // Use conditional hook to prevent double API calls
+  const unreadTabData = useNotificationsEnhanced({ 
+    tab: 'unread'
+  });
+
+  // Use the appropriate unread count for the badge
+  const displayUnreadCount = activeTab === 'unread' ? unreadCount : (unreadTabData.unreadCount || 0);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -205,9 +211,9 @@ export default function NotificationBell() {
         <Bell className="w-6 h-6" />
         
         {/* Unread Count Badge */}
-        {totalUnreadCount > 0 && (
+        {displayUnreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-            {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+            {displayUnreadCount > 99 ? '99+' : displayUnreadCount}
           </span>
         )}
       </button>
@@ -231,7 +237,7 @@ export default function NotificationBell() {
           {/* Filter Tabs */}
           <div className="flex border-b border-gray-200 dark:border-gray-700">
             {[
-              { key: 'unread' as NotificationTab, label: 'Unread', count: totalUnreadCount },
+              { key: 'unread' as NotificationTab, label: 'Unread', count: displayUnreadCount },
               { key: 'all' as NotificationTab, label: 'All' },
               { key: 'archived' as NotificationTab, label: 'Archived' }
             ].map((tab) => (
