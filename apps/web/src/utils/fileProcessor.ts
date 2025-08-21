@@ -11,7 +11,7 @@ export const processFile = async (file: File): Promise<string> => {
              file.type === 'application/msword') {
     return await processWordViaAPI(file);
   } else if (file.type === 'application/pdf') {
-    return await processPdfViaAPI(file);
+    throw new Error('PDF support is temporarily disabled due to deployment issues. Please upload your resume in DOCX format for now. We\'re working on restoring PDF support soon.');
   } else {
     throw new Error('Unsupported file type. Please upload PDF, DOC, DOCX, or TXT files.');
   }
@@ -66,7 +66,7 @@ const processPdfViaAPI = async (file: File): Promise<string> => {
 export const validateFile = (file: File): { isValid: boolean; error?: string } => {
   const maxSize = 10 * 1024 * 1024; // 10MB
   const allowedTypes = [
-    'application/pdf',
+    // 'application/pdf', // Temporarily disabled due to deployment issues
     'text/plain',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword'
@@ -75,7 +75,7 @@ export const validateFile = (file: File): { isValid: boolean; error?: string } =
   if (!allowedTypes.includes(file.type)) {
     return {
       isValid: false,
-      error: 'Unsupported file type. Please use PDF, DOC, DOCX, or TXT files.'
+      error: 'Unsupported file type. Please use DOC, DOCX, or TXT files. PDF support temporarily disabled.'
     };
   }
 

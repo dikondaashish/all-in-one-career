@@ -91,7 +91,7 @@ const ResumeInputSection = ({
           ref={fileInputRef}
           type="file"
           className="hidden"
-          accept=".pdf,.doc,.docx,.txt"
+          accept=".doc,.docx,.txt"
           onChange={(e) => {
             if (e.target.files && e.target.files[0]) {
               handleFileSelect(e.target.files[0]);
@@ -114,8 +114,8 @@ const ResumeInputSection = ({
           </div>
         ) : (
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Drag & Drop or Upload — PDF, DOC, DOCX, TXT</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Max 10MB. We don&apos;t store source files; only parsed text.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Drag & Drop or Upload — DOC, DOCX, TXT</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Max 10MB. PDF support temporarily disabled. We don&apos;t store source files; only parsed text.</p>
           </div>
         )}
       </div>
@@ -487,7 +487,7 @@ export default function AtsScannerPage() {
                 For best results:
               </h4>
               <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                <li>• Upload your resume in PDF, DOC, DOCX, or TXT format</li>
+                <li>• Upload your resume in DOC, DOCX, or TXT format (PDF temporarily disabled)</li>
                 <li>• Include the complete job description you&apos;re applying for</li>
                 <li>• Ensure your resume includes contact information and skills</li>
               </ul>

@@ -11,7 +11,7 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
-      'application/pdf',
+      // 'application/pdf', // Temporarily disabled due to deployment issues
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
       'text/plain'
@@ -20,7 +20,7 @@ const upload = multer({
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF, DOC, DOCX, and TXT files are supported'));
+      cb(new Error('Only DOC, DOCX, and TXT files are supported. PDF support temporarily disabled.'));
     }
   },
   storage: multer.memoryStorage() // Store in memory for processing
@@ -51,7 +51,7 @@ router.post('/extract-text', upload.single('file'), async (req: any, res) => {
         break;
       default:
         return res.status(415).json({ 
-          error: 'Unsupported file type. Only PDF, DOC, DOCX, and TXT files are supported.' 
+          error: 'Unsupported file type. Only DOC, DOCX, and TXT files are supported. PDF support temporarily disabled.' 
         });
     }
 
