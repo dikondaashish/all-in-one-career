@@ -6,6 +6,9 @@ import { useAtsScanner } from '@/hooks/useAtsScanner';
 import { useToast } from '@/components/notifications/ToastContainer';
 import { useRouter } from 'next/navigation';
 import ScanningProgress from '@/components/ats/ScanningProgress';
+import SavedResumes from '@/components/ats/SavedResumes';
+import RealTimePreview from '@/components/ats/RealTimePreview';
+import { processFile, validateFile, getFileTypeDisplay, formatFileSize } from '@/utils/fileProcessor';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -20,6 +23,8 @@ interface ResumeInputSectionProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileSelect: (file: File) => void;
   errors: {[key: string]: string};
+  onShowSavedResumes: () => void;
+  isProcessingFile: boolean;
 }
 
 const ResumeInputSection = ({ 
@@ -30,7 +35,9 @@ const ResumeInputSection = ({
   setIsDragOver,
   fileInputRef,
   handleFileSelect,
-  errors
+  errors,
+  onShowSavedResumes,
+  isProcessingFile
 }: ResumeInputSectionProps) => {
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -44,7 +51,10 @@ const ResumeInputSection = ({
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Resume</h3>
-        <button className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+        <button 
+          onClick={onShowSavedResumes}
+          className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+        >
           <Star className="w-4 h-4 mr-1" />
           Saved Resumes
         </button>
@@ -89,15 +99,23 @@ const ResumeInputSection = ({
           }}
         />
         <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-        {file ? (
+        {isProcessingFile ? (
+          <div>
+            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+            <p className="text-sm font-medium text-blue-600">Processing file...</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Extracting text content</p>
+          </div>
+        ) : file ? (
           <div>
             <p className="text-sm font-medium text-gray-900 dark:text-white">{file.name}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">File ready for scanning</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {getFileTypeDisplay(file)} • {formatFileSize(file.size)}
+            </p>
           </div>
         ) : (
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Drag & Drop or Upload</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">DOC, DOCX files only</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">DOC, DOCX, TXT files only</p>
           </div>
         )}
       </div>
@@ -147,20 +165,22 @@ export default function AtsScannerPage() {
     isScanning: false
   });
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [showSavedResumes, setShowSavedResumes] = useState(false);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { scanResume, isScanning } = useAtsScanner();
   const { showToast } = useToast();
   const router = useRouter();
 
-  const handleFileSelect = (selectedFile: File) => {
+  const handleFileSelect = async (selectedFile: File) => {
     // Clear previous errors
     setErrors(prev => ({ ...prev, file: '' }));
     
-    const allowedTypes = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'];
-    
-    if (!allowedTypes.includes(selectedFile.type)) {
-      const errorMsg = 'Please upload a DOC or DOCX file. PDF support coming soon.';
+    // Validate file
+    const validation = validateFile(selectedFile);
+    if (!validation.isValid) {
+      const errorMsg = validation.error || 'Invalid file';
       setErrors(prev => ({ ...prev, file: errorMsg }));
       showToast({
         icon: '❌',
@@ -170,19 +190,44 @@ export default function AtsScannerPage() {
       return;
     }
     
-    if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
-      const errorMsg = 'File size must be under 10MB';
+    setFile(selectedFile);
+    setIsProcessingFile(true);
+    
+    try {
+      showToast({
+        icon: '📄',
+        title: 'Processing File',
+        message: `Processing ${getFileTypeDisplay(selectedFile)} (${formatFileSize(selectedFile.size)})...`
+      });
+
+      // Process the file to extract text
+      const extractedText = await processFile(selectedFile);
+      
+      if (extractedText && extractedText.trim().length > 0) {
+        setResumeText(extractedText);
+        showToast({
+          icon: '✅',
+          title: 'File Processed',
+          message: `Successfully extracted ${extractedText.length} characters from ${selectedFile.name}`
+        });
+      } else {
+        throw new Error('No text could be extracted from the file');
+      }
+      
+    } catch (error) {
+      console.error('File processing error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to process file';
       setErrors(prev => ({ ...prev, file: errorMsg }));
       showToast({
         icon: '❌',
-        title: 'File Too Large',
+        title: 'Processing Failed',
         message: errorMsg
       });
-      return;
+      // Keep the file reference for retry, but clear text
+      setResumeText('');
+    } finally {
+      setIsProcessingFile(false);
     }
-    
-    setFile(selectedFile);
-    setResumeText(''); // Clear text input when file is selected
   };
 
   const simulateProgress = () => {
@@ -349,6 +394,8 @@ export default function AtsScannerPage() {
             fileInputRef={fileInputRef}
             handleFileSelect={handleFileSelect}
             errors={errors}
+            onShowSavedResumes={() => setShowSavedResumes(true)}
+            isProcessingFile={isProcessingFile}
           />
           
           {/* Job Description Column */}
@@ -398,6 +445,16 @@ export default function AtsScannerPage() {
           </div>
         </div>
 
+        {/* Real-time Preview */}
+        {(resumeText.trim().length > 50 || jobDescription.trim().length > 50) && (
+          <div className="mt-8">
+            <RealTimePreview 
+              resumeText={resumeText}
+              jobDescription={jobDescription}
+            />
+          </div>
+        )}
+
         {/* Error Display */}
         {(errors.input || errors.scan) && (
           <div className="mt-8 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -442,6 +499,18 @@ export default function AtsScannerPage() {
           progress={scanProgress.progress}
           isVisible={scanProgress.isScanning}
           onCancel={() => setScanProgress({ step: 0, progress: 0, isScanning: false })}
+        />
+
+        {/* Saved Resumes Modal */}
+        <SavedResumes 
+          isOpen={showSavedResumes}
+          onClose={() => setShowSavedResumes(false)}
+          onSelectResume={(content) => {
+            setResumeText(content);
+            setFile(null); // Clear file when using saved resume
+            setErrors({}); // Clear any errors
+          }}
+          currentResumeText={resumeText}
         />
       </div>
     </div>

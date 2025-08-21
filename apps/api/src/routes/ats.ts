@@ -360,5 +360,68 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
     }
   });
 
+  // POST /api/ats/analyze-preview - Real-time analysis preview
+  router.post('/analyze-preview', async (req: any, res) => {
+    try {
+      const { resumeText, jobDescription } = req.body;
+      
+      if (!resumeText || !jobDescription) {
+        return res.status(400).json({ 
+          error: 'Resume text and job description are required' 
+        });
+      }
+
+      if (resumeText.length < 50) {
+        return res.status(400).json({ 
+          error: 'Resume text too short for analysis' 
+        });
+      }
+
+      if (jobDescription.length < 50) {
+        return res.status(400).json({ 
+          error: 'Job description too short for analysis' 
+        });
+      }
+
+      // Quick analysis for real-time preview
+      const resumeSkills = extractSkills(resumeText);
+      const jdSkills = extractSkills(jobDescription);
+      
+      const matchResult = calculateMatchScore(resumeSkills, jdSkills);
+      
+      // Simple keyword matching for quick feedback
+      const resumeWords = new Set(
+        resumeText.toLowerCase()
+          .split(/\s+/)
+          .filter(word => word.length > 3)
+          .map(word => word.replace(/[^\w]/g, ''))
+      );
+      
+      const jdWords = jobDescription.toLowerCase()
+        .split(/\s+/)
+        .filter(word => word.length > 3)
+        .map(word => word.replace(/[^\w]/g, ''));
+      
+      const jdWordsUnique = Array.from(new Set(jdWords));
+      
+      const keywordMatches = jdWordsUnique.filter(word => resumeWords.has(word));
+
+      res.json({
+        matchScore: matchResult.score,
+        skillsFound: resumeSkills.slice(0, 5), // Limit for preview
+        missingSkills: matchResult.missingSkills.slice(0, 5), // Limit for preview
+        keywordCount: keywordMatches.length,
+        totalPossibleKeywords: jdWordsUnique.length,
+        analyzedAt: new Date().toISOString()
+      });
+
+    } catch (error: any) {
+      console.error('Preview analysis error:', error);
+      res.status(500).json({ 
+        error: 'Failed to analyze content. Please try again.' 
+      });
+    }
+  });
+
   return router;
 }
