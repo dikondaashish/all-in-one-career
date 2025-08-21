@@ -4,7 +4,7 @@ import mammoth from 'mammoth';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import path from 'path';
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -22,7 +22,7 @@ const upload = multer({
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF, DOC, DOCX, and TXT files are supported'), false);
+      cb(new Error('Only PDF, DOC, DOCX, and TXT files are supported') as any, false);
     }
   },
   storage: multer.memoryStorage() // Store in memory for processing

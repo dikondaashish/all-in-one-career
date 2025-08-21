@@ -1,0 +1,1 @@
+John Doe Software Engineer with 5 years experience in JavaScript, React, Node.js, Python, AWS, Docker, PostgreSQL, MongoDB, Git, CI/CD, Agile development
