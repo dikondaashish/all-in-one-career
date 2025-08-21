@@ -394,18 +394,18 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
       const resumeWords = new Set(
         resumeText.toLowerCase()
           .split(/\s+/)
-          .filter(word => word.length > 3)
-          .map(word => word.replace(/[^\w]/g, ''))
+          .filter((word: string) => word.length > 3)
+          .map((word: string) => word.replace(/[^\w]/g, ''))
       );
       
       const jdWords = jobDescription.toLowerCase()
         .split(/\s+/)
-        .filter(word => word.length > 3)
-        .map(word => word.replace(/[^\w]/g, ''));
+        .filter((word: string) => word.length > 3)
+        .map((word: string) => word.replace(/[^\w]/g, ''));
       
       const jdWordsUnique = Array.from(new Set(jdWords));
       
-      const keywordMatches = jdWordsUnique.filter(word => resumeWords.has(word));
+      const keywordMatches = jdWordsUnique.filter((word: string) => resumeWords.has(word));
 
       res.json({
         matchScore: matchResult.score,
@@ -435,7 +435,7 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
         'text/plain',
         'application/msword'
       ].includes(file.mimetype);
-      cb(ok ? null : new Error('Unsupported file type'), ok);
+      cb(ok ? null : (new Error('Unsupported file type') as any), ok);
     }
   });
 
