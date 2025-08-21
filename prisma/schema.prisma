@@ -36,6 +36,7 @@ model User {
   searchHistory    SearchHistory[]
   notifications    Notification[]
   atsScansHistory  AtsScan[]
+  savedResumes     SavedResume[]
 }
 
 model JobDescription {
@@ -167,7 +168,19 @@ model AtsKeywordStat {
   @@index([scanId])
 }
 
-
+model SavedResume {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  content   String   @db.Text
+  filename  String?
+  createdAt DateTime @default(now())
+  lastUsed  DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("saved_resumes")
+}
 
 enum Theme {
   LIGHT

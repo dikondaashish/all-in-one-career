@@ -438,3 +438,150 @@ export function analyzeResumeFormat(text: string, parsedResume: any) {
 
   return analysis;
 }
+
+/**
+ * Enhanced keyword extraction with context analysis
+ */
+export function extractKeywordsWithContext(text: string, context?: string) {
+  const keywords = new Set<string>();
+  const phrases = new Set<string>();
+  
+  // Basic keyword extraction
+  const basicKeywords = tokenize(text);
+  basicKeywords.forEach(keyword => keywords.add(keyword));
+  
+  // Extract phrases (2-3 words)
+  const words = text.toLowerCase().split(/\s+/);
+  for (let i = 0; i < words.length - 1; i++) {
+    const twoWordPhrase = `${words[i]} ${words[i + 1]}`;
+    if (twoWordPhrase.length > 6 && !twoWordPhrase.includes('.') && !twoWordPhrase.includes(',')) {
+      phrases.add(twoWordPhrase);
+    }
+    
+    if (i < words.length - 2) {
+      const threeWordPhrase = `${words[i]} ${words[i + 1]} ${words[i + 2]}`;
+      if (threeWordPhrase.length > 10 && !threeWordPhrase.includes('.') && !threeWordPhrase.includes(',')) {
+        phrases.add(threeWordPhrase);
+      }
+    }
+  }
+  
+  return {
+    keywords: Array.from(keywords),
+    phrases: Array.from(phrases),
+    totalTokens: basicKeywords.length
+  };
+}
+
+/**
+ * Calculate content similarity between two texts
+ */
+export function calculateContentSimilarity(text1: string, text2: string): number {
+  const tokens1 = new Set(tokenize(text1));
+  const tokens2 = new Set(tokenize(text2));
+  
+  const intersection = new Set([...tokens1].filter(x => tokens2.has(x)));
+  const union = new Set([...tokens1, ...tokens2]);
+  
+  return union.size > 0 ? intersection.size / union.size : 0;
+}
+
+/**
+ * Generate improvement suggestions based on analysis
+ */
+export function generateImprovementSuggestions(
+  resumeText: string, 
+  jobDescription: string, 
+  matchScore: number
+): Array<{type: string, priority: 'high' | 'medium' | 'low', suggestion: string}> {
+  const suggestions = [];
+  
+  // Low match score suggestions
+  if (matchScore < 40) {
+    suggestions.push({
+      type: 'keywords',
+      priority: 'high' as const,
+      suggestion: 'Your resume has very few keywords matching the job description. Consider adding more relevant skills and experience that align with the job requirements.'
+    });
+  } else if (matchScore < 70) {
+    suggestions.push({
+      type: 'keywords',
+      priority: 'medium' as const,
+      suggestion: 'Add more keywords from the job description to improve your match score. Focus on technical skills and job-specific terminology.'
+    });
+  }
+  
+  // Content length analysis
+  if (resumeText.length < 1000) {
+    suggestions.push({
+      type: 'content',
+      priority: 'medium' as const,
+      suggestion: 'Your resume appears quite short. Consider adding more detail about your experience, achievements, and skills.'
+    });
+  }
+  
+  // Industry-specific suggestions
+  if (jobDescription.toLowerCase().includes('management') && !resumeText.toLowerCase().includes('manage')) {
+    suggestions.push({
+      type: 'experience',
+      priority: 'high' as const,
+      suggestion: 'This role involves management responsibilities. Highlight any leadership or management experience you have.'
+    });
+  }
+  
+  if (jobDescription.toLowerCase().includes('team') && !resumeText.toLowerCase().includes('team')) {
+    suggestions.push({
+      type: 'skills',
+      priority: 'medium' as const,
+      suggestion: 'The job emphasizes teamwork. Include examples of collaborative projects or team achievements.'
+    });
+  }
+  
+  return suggestions;
+}
+
+/**
+ * Analyze resume sections and structure
+ */
+export function analyzeResumeStructure(text: string) {
+  const sections = {
+    contact: false,
+    summary: false,
+    experience: false,
+    education: false,
+    skills: false,
+    certifications: false
+  };
+  
+  const lowerText = text.toLowerCase();
+  
+  // Check for contact information
+  sections.contact = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/.test(text) || 
+                   /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/.test(text);
+  
+  // Check for summary/objective
+  sections.summary = /\b(summary|objective|profile|about)\b/i.test(text);
+  
+  // Check for experience section
+  sections.experience = /\b(experience|employment|work history|career)\b/i.test(text);
+  
+  // Check for education
+  sections.education = /\b(education|degree|university|college|school)\b/i.test(text);
+  
+  // Check for skills
+  sections.skills = /\b(skills|competencies|proficiencies|technologies)\b/i.test(text);
+  
+  // Check for certifications
+  sections.certifications = /\b(certification|certified|license|credential)\b/i.test(text);
+  
+  const sectionCount = Object.values(sections).filter(Boolean).length;
+  const completeness = sectionCount / Object.keys(sections).length;
+  
+  return {
+    sections,
+    completeness,
+    missingCriticalSections: Object.entries(sections)
+      .filter(([key, found]) => !found && ['contact', 'experience'].includes(key))
+      .map(([key]) => key)
+  };
+}

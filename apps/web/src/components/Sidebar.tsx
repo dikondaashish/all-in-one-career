@@ -49,6 +49,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/ats-scanner', label: 'ATS Scanner', icon: FileText },
+    { href: '/ats-history', label: 'Scan History', icon: Clock },
     { href: '/portfolio', label: 'Portfolio', icon: Briefcase },
     { href: '/emails', label: 'Emails', icon: Mail },
     { href: '/referrals', label: 'Referrals', icon: Users },

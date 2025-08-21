@@ -21,6 +21,7 @@ import searchInsightsRouter from './routes/search-insights';
 import authRouter from './routes/auth';
 import { notificationsRouter } from './routes/notifications';
 import uploadRouter from './routes/upload';
+import createSavedResumesRouter from './routes/savedResumes';
 
 
 const app = express();
@@ -364,6 +365,7 @@ IMPORTANT:
 // STEP 7: Apply authentication middleware to protected routes
 app.use('/api/ats', authenticateToken, createAtsRouter(prisma));
 app.use('/api/upload', uploadRouter);
+app.use('/api/saved-resumes', authenticateToken, createSavedResumesRouter(prisma));
 app.use('/referrals', authenticateToken, referralsRouter(prisma, logger));
 app.use('/portfolio', authenticateToken, portfolioRouter(prisma, logger));
 app.use('/emails', authenticateToken, emailsRouter(prisma, logger));
