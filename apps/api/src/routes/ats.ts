@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { extractTextFromFile } from '../utils/fileParser';
+import { extractTextFromFile as extractTextFromBuffer } from '../lib/extractText';
 import { 
   extractResumeFields, 
   calculateMatchScore, 
@@ -419,6 +420,131 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
       console.error('Preview analysis error:', error);
       res.status(500).json({ 
         error: 'Failed to analyze content. Please try again.' 
+      });
+    }
+  });
+
+  // ===== NEW: Multipart upload endpoint =====
+  const fileUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    fileFilter: (_req, file, cb) => {
+      const ok = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
+        'application/msword'
+      ].includes(file.mimetype);
+      cb(ok ? null : new Error('Unsupported file type'), ok);
+    }
+  });
+
+  router.post('/scan-file', fileUpload.single('file'), async (req: any, res) => {
+    try {
+      const jdText = String(req.body?.jdText || '').trim();
+      if (!jdText || jdText.length < 20) {
+        return res.status(400).json({ error: 'jdText is required (≥20 chars)' });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'file is required' });
+      }
+
+      const { buffer, mimetype, originalname } = req.file;
+      const userId = req.user?.uid;
+
+      // Extract text using the new extractor
+      const { text } = await extractTextFromBuffer(mimetype, originalname, buffer);
+
+      if (!text || text.replace(/\s+/g, '').length < 50) {
+        // Likely scanned image PDF or empty—no selectable text
+        return res.status(422).json({
+          error: 'NO_TEXT_IN_FILE',
+          message: 'Could not read text from the file. If it is a scanned PDF/image, please use an OCR-scanned copy or upload DOCX/TXT.'
+        });
+      }
+
+      // Parse resume fields
+      const parsedResume = extractResumeFields(text);
+
+      // Calculate match score using existing logic
+      const { score, missingSkills, extraSkills } = calculateMatchScore(text, jdText);
+      
+      // Extract skills from both texts
+      const resumeSkills = extractSkills(text);
+      const jdSkills = extractSkills(jdText);
+
+      // Generate keywords analysis
+      const keywords = [];
+      const allSkills = [...new Set([...resumeSkills, ...jdSkills])];
+      
+      for (const skill of allSkills) {
+        const inResume = resumeSkills.includes(skill);
+        const inJobDesc = jdSkills.includes(skill);
+        keywords.push({
+          keyword: skill,
+          inResume,
+          inJobDesc,
+          weight: inJobDesc ? (inResume ? 2.0 : 1.5) : 1.0
+        });
+      }
+
+      // Save to database
+      const atsScansHistory = await prisma.atsScan.create({
+        data: {
+          userId,
+          fileName: originalname,
+          fileType: path.extname(originalname).toLowerCase(),
+          jdText,
+          parsedJson: parsedResume,
+          matchScore: score,
+          missingSkills,
+          extraSkills
+        }
+      });
+
+      // Save keyword stats
+      for (const keyword of keywords) {
+        await prisma.atsKeywordStat.create({
+          data: {
+            scanId: atsScansHistory.id,
+            keyword: keyword.keyword,
+            inResume: keyword.inResume,
+            inJobDesc: keyword.inJobDesc,
+            weight: keyword.weight
+          }
+        });
+      }
+
+      console.log(`File scan completed: ${originalname}, Score: ${score}%, User: ${userId}`);
+
+      return res.json({
+        scanId: atsScansHistory.id,
+        score,
+        present: resumeSkills.filter(skill => jdSkills.includes(skill)),
+        missing: missingSkills,
+        extractedChars: text.length,
+        summary: {
+          name: parsedResume.name,
+          email: parsedResume.email,
+          phone: parsedResume.phone,
+          skills: resumeSkills
+        },
+        keywords,
+        analyzedAt: new Date().toISOString()
+      });
+
+    } catch (err: any) {
+      console.error('File scan error:', err);
+      
+      const msg = String(err?.message || err);
+      if (err?.code === 'PDF_PASSWORD') {
+        return res.status(423).json({ error: 'PDF_LOCKED', message: msg });
+      }
+      
+      return res.status(400).json({ 
+        error: 'UPLOAD_PARSE_ERROR', 
+        message: msg 
       });
     }
   });

@@ -5,6 +5,7 @@ import { Upload, Star, Zap, Check, AlertCircle } from 'lucide-react';
 import { useAtsScanner } from '@/hooks/useAtsScanner';
 import { useToast } from '@/components/notifications/ToastContainer';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import ScanningProgress from '@/components/ats/ScanningProgress';
 import SavedResumes from '@/components/ats/SavedResumes';
 import RealTimePreview from '@/components/ats/RealTimePreview';
@@ -169,9 +170,10 @@ export default function AtsScannerPage() {
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { scanResume, isScanning } = useAtsScanner();
+  const { isScanning } = useAtsScanner();
   const { showToast } = useToast();
   const router = useRouter();
+  const { user } = useAuth();
 
   const handleFileSelect = async (selectedFile: File) => {
     // Clear previous errors
@@ -305,7 +307,8 @@ export default function AtsScannerPage() {
 
       if (!scanFile) return;
 
-      const result = await scanResume(scanFile, jobDescription.trim() || undefined);
+      // Use the new file upload endpoint instead of old scanResume
+      const result = await handleFileUpload(scanFile, jobDescription.trim() || 'General position analysis.');
       
       // Ensure progress reaches 100% before redirecting
       setTimeout(() => {
@@ -337,6 +340,29 @@ export default function AtsScannerPage() {
         message: errorMessage
       });
     }
+  };
+
+  // New file upload function using the multipart endpoint
+  const handleFileUpload = async (file: File, jdText: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('jdText', jdText);
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/ats/scan-file`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Authorization': `Bearer ${await user?.getIdToken()}`
+      }
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || 'Upload failed');
+    }
+    
+    return data;
   };
 
   const handleViewSample = () => {
