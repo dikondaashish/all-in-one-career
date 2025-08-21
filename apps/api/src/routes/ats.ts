@@ -5,7 +5,15 @@ import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { extractTextFromFile } from '../utils/fileParser';
-import { extractResumeFields, calculateMatchScore, extractSkills } from '../utils/textProcessor';
+import { 
+  extractResumeFields, 
+  calculateMatchScore, 
+  extractSkills,
+  generateSearchabilityItems,
+  generateRecruiterTips,
+  generateSkillsComparison,
+  analyzeResumeFormat
+} from '../utils/textProcessor';
 
 const router = Router();
 
@@ -141,7 +149,13 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
         });
       }
 
-      // Prepare response
+      // Generate enhanced analysis
+      const searchabilityItems = generateSearchabilityItems(parsedResume, fileExt);
+      const recruiterTips = generateRecruiterTips(parsedResume, matchResult.score, matchResult.missingSkills);
+      const skillsComparison = generateSkillsComparison(parsedResume.skills, jdSkills);
+      const formatAnalysis = analyzeResumeFormat(resumeText, parsedResume);
+
+      // Prepare enhanced response
       const response = {
         scanId: atsScan.id,
         matchScore: atsScan.matchScore,
@@ -158,7 +172,13 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
           inResume: k.inResume,
           inJobDesc: k.inJobDesc,
           weight: 1 // Default weight for MVP
-        }))
+        })),
+        // Enhanced analysis data
+        searchabilityItems,
+        recruiterTips,
+        skillsComparison,
+        formatAnalysis,
+        analyzedAt: new Date().toISOString()
       };
 
       console.log(`Scan completed successfully for ${file.originalname}`);
@@ -273,7 +293,25 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
         return res.status(404).json({ error: 'Scan not found' });
       }
 
-      res.json(scan);
+      // Generate enhanced analysis for the scan detail
+      const parsedResume = scan.parsedJson as any;
+      const jdSkills = scan.jdText ? extractSkills(scan.jdText) : [];
+      
+      const searchabilityItems = generateSearchabilityItems(parsedResume, scan.fileType);
+      const recruiterTips = generateRecruiterTips(parsedResume, scan.matchScore, scan.missingSkills);
+      const skillsComparison = generateSkillsComparison(parsedResume.skills, jdSkills);
+      const formatAnalysis = analyzeResumeFormat('', parsedResume); // Text not needed for stored scan
+
+      const enhancedScan = {
+        ...scan,
+        searchabilityItems,
+        recruiterTips,
+        skillsComparison,
+        formatAnalysis,
+        hasJobDescription: !!scan.jdText
+      };
+
+      res.json(enhancedScan);
 
     } catch (error: any) {
       console.error('Get scan detail error:', error);
@@ -319,6 +357,69 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
     } catch (error: any) {
       console.error('Delete scan error:', error);
       res.status(500).json({ error: 'Failed to delete scan' });
+    }
+  });
+
+  // POST /api/ats/analyze-preview - Real-time analysis preview
+  router.post('/analyze-preview', async (req: any, res) => {
+    try {
+      const { resumeText, jobDescription } = req.body;
+      
+      if (!resumeText || !jobDescription) {
+        return res.status(400).json({ 
+          error: 'Resume text and job description are required' 
+        });
+      }
+
+      if (resumeText.length < 50) {
+        return res.status(400).json({ 
+          error: 'Resume text too short for analysis' 
+        });
+      }
+
+      if (jobDescription.length < 50) {
+        return res.status(400).json({ 
+          error: 'Job description too short for analysis' 
+        });
+      }
+
+      // Quick analysis for real-time preview
+      const resumeSkills = extractSkills(resumeText);
+      const jdSkills = extractSkills(jobDescription);
+      
+      const matchResult = calculateMatchScore(resumeSkills, jdSkills);
+      
+      // Simple keyword matching for quick feedback
+      const resumeWords = new Set(
+        resumeText.toLowerCase()
+          .split(/\s+/)
+          .filter(word => word.length > 3)
+          .map(word => word.replace(/[^\w]/g, ''))
+      );
+      
+      const jdWords = jobDescription.toLowerCase()
+        .split(/\s+/)
+        .filter(word => word.length > 3)
+        .map(word => word.replace(/[^\w]/g, ''));
+      
+      const jdWordsUnique = Array.from(new Set(jdWords));
+      
+      const keywordMatches = jdWordsUnique.filter(word => resumeWords.has(word));
+
+      res.json({
+        matchScore: matchResult.score,
+        skillsFound: resumeSkills.slice(0, 5), // Limit for preview
+        missingSkills: matchResult.missingSkills.slice(0, 5), // Limit for preview
+        keywordCount: keywordMatches.length,
+        totalPossibleKeywords: jdWordsUnique.length,
+        analyzedAt: new Date().toISOString()
+      });
+
+    } catch (error: any) {
+      console.error('Preview analysis error:', error);
+      res.status(500).json({ 
+        error: 'Failed to analyze content. Please try again.' 
+      });
     }
   });
 
