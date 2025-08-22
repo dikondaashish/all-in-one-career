@@ -50,14 +50,14 @@ export function ToastProvider({ children }: ToastProviderProps) {
     <ToastContext.Provider value={{ showToast, dismissToast }}>
       {children}
       
-      {/* Toast Container */}
-      <div className="fixed bottom-4 right-4 z-50 space-y-2">
+      {/* Toast Container - Positioned for optimal visibility on all screen sizes */}
+      <div className="fixed top-20 right-4 left-4 sm:left-auto z-50 space-y-3 max-w-sm sm:w-auto w-full pointer-events-none">
         {toasts.map((toast, index) => (
           <div
             key={toast.id}
+            className="pointer-events-auto"
             style={{
-              bottom: `${index * 80}px`,
-              position: 'relative'
+              marginBottom: index < toasts.length - 1 ? '12px' : '0'
             }}
           >
             <Toast
