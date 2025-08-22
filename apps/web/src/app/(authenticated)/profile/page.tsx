@@ -231,8 +231,12 @@ function ProfileContent() {
       // Force a re-fetch of the profile to ensure consistency
       await fetchProfile();
       
-      setSuccess('Avatar updated successfully!');
-      setTimeout(() => setSuccess(null), 3000);
+      // Show success toast notification
+      showToast({
+        icon: '✅',
+        title: 'Avatar Updated',
+        message: 'Your profile picture has been updated successfully!'
+      });
 
     } catch (err) {
       console.error('Avatar upload error:', err);
@@ -257,7 +261,6 @@ function ProfileContent() {
     try {
       setSaving(true);
       setError(null);
-      setSuccess(null);
 
       // Get Firebase ID token for authentication
       let authToken = '';
