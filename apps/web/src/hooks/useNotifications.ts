@@ -2,7 +2,7 @@ import useSWR from 'swr';
 import { useAuth } from '@/contexts/AuthContext';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://all-in-one-career-api.onrender.com'
+  ? 'https://all-in-one-career.onrender.com'
   : 'http://localhost:4000';
 
 interface Notification {

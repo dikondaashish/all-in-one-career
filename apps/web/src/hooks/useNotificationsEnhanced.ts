@@ -4,7 +4,7 @@ import { useRef, useEffect, useCallback } from 'react';
 import { User } from 'firebase/auth';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://all-in-one-career-api.onrender.com'
+  ? 'https://all-in-one-career.onrender.com'
   : 'http://localhost:4000';
 
 export interface NotificationMetadata {
