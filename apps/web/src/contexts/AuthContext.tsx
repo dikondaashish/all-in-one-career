@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Call backend to get JWT token
         const API_BASE_URL = process.env.NODE_ENV === 'production' 
-          ? 'https://all-in-one-career-api.onrender.com'
+          ? 'https://all-in-one-career.onrender.com'
           : 'http://localhost:4000';
         
         console.log('Attempting to connect to backend at:', API_BASE_URL);
@@ -230,7 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Call backend to get JWT token
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
-        ? 'https://all-in-one-career-api.onrender.com'
+        ? 'https://all-in-one-career.onrender.com'
         : 'http://localhost:4000';
       
       // Test backend connectivity first
@@ -363,7 +363,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Call backend to get JWT token
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
-        ? 'https://all-in-one-career-api.onrender.com'
+        ? 'https://all-in-one-career.onrender.com'
         : 'http://localhost:4000';
       
       // Test backend connectivity first
@@ -609,7 +609,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const retryBackendConnection = async (): Promise<boolean> => {
     try {
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
-        ? 'https://all-in-one-career-api.onrender.com'
+        ? 'https://all-in-one-career.onrender.com'
         : 'http://localhost:4000';
       
       // Test backend connectivity
