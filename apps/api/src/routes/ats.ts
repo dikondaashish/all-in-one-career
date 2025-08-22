@@ -619,6 +619,11 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
 // Helper functions for URL extraction
 async function extractLinkedInProfile(url: string): Promise<string> {
   try {
+    // Check if we're in a development environment or Puppeteer is available
+    if (process.env.NODE_ENV === 'production' && !process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD) {
+      return 'LinkedIn profile extraction not available in production environment. Please use manual text input.';
+    }
+    
     const puppeteer = require('puppeteer');
     const browser = await puppeteer.launch({ 
       headless: true,

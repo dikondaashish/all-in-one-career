@@ -79,7 +79,19 @@ app.use(async (req: any, _res, next) => {
   next();
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', (_req, res) => {
+  res.json({ 
+    ok: true, 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0',
+    features: {
+      database: !!process.env.DATABASE_URL,
+      firebase: !!process.env.FIREBASE_PROJECT_ID,
+      gemini: !!process.env.GEMINI_API_KEY
+    }
+  });
+});
 
 
 
