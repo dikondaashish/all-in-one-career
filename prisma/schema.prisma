@@ -23,7 +23,6 @@ model User {
   updatedAt    DateTime @updatedAt
   
   // Usage metrics
-  atsScans      Int      @default(0)
   portfolios    Int      @default(0)
   emails        Int      @default(0)
   referrals     Int      @default(0)
@@ -35,8 +34,6 @@ model User {
   logs             Log[]
   searchHistory    SearchHistory[]
   notifications    Notification[]
-  atsScansHistory  AtsScan[]
-  savedResumes     SavedResume[]
 }
 
 model JobDescription {
@@ -139,48 +136,7 @@ model Notification {
   user User @relation(fields: [userId], references: [id])
 }
 
-model AtsScan {
-  id           String   @id @default(cuid())
-  userId       String?
-  fileName     String
-  fileType     String
-  jdText       String?   // optional job description used in comparison
-  parsedJson   Json      // structured parsed resume (name, email, phone, education, experience[], skills[])
-  matchScore   Int       // 0..100
-  missingSkills String[] @default([])
-  extraSkills   String[] @default([])
-  createdAt    DateTime  @default(now())
-  
-  user User? @relation(fields: [userId], references: [id])
-  keywords AtsKeywordStat[]
-}
 
-model AtsKeywordStat {
-  id           String   @id @default(cuid())
-  scanId       String
-  keyword      String
-  inResume     Boolean
-  inJobDesc    Boolean
-  weight       Float    @default(1)
-  
-  scan AtsScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
-  
-  @@index([scanId])
-}
-
-model SavedResume {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String
-  content   String   @db.Text
-  filename  String?
-  createdAt DateTime @default(now())
-  lastUsed  DateTime @default(now())
-  
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@map("saved_resumes")
-}
 
 enum Theme {
   LIGHT

@@ -40,7 +40,7 @@ export default function authRouter(prisma: PrismaClient): Router {
             email: email,
             name: name || email.split('@')[0], // Default name from email if not provided
             profileImage: profileImage || null, // Store profile image if provided
-            atsScans: 0,
+
             portfolios: 0,
             emails: 0,
             referrals: 0,
@@ -117,7 +117,7 @@ export default function authRouter(prisma: PrismaClient): Router {
             email: email,
             name: email.split('@')[0],
             profileImage: photoURL || null, // Store Google profile photo if available
-            atsScans: 0,
+
             portfolios: 0,
             emails: 0,
             referrals: 0,
@@ -137,7 +137,7 @@ export default function authRouter(prisma: PrismaClient): Router {
             name: true,
             profileImage: true,
             theme: true,
-            atsScans: true,
+
             portfolios: true,
             emails: true,
             referrals: true,

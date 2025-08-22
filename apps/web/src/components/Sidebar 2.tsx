@@ -14,7 +14,6 @@ import {
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/ats', label: 'ATS', icon: FileText },
   { href: '/portfolio', label: 'Portfolio', icon: Briefcase },
   { href: '/emails', label: 'Emails', icon: Mail },
   { href: '/referrals', label: 'Referrals', icon: Users },
