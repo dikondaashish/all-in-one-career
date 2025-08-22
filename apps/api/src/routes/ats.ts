@@ -618,11 +618,21 @@ export default function createAtsRouter(prisma: PrismaClient): express.Router {
 
 // Helper functions for URL extraction
 async function extractLinkedInProfile(url: string): Promise<string> {
-  const puppeteer = require('puppeteer');
-  const browser = await puppeteer.launch({ 
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+  try {
+    const puppeteer = require('puppeteer');
+    const browser = await puppeteer.launch({ 
+      headless: true,
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+      ]
+    });
   
   try {
     const page = await browser.newPage();
@@ -674,6 +684,10 @@ async function extractLinkedInProfile(url: string): Promise<string> {
     
   } finally {
     await browser.close();
+  }
+  } catch (puppeteerError) {
+    console.error('Puppeteer error for LinkedIn extraction:', puppeteerError);
+    return 'LinkedIn profile extraction temporarily unavailable. Please try manual text input.';
   }
 }
 
@@ -748,11 +762,21 @@ async function extractGoogleDriveContent(url: string): Promise<string> {
 }
 
 async function extractGenericWebContent(url: string): Promise<string> {
-  const puppeteer = require('puppeteer');
-  const browser = await puppeteer.launch({ 
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+  try {
+    const puppeteer = require('puppeteer');
+    const browser = await puppeteer.launch({ 
+      headless: true,
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+      ]
+    });
   
   try {
     const page = await browser.newPage();
@@ -793,15 +817,29 @@ async function extractGenericWebContent(url: string): Promise<string> {
   } finally {
     await browser.close();
   }
+  } catch (puppeteerError) {
+    console.error('Puppeteer error for generic web extraction:', puppeteerError);
+    return 'Web content extraction temporarily unavailable. Please try manual text input.';
+  }
 }
 
 // Job portal specific scrapers
 async function scrapeLinkedInJob(url: string): Promise<string> {
-  const puppeteer = require('puppeteer');
-  const browser = await puppeteer.launch({ 
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+  try {
+    const puppeteer = require('puppeteer');
+    const browser = await puppeteer.launch({ 
+      headless: true,
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+      ]
+    });
   
   try {
     const page = await browser.newPage();
@@ -831,6 +869,10 @@ async function scrapeLinkedInJob(url: string): Promise<string> {
     
   } finally {
     await browser.close();
+  }
+  } catch (puppeteerError) {
+    console.error('Puppeteer error for LinkedIn job scraping:', puppeteerError);
+    return 'LinkedIn job posting extraction temporarily unavailable. Please try manual text input.';
   }
 }
 
