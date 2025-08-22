@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Camera, Save } from 'lucide-react';
 import RouteGuard from '@/components/RouteGuard';
 import { useUserStore } from '@/stores/useUserStore';
+import { useToast } from '@/components/notifications/ToastContainer';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -33,12 +34,12 @@ export default function ProfilePage() {
 function ProfileContent() {
   const { user, updateProfileImage } = useAuth();
   const { updateProfileImage: updateStoreProfileImage } = useUserStore();
+  const { showToast } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -307,12 +308,23 @@ function ProfileContent() {
       const updatedProfile = await response.json();
       setProfile(updatedProfile);
       setEditingProfile(updatedProfile);
-      setSuccess('Profile updated successfully!');
       
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
+      // Show success toast notification
+      showToast({
+        icon: '✅',
+        title: 'Profile Updated',
+        message: 'Your profile changes have been saved successfully!'
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update profile');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update profile';
+      setError(errorMessage);
+      
+      // Show error toast notification
+      showToast({
+        icon: '❌',
+        title: 'Update Failed',
+        message: errorMessage
+      });
     } finally {
       setSaving(false);
     }
@@ -534,13 +546,7 @@ function ProfileContent() {
               </p>
             </div>
 
-            {/* Success/Error Messages */}
-            {success && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
-                <div className="text-green-600 font-medium">{success}</div>
-              </div>
-            )}
-
+            {/* Error Message (for critical errors only) */}
             {error && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-center">
                 <div className="text-red-600 font-medium mb-2">⚠️ Profile Update Issue</div>
