@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import formidable from 'formidable';
 import fs from 'fs';
-import pdf from 'pdf-parse';
+// import pdf from 'pdf-parse'; // Removed due to production issues
 import mammoth from 'mammoth';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
@@ -26,7 +26,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
         maxFileSize: 10 * 1024 * 1024, // 10MB limit
         filter: ({ mimetype }) => {
           return (
-            mimetype === 'application/pdf' ||
+            // mimetype === 'application/pdf' || // Temporarily disabled due to production issues
             mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
             mimetype === 'application/msword' ||
             mimetype === 'text/plain'
@@ -45,9 +45,9 @@ export default function atsRouter(prisma: PrismaClient): Router {
       
       // Extract text based on file type
       if (file.mimetype === 'application/pdf') {
-        const dataBuffer = fs.readFileSync(file.filepath);
-        const data = await pdf(dataBuffer);
-        extractedText = data.text;
+        // PDF processing temporarily disabled due to production issues
+        // Will implement with a more stable PDF parser in future update
+        extractedText = 'PDF upload is temporarily disabled. Please copy and paste your resume text or use DOC/DOCX format.';
       } else if (file.mimetype?.includes('wordprocessingml') || file.mimetype === 'application/msword') {
         const result = await mammoth.extractRawText({ path: file.filepath });
         extractedText = result.value;
@@ -110,13 +110,10 @@ export default function atsRouter(prisma: PrismaClient): Router {
         const fileId = extractGoogleDriveFileId(url);
         const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
         
-        const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-        const data = await pdf(response.data);
-        
-        return res.status(200).json({
-          success: true,
-          content: data.text,
-          title: 'Google Drive Document'
+        // PDF processing from Google Drive temporarily disabled
+        return res.status(400).json({
+          success: false,
+          error: 'PDF processing from Google Drive is temporarily disabled. Please download the file and upload it directly, or use DOC/DOCX format.'
         });
       }
 

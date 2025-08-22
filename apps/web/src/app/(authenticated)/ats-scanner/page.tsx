@@ -284,7 +284,7 @@ const ATSScanner: React.FC = () => {
                         <input
                           type="file"
                           className="hidden"
-                          accept=".pdf,.doc,.docx,.txt"
+                          accept=".doc,.docx,.txt"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) handleFileUpload(file, 'resume');
@@ -294,7 +294,7 @@ const ATSScanner: React.FC = () => {
                       <span className="text-gray-500"> or drag and drop</span>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      PDF, DOC, DOCX, TXT files only (max 10MB)
+                      DOC, DOCX, TXT files only (max 10MB) - PDF temporarily disabled
                     </p>
                   </>
                 )}
@@ -401,7 +401,7 @@ const ATSScanner: React.FC = () => {
                         <input
                           type="file"
                           className="hidden"
-                          accept=".pdf,.doc,.docx,.txt"
+                          accept=".doc,.docx,.txt"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) handleFileUpload(file, 'job');
@@ -411,7 +411,7 @@ const ATSScanner: React.FC = () => {
                       <span className="text-gray-500"> or drag and drop</span>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      PDF, DOC, DOCX, TXT files only (max 10MB)
+                      DOC, DOCX, TXT files only (max 10MB) - PDF temporarily disabled
                     </p>
                   </>
                 )}
@@ -493,7 +493,7 @@ const ATSScanner: React.FC = () => {
             <div>
               <h3 className="text-lg font-medium text-blue-900 mb-2">For best results:</h3>
               <ul className="text-blue-800 space-y-1 text-sm">
-                <li>• Upload your resume in PDF, DOC, or DOCX format</li>
+                <li>• Upload your resume in DOC or DOCX format (PDF temporarily disabled)</li>
                 <li>• Include the complete job description you're applying for</li>
                 <li>• Ensure your resume includes contact information and skills</li>
                 <li>• Use standard section headers (Experience, Education, Skills)</li>
