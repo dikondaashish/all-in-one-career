@@ -60,7 +60,7 @@ export default function Toast({
 
   return (
     <div
-      className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 max-w-sm w-full transform transition-all duration-300 ${
+      className={`fixed top-4 right-4 left-4 sm:left-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 max-w-sm w-auto sm:w-full z-[9999] transform transition-all duration-300 ${
         isAnimating ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'
       }`}
       style={{
