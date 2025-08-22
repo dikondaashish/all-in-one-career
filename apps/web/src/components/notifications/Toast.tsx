@@ -60,11 +60,14 @@ export default function Toast({
 
   return (
     <div
-      className={`fixed top-4 right-4 left-4 sm:left-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 max-w-sm w-auto sm:w-full z-[9999] transform transition-all duration-300 ${
+      className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 w-full transform transition-all duration-300 ${
         isAnimating ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'
       }`}
       style={{
-        animation: isAnimating ? 'slideOut 0.3s ease-in-out' : 'slideIn 0.3s ease-in-out'
+        animation: isAnimating ? 'slideOut 0.3s ease-in-out' : 'slideIn 0.3s ease-in-out',
+        minWidth: '280px',  // Responsive minimum width
+        maxWidth: '380px',  // Responsive maximum width
+        width: 'calc(100vw - 2rem)', // Ensure it fits on small screens
       }}
     >
       <div className="flex items-start gap-3">
