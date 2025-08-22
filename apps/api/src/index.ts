@@ -7,6 +7,17 @@ import { initFirebase, verifyIdToken } from './lib/firebase';
 import { geminiGenerate } from './lib/gemini';
 import { authenticateToken, optionalAuth } from './middleware/auth';
 
+// Validate critical environment variables
+const requiredEnvVars = ['DATABASE_URL'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ Missing required environment variables:', missingEnvVars);
+  console.log('📋 Available environment variables:', Object.keys(process.env).filter(key => !key.includes('SECRET')));
+} else {
+  console.log('✅ All required environment variables are present');
+}
+
 import createAtsRouter from './routes/ats';
 import referralsRouter from './routes/referrals';
 import portfolioRouter from './routes/portfolio';
@@ -26,7 +37,16 @@ import createSavedResumesRouter from './routes/savedResumes';
 
 const app = express();
 const logger = pino({ transport: { target: 'pino-pretty' } });
-const prisma = new PrismaClient();
+
+// Initialize Prisma with error handling
+let prisma: PrismaClient;
+try {
+  prisma = new PrismaClient();
+  console.log('📊 Prisma client initialized successfully');
+} catch (prismaError) {
+  console.error('❌ Failed to initialize Prisma client:', prismaError);
+  process.exit(1);
+}
 
 // Create HTTP server for WebSocket integration
 import { createServer } from 'http';
@@ -480,9 +500,16 @@ app.get('/api/logout', (req: any, res) => {
 });
 
 const PORT = Number(process.env.PORT || 4000);
-server.listen(PORT, () => {
-  logger.info(`API running on port ${PORT}`);
 
+// Add process error handlers
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit in production
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  // Don't exit in production, but log the error
 });
 
 // Handle server errors
@@ -490,5 +517,20 @@ server.on('error', (error: any) => {
   logger.error('Server error:', error);
   if (error.code === 'EADDRINUSE') {
     logger.error(`Port ${PORT} is already in use`);
+  }
+});
+
+server.listen(PORT, '0.0.0.0', async () => {
+  logger.info(`🚀 API server running on port ${PORT}`);
+  logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`📦 Database: ${process.env.DATABASE_URL ? 'Connected' : 'URL not set'}`);
+  
+  // Test database connection
+  try {
+    await prisma.$connect();
+    logger.info('✅ Database connection successful');
+  } catch (dbError) {
+    logger.error('❌ Database connection failed:', dbError);
+    // Don't exit in production, continue with limited functionality
   }
 });
