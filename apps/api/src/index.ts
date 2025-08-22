@@ -30,6 +30,7 @@ import askRouter from './routes/ask';
 import searchInsightsRouter from './routes/search-insights';
 import authRouter from './routes/auth';
 import { notificationsRouter } from './routes/notifications';
+import atsRouter from './routes/ats';
 
 
 
@@ -478,6 +479,9 @@ app.post('/api/notifications/announce', async (req: any, res) => {
 });
 
 app.use('/api/notifications', authenticateToken, notificationsRouter(prisma));
+
+// ATS Scanner routes
+app.use('/api/ats', atsRouter(prisma));
 
 
 
