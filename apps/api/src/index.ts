@@ -83,12 +83,14 @@ app.get('/health', (_req, res) => {
     ok: true, 
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0',
+    version: '1.0.1',
     features: {
       database: !!process.env.DATABASE_URL,
       firebase: !!process.env.FIREBASE_PROJECT_ID,
       gemini: !!process.env.GEMINI_API_KEY
-    }
+    },
+    uptime: process.uptime(),
+    memory: process.memoryUsage()
   });
 });
 
