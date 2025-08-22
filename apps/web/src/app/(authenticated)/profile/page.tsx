@@ -152,21 +152,14 @@ function ProfileContent() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // 🛡️ Enhanced Security Validation
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    
-    if (!allowedMimeTypes.includes(file.type)) {
-      setError('Invalid file type. Please select a JPEG, PNG, WebP, or GIF image.');
+    // Validate file type and size
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
       setError('File size must be less than 5MB');
-      return;
-    }
-
-    if (file.size === 0) {
-      setError('Selected file is empty');
       return;
     }
 
@@ -193,9 +186,7 @@ function ProfileContent() {
 
       console.log('Uploading avatar with token:', authToken ? 'present' : 'missing');
       
-      // 🚀 S3 Upload with Enhanced Security
-      console.log('Uploading to S3 via API:', `${API_BASE_URL}/api/profile/upload-avatar`);
-      
+      // Upload avatar
       let response = await fetch(`${API_BASE_URL}/api/profile/upload-avatar`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${authToken}` },
@@ -205,7 +196,6 @@ function ProfileContent() {
       // If unauthorized, refresh token once and retry
       if (response.status === 401 && user) {
         try {
-          console.log('Token expired, refreshing...');
           const freshToken = await user.getIdToken(true);
           response = await fetch(`${API_BASE_URL}/api/profile/upload-avatar`, {
             method: 'POST',
@@ -217,34 +207,18 @@ function ProfileContent() {
         }
       }
 
-      console.log('S3 upload response status:', response.status);
+      console.log('Upload response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('S3 upload failed:', response.status, errorData);
-        
+        console.error('Upload failed with status:', response.status, 'Error:', errorData);
         if (response.status === 401) {
           throw new Error('Authentication failed. Please log in again.');
-        } else if (response.status === 503) {
-          throw new Error('Profile image upload service is temporarily unavailable. Please try again later.');
-        } else if (response.status === 400) {
-          throw new Error(errorData.details || errorData.error || 'Invalid file or upload request.');
-        } else {
-          throw new Error(errorData.error || `Upload failed with status ${response.status}. Please try again.`);
         }
+        throw new Error(errorData.error || `Upload failed with status ${response.status}. Please try again.`);
       }
 
-      const uploadResult = await response.json();
-      console.log('S3 upload successful:', uploadResult);
-      
-      const { avatarUrl, metadata } = uploadResult;
-      
-      // Log upload metrics for monitoring
-      console.log('Upload metrics:', {
-        fileSize: metadata?.size,
-        contentType: metadata?.contentType,
-        uploadedAt: metadata?.uploadedAt
-      });
+      const { avatarUrl } = await response.json();
 
       // Update profile state with new avatar
       setProfile(prev => prev ? { ...prev, profileImage: avatarUrl } : null);
@@ -492,12 +466,7 @@ function ProfileContent() {
               
               {/* Avatar upload status */}
               {uploadingAvatar && (
-                <div className="text-center mt-3">
-                  <p className="text-sm text-blue-600 font-medium">🚀 Uploading to secure cloud storage...</p>
-                  <div className="w-32 bg-gray-200 rounded-full h-1.5 mx-auto mt-2">
-                    <div className="bg-blue-600 h-1.5 rounded-full animate-pulse" style={{ width: '75%' }}></div>
-                  </div>
-                </div>
+                <p className="text-sm text-gray-500 mt-2">Uploading avatar...</p>
               )}
             </div>
 
