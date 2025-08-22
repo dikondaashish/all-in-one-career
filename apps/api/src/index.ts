@@ -18,12 +18,11 @@ if (missingEnvVars.length > 0) {
   console.log('✅ All required environment variables are present');
 }
 
-import createAtsRouter from './routes/ats';
 import referralsRouter from './routes/referrals';
 import portfolioRouter from './routes/portfolio';
 import emailsRouter from './routes/emails';
 import applicationsRouter from './routes/applications';
-import storageRouter from './routes/storage';
+
 import profileRouter from './routes/profile';
 import adminRouter from './routes/admin';
 import searchRouter from './routes/search';
@@ -31,8 +30,8 @@ import askRouter from './routes/ask';
 import searchInsightsRouter from './routes/search-insights';
 import authRouter from './routes/auth';
 import { notificationsRouter } from './routes/notifications';
-import uploadRouter from './routes/upload';
-import createSavedResumesRouter from './routes/savedResumes';
+
+
 
 
 const app = express();
@@ -395,14 +394,14 @@ IMPORTANT:
 });
 
 // STEP 7: Apply authentication middleware to protected routes
-app.use('/api/ats', authenticateToken, createAtsRouter(prisma));
-app.use('/api/upload', uploadRouter);
-app.use('/api/saved-resumes', authenticateToken, createSavedResumesRouter(prisma));
+
+
+
 app.use('/referrals', authenticateToken, referralsRouter(prisma, logger));
 app.use('/portfolio', authenticateToken, portfolioRouter(prisma, logger));
 app.use('/emails', authenticateToken, emailsRouter(prisma, logger));
 app.use('/applications', authenticateToken, applicationsRouter(prisma, logger));
-app.use('/storage', authenticateToken, storageRouter(prisma, logger));
+
 app.use('/admin', authenticateToken, adminRouter(prisma, logger));
 app.use('/search', optionalAuth, searchRouter(prisma, logger));
 app.use('/ask', optionalAuth, askRouter(prisma, logger));
@@ -515,12 +514,12 @@ const PORT = Number(process.env.PORT || 4000);
 
 // Add process error handlers
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error({ reason, promise }, 'Unhandled Rejection');
   // Don't exit in production
 });
 
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception:', error);
+  logger.error({ error }, 'Uncaught Exception');
   // Don't exit in production, but log the error
 });
 
@@ -542,7 +541,7 @@ server.listen(PORT, '0.0.0.0', async () => {
     await prisma.$connect();
     logger.info('✅ Database connection successful');
   } catch (dbError) {
-    logger.error('❌ Database connection failed:', dbError);
+    logger.error({ dbError }, '❌ Database connection failed');
     // Don't exit in production, continue with limited functionality
   }
 });

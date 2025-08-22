@@ -22,7 +22,6 @@ import {
 export const dynamic = 'force-dynamic';
 
 interface DashboardStats {
-  atsScans: number;
   portfolios: number;
   emails: number;
   referrals: number;
@@ -56,7 +55,6 @@ function DashboardContent() {
   const { shouldShow, dismiss, userName } = useWelcomeWidget();
   
   const [stats] = useState<DashboardStats>({
-    atsScans: 24,
     portfolios: 10,
     emails: 12,
     referrals: 2
@@ -138,17 +136,7 @@ function DashboardContent() {
       </div>
 
       {/* Top KPI Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* ATS Scans Card */}
-        <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6 h-35">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-3xl font-bold text-[#006B53]">{stats.atsScans}</div>
-            <TrendingUp className="w-6 h-6 text-green-500" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">ATS Scans</h3>
-          <div className="w-12 h-1 bg-gradient-to-r from-[#006B53] to-[#008F6F] rounded-full mb-3"></div>
-          <p className="text-sm text-gray-600">5 Increased from last month</p>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
         {/* Portfolios Card */}
         <div className="bg-white rounded-2xl shadow-[0px_12px_30px_rgba(0,0,0,0.05)] p-6 h-35">
