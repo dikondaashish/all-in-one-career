@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import formidable from 'formidable';
 import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
 import mammoth from 'mammoth';
 import { extractPdfText } from '../lib/pdf-parser';
 import * as cheerio from 'cheerio';
@@ -13,6 +15,8 @@ import pino from 'pino';
 
 const logger = pino({ transport: { target: 'pino-pretty' } });
 
+const TMP_DIR = process.env.RENDER ? "/opt/render/project/tmp" : os.tmpdir();
+
 export default function atsRouter(prisma: PrismaClient): Router {
   const router = Router();
 
@@ -21,40 +25,79 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
   // Upload and process resume
   router.post('/upload-resume', authenticateToken, async (req: any, res) => {
+    if (req.method !== "POST") {
+      return res.status(405).json({ success: false, error: "method_not_allowed" });
+    }
+
+    console.info("ats:upload-resume:start", { method: req.method, url: req.url });
+    
     try {
       const form = formidable({
-        maxFileSize: 10 * 1024 * 1024, // 10MB limit
+        uploadDir: TMP_DIR,
         keepExtensions: true,
         multiples: false,
+        maxFileSize: 10 * 1024 * 1024, // 10MB
         filter: ({ mimetype }) =>
           mimetype === "application/pdf" ||
           mimetype === "application/msword" ||
           mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-          mimetype === "text/plain"
+          mimetype === "text/plain",
       });
 
+      // Formidable v3 returns [fields, files] — keep it consistent.
       const [fields, files] = await form.parse(req);
-      const file = files.resume?.[0];
+      console.info("ats:upload-resume:parsed", {
+        fieldsCount: Object.keys(fields || {}).length,
+        filesKeys: Object.keys(files || {}),
+        resumeCount: (files as any)?.resume?.length,
+        fileCount: (files as any)?.file?.length,
+        uploadCount: (files as any)?.upload?.length,
+      });
 
-      if (!file) {
+      const uploadFile =
+        (files as any)?.resume?.[0] ||
+        (files as any)?.file?.[0] ||
+        (files as any)?.upload?.[0];
+
+      if (!uploadFile) {
         return res.status(400).json({ success: false, error: "no_file_uploaded" });
       }
 
-      const mime = file.mimetype || "application/octet-stream";
-      const buf = await fs.readFile(file.filepath);
+      const mime = uploadFile.mimetype || "application/octet-stream";
+      const filePath = uploadFile.filepath;
+      console.info("ats:upload-resume:filemeta", {
+        name: uploadFile.originalFilename, mime, size: uploadFile.size, filePath
+      });
+
+      const buf = await fs.readFile(filePath);
+      console.info("ats:upload-resume:buffer", { bytes: buf?.length || 0 });
 
       let extractedText = "";
 
       if (mime === "application/pdf") {
-        const { text, isLikelyScanned } = await extractPdfText(buf);
-        if (!text) {
-          return res.status(422).json({
-            success: false,
-            error: "pdf_no_extractable_text",
-            hint: isLikelyScanned ? "image_pdf_try_ocr" : "unknown_pdf_issue",
+        try {
+          console.time("ats:pdf:extract");
+          const { text, isLikelyScanned, numPages } = await extractPdfText(buf);
+          console.timeEnd("ats:pdf:extract");
+          console.info("ats:pdf:result", {
+            textLen: text?.length || 0,
+            pages: numPages,
+            scanned: isLikelyScanned
           });
+
+          if (!text) {
+            return res.status(422).json({
+              success: false,
+              error: "pdf_no_extractable_text",
+              hint: isLikelyScanned ? "image_pdf_try_ocr" : "unknown_pdf_issue",
+            });
+          }
+
+          extractedText = text;
+        } catch (e: any) {
+          console.error("ats:pdf:parse_throw", { err: e?.message, stack: e?.stack });
+          return res.status(415).json({ success: false, error: "pdf_parse_unsupported" });
         }
-        extractedText = text;
       } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
         const r = await mammoth.extractRawText({ buffer: buf });
         extractedText = (r.value || "").trim();
@@ -72,8 +115,8 @@ export default function atsRouter(prisma: PrismaClient): Router {
           const result = await profileImageS3Service.uploadProfileImage(
             req.user?.uid || req.user?.id || '', 
             fileBuffer, 
-            file.originalFilename || 'resume', 
-            file.mimetype || 'application/pdf'
+            uploadFile.originalFilename || 'resume', 
+            uploadFile.mimetype || 'application/pdf'
           );
           if (result.success) {
             // For now, we'll get the file URL through a different method
@@ -86,18 +129,20 @@ export default function atsRouter(prisma: PrismaClient): Router {
         }
       }
 
-      // Clean up temp file
-      await fs.unlink(file.filepath).catch(() => {}); // Don't fail if cleanup fails
+      // (Optional) cleanup — formidable removes tmp on its own; explicit unlink is optional.
+      // await fs.unlink(filePath).catch(() => {}); 
 
       return res.status(200).json({
         success: true,
         text: extractedText,
-        filename: file.originalFilename,
-        fileUrl: s3Url || undefined,
+        filename: uploadFile.originalFilename || "resume",
+        fileUrl: undefined,
       });
 
     } catch (e: any) {
-      console.error("upload-resume failed:", { msg: e?.message, stack: e?.stack, mime: e?.mime || 'unknown' });
+      console.error("ats:upload-resume:ERROR", {
+        err: e?.message, stack: e?.stack
+      });
       return res.status(500).json({ success: false, error: "server_pdf_parse_failed" });
     }
   });

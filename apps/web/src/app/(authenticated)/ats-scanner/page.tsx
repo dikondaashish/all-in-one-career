@@ -83,13 +83,17 @@ const ATSScanner: React.FC = () => {
       if (!response.ok) {
         let msg = "Upload failed";
         if (result?.error === "pdf_no_extractable_text") {
-          msg = "This PDF has no selectable text. Please upload a text-based PDF or use DOCX/TXT. If it's a scanned image, try OCR.";
+          msg = "This PDF has no selectable text. Upload a text-based PDF or use DOCX/TXT. If it's scanned, try OCR.";
+        } else if (result?.error === "pdf_parse_unsupported") {
+          msg = "We couldn't read this PDF. Try exporting it again or upload DOCX.";
         } else if (result?.error === "unsupported_type") {
           msg = "Unsupported file type. Use PDF, DOC, DOCX, or TXT.";
         } else if (response.status === 413) {
           msg = "File too large. Max 10MB.";
         } else if (result?.error === "no_file_uploaded") {
-          msg = "No file was uploaded. Please select a file.";
+          msg = "No file detected. Please choose a file and try again.";
+        } else if (result?.error === "method_not_allowed") {
+          msg = "Request method not allowed. Please try again.";
         } else if (result?.error === "server_pdf_parse_failed") {
           msg = "Server error processing file. Please try again or use a different format.";
         } else if (result?.error) {
