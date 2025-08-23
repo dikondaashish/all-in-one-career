@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Directly use the key (not recommended for production — better to use process.env)
-const apiKey = "AIzaSyBJvkuDo6TC2GXfulO12R7uhfoJG-p73d8";
+// Use environment variable or fallback to hardcoded key
+const apiKey = process.env.GEMINI_API_KEY || "AIzaSyBJvkuDo6TC2GXfulO12R7uhfoJG-p73d8";
 if (!apiKey) throw new Error('GEMINI_API_KEY missing');
 
 export const genAI = new GoogleGenerativeAI(apiKey);
@@ -28,19 +28,15 @@ export async function extractPdfTextWithGemini(buffer: Buffer): Promise<string> 
   try {
     console.info("diag:gemini:start", { bufferSize: buffer.length });
     
+    // Check if API key is available
+    if (!apiKey || apiKey.length < 20) {
+      console.warn("diag:gemini:no_api_key");
+      throw new Error("Gemini API key not available");
+    }
+    
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-pro",
-      systemInstruction: `You are a professional document parser. Extract ALL text content from the provided PDF document.
-
-IMPORTANT RULES:
-1. Extract ALL visible text exactly as it appears
-2. Maintain original formatting and structure 
-3. Include names, addresses, phone numbers, emails
-4. Include all sections: Summary, Experience, Education, Skills, etc.
-5. Do NOT add commentary or analysis
-6. Do NOT summarize or paraphrase
-7. Return ONLY the extracted text content
-8. If the document contains no readable text, return exactly: "NO_EXTRACTABLE_TEXT"`
+      model: "gemini-1.5-flash", // Use flash model for better performance
+      systemInstruction: `Extract ALL text from this PDF. Return only the text content, no analysis.`
     });
 
     // Convert buffer to base64 for Gemini
@@ -53,7 +49,7 @@ IMPORTANT RULES:
           data: base64Data
         }
       },
-      "Extract all text content from this PDF document."
+      "Extract all text from this document."
     ]);
 
     const extractedText = result.response?.text()?.trim() || '';
@@ -61,11 +57,15 @@ IMPORTANT RULES:
     console.info("diag:gemini:result", { 
       textLength: extractedText.length,
       preview: extractedText.substring(0, 100) + "...",
-      isNoText: extractedText === "NO_EXTRACTABLE_TEXT"
+      hasContent: extractedText.length > 20
     });
 
-    // Return empty string if Gemini indicates no extractable text
-    if (extractedText === "NO_EXTRACTABLE_TEXT") {
+    // Basic validation - return empty if response is too short or looks like an error
+    if (extractedText.length < 20 || 
+        extractedText.toLowerCase().includes('cannot') ||
+        extractedText.toLowerCase().includes('unable') ||
+        extractedText.toLowerCase().includes('error')) {
+      console.warn("diag:gemini:insufficient_response");
       return '';
     }
 
@@ -75,6 +75,7 @@ IMPORTANT RULES:
       err: error?.message, 
       stack: error?.stack 
     });
-    throw error;
+    // Don't throw error, just return empty to allow other fallbacks
+    return '';
   }
 }

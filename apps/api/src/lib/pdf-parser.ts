@@ -9,6 +9,11 @@ export async function extractPdfText(buffer: Buffer) {
   try {
     console.info("diag:pdfjs:start", { bufferSize: buffer.length });
     
+    if (!buffer || buffer.length === 0) {
+      console.error("diag:pdfjs:invalid_buffer");
+      throw new Error("Invalid or empty PDF buffer");
+    }
+    
     // Load the PDF from in-memory buffer with additional options
     const loadingTask = pdfjsLib.getDocument({ 
       data: buffer,

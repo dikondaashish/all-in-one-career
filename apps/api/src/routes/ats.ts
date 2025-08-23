@@ -104,6 +104,17 @@ export default function atsRouter(prisma: PrismaClient): Router {
       let extractedText = "";
 
       if (mime === "application/pdf") {
+        console.info("diag:pdf:processing_start", { 
+          bufferSize: buf?.length || 0, 
+          filename: uploadFile?.originalFilename,
+          mime: uploadFile?.mimetype 
+        });
+        
+        if (!buf || buf.length === 0) {
+          console.error("diag:pdf:empty_buffer");
+          return res.status(400).json({ success: false, error: "empty_file" });
+        }
+        
         try {
           console.time("diag:pdfjs:extract");
           const r = await extractPdfText(buf);
@@ -134,12 +145,18 @@ export default function atsRouter(prisma: PrismaClient): Router {
                     console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message, stack: fallbackErr?.stack });
                     console.warn("diag:pdf:trying_gemini_after_minimal_text");
                     
-                    // Try Gemini AI as final fallback
+                    // Try Gemini AI as final fallback (non-blocking)
                     try {
                       console.time("diag:gemini:extract_after_minimal");
-                      extractedText = await extractPdfTextWithGemini(buf);
+                      const geminiResult = await extractPdfTextWithGemini(buf);
                       console.timeEnd("diag:gemini:extract_after_minimal");
-                      console.info("diag:gemini:success_after_minimal", { textLen: extractedText.length });
+                      if (geminiResult && geminiResult.length >= 10) {
+                        extractedText = geminiResult;
+                        console.info("diag:gemini:success_after_minimal", { textLen: extractedText.length });
+                      } else {
+                        console.warn("diag:gemini:insufficient_after_minimal");
+                        extractedText = '';
+                      }
                     } catch (geminiErr: any) {
                       console.error("diag:gemini:failed_after_minimal", { err: geminiErr?.message });
                       extractedText = '';
@@ -169,12 +186,19 @@ export default function atsRouter(prisma: PrismaClient): Router {
             console.error("diag:pdfparse:throw", { err: e2?.message, stack: e2?.stack });
             console.warn("diag:pdf:trying_gemini_fallback");
             
-            // Try Gemini AI as final fallback for complex PDFs
+            // Try Gemini AI as final fallback for complex PDFs (non-blocking)
             try {
               console.time("diag:gemini:extract");
-              extractedText = await extractPdfTextWithGemini(buf);
+              const geminiResult = await extractPdfTextWithGemini(buf);
               console.timeEnd("diag:gemini:extract");
-              console.info("diag:gemini:success", { textLen: extractedText.length });
+              if (geminiResult && geminiResult.length >= 10) {
+                extractedText = geminiResult;
+                console.info("diag:gemini:success", { textLen: extractedText.length });
+              } else {
+                console.warn("diag:gemini:insufficient");
+                extractedText = '';
+                console.warn("diag:pdf:all_parsers_failed");
+              }
             } catch (geminiErr: any) {
               console.error("diag:gemini:failed", { err: geminiErr?.message });
               extractedText = '';
