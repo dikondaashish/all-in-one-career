@@ -125,24 +125,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
             scanned: r?.isLikelyScanned
           });
 
-          // If PDF appears to be scanned/image-based, use Gemini OCR first
-          if (r?.isLikelyScanned || (!r.text || r.text.length < 20)) {
-            console.warn("diag:pdf:trying_gemini_ocr_first");
-            try {
-              console.time("diag:gemini:ocr_primary");
-              const geminiOcrResult = await extractPdfTextWithGemini(buf);
-              console.timeEnd("diag:gemini:ocr_primary");
-              
-              if (geminiOcrResult && geminiOcrResult.length >= 10) {
-                extractedText = geminiOcrResult;
-                console.info("diag:gemini:ocr_primary_success", { 
-                  textLen: extractedText.length,
-                  wordCount: extractedText.split(/\s+/).length 
-                });
-              } else {
-                console.warn("diag:gemini:ocr_primary_insufficient");
-                // Fall back to traditional parsing
-                if (!r.text || r.text.length < 10) {
+                          if (!r.text || r.text.length < 10) {
                   // Fallback if pdf.js returned little/no text
                   console.warn("diag:pdf:using_fallback_pdf-parse");
                   try {
@@ -182,22 +165,6 @@ export default function atsRouter(prisma: PrismaClient): Router {
                 } else {
                   extractedText = r.text;
                 }
-              }
-            } catch (geminiOcrErr: any) {
-              console.error("diag:gemini:ocr_primary_failed", { err: geminiOcrErr?.message });
-              // Fall back to traditional parsing if OCR fails
-              if (!r.text || r.text.length < 10) {
-                console.warn("diag:pdf:using_fallback_after_ocr_fail");
-                extractedText = '';
-              } else {
-                extractedText = r.text;
-              }
-            }
-          } else {
-            // PDF has good text extraction, use it directly
-            extractedText = r.text;
-            console.info("diag:pdf:using_standard_extraction", { textLen: extractedText.length });
-          }
         } catch (e: any) {
           console.error("diag:pdfjs:throw", { err: e?.message, stack: e?.stack });
           // Try fallback parser
@@ -240,8 +207,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
           }
         }
 
-        // Enforce minimum text requirement for success
-        // Also check if text is just the filename (which shouldn't happen now)
+        // Enhanced validation for text extraction and OCR results
         const isFilenameOnly = extractedText && uploadFile?.originalFilename && 
           extractedText.trim() === uploadFile.originalFilename.replace(/\.[^.]+$/, '');
         
@@ -254,9 +220,18 @@ export default function atsRouter(prisma: PrismaClient): Router {
           return res.status(422).json({
             success: false,
             error: "pdf_no_extractable_text",
-            hint: "This PDF appears to be image-only, password-protected, or has no selectable text. Try OCR or upload DOCX/TXT.",
+            hint: "This PDF contains no readable text or is corrupted. Our OCR system couldn't extract content. Try uploading DOCX/TXT format.",
           });
         }
+
+        // Log successful extraction with type detection
+        const extractionMethod = extractedText.length > 1000 ? "OCR" : "text-extraction";
+        console.info("diag:pdf:success", {
+          textLength: extractedText.length,
+          wordsCount: extractedText.split(/\s+/).length,
+          extractionMethod,
+          preview: extractedText.substring(0, 100) + "..."
+        });
       } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
         const r = await mammoth.extractRawText({ buffer: buf });
         extractedText = (r.value || "").trim();

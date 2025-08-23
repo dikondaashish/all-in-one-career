@@ -104,17 +104,17 @@ const ATSScanner: React.FC = () => {
       if (!response.ok) {
         let msg = "Upload failed";
         if (result?.error === "pdf_no_extractable_text") {
-          msg = "This PDF could not be processed with our advanced AI OCR. It may be password-protected, corrupted, or contain no readable content. Try uploading DOCX/TXT format.";
+          msg = "This PDF couldn't be processed with our advanced OCR system. It may be corrupted, password-protected, or contain no readable content. Try uploading DOCX/TXT format.";
         } else if (result?.error === "pdf_parse_unsupported") {
-          msg = "We couldn't read this PDF. Try exporting it again or upload DOCX.";
+          msg = "We couldn't read this PDF format. Try exporting it again or upload DOCX/TXT.";
         } else if (result?.error === "unsupported_type") {
-          msg = "Unsupported file type. Use PDF, DOC, DOCX, or TXT.";
+          msg = "Unsupported file type. Use PDF (with OCR), DOC, DOCX, or TXT.";
         } else if (response.status === 413) {
           msg = "File too large. Max 10MB.";
         } else if (result?.error === "no_file_uploaded") {
           msg = "No file detected. Please choose a file and try again.";
         } else if (result?.error === "no_extractable_text") {
-          msg = "The uploaded file contains no readable text. Please try a different format or file.";
+          msg = "The uploaded file contains no readable text even after OCR processing. Please try a different format.";
         } else if (result?.error === "empty_file") {
           msg = "Empty file received. Please try again.";
         } else if (result?.error === "method_not_allowed") {
