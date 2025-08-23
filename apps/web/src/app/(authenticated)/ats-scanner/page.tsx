@@ -692,28 +692,44 @@ const ATSScanner: React.FC = () => {
 
             {/* URL Input */}
             <div className="mb-6">
-              <div className="flex">
-                <input
-                  type="url"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter Google Drive or cloud storage URL"
-                  value={urlInputs.resume}
-                  onChange={(e) => setUrlInputs(prev => ({ ...prev, resume: e.target.value }))}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
+              <div className="flex items-center gap-2">
+                <div className="flex flex-1">
+                  <input
+                    type="url"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter Google Drive or cloud storage URL"
+                    value={urlInputs.resume}
+                    onChange={(e) => setUrlInputs(prev => ({ ...prev, resume: e.target.value }))}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        if (urlInputs.resume.trim()) handleUrlProcess(urlInputs.resume, 'resume');
+                      }
+                    }}
+                  />
+                  <button
+                    className="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    disabled={isUrlProcessing || !urlInputs.resume.trim()}
+                    onClick={() => {
                       if (urlInputs.resume.trim()) handleUrlProcess(urlInputs.resume, 'resume');
-                    }
-                  }}
-                />
-                <button
-                  className="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  disabled={isUrlProcessing || !urlInputs.resume.trim()}
-                  onClick={() => {
-                    if (urlInputs.resume.trim()) handleUrlProcess(urlInputs.resume, 'resume');
-                  }}
-                >
-                  {isUrlProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}
-                </button>
+                    }}
+                  >
+                    {isUrlProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}
+                  </button>
+                </div>
+                
+                {/* Info Icon with Tooltip */}
+                <div className="relative group">
+                  <AlertCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                    <div className="text-center">
+                      <div className="font-medium mb-1">URL Support Info</div>
+                      <div>✅ Google Drive, Indeed, Glassdoor</div>
+                      <div>❌ LinkedIn (requires authentication)</div>
+                      <div className="text-gray-300 mt-1">For LinkedIn: Copy text manually</div>
+                    </div>
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -859,28 +875,44 @@ const ATSScanner: React.FC = () => {
 
             {/* URL Input */}
             <div className="mb-6">
-              <div className="flex">
-                <input
-                  type="url"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter job posting URL (LinkedIn, Indeed, etc.)"
-                  value={urlInputs.job}
-                  onChange={(e) => setUrlInputs(prev => ({ ...prev, job: e.target.value }))}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
+              <div className="flex items-center gap-2">
+                <div className="flex flex-1">
+                  <input
+                    type="url"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter job posting URL (LinkedIn, Indeed, etc.)"
+                    value={urlInputs.job}
+                    onChange={(e) => setUrlInputs(prev => ({ ...prev, job: e.target.value }))}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        if (urlInputs.job.trim()) handleUrlProcess(urlInputs.job, 'job');
+                      }
+                    }}
+                  />
+                  <button
+                    className="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    disabled={isUrlProcessing || !urlInputs.job.trim()}
+                    onClick={() => {
                       if (urlInputs.job.trim()) handleUrlProcess(urlInputs.job, 'job');
-                    }
-                  }}
-                />
-                <button
-                  className="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  disabled={isUrlProcessing || !urlInputs.job.trim()}
-                  onClick={() => {
-                    if (urlInputs.job.trim()) handleUrlProcess(urlInputs.job, 'job');
-                  }}
-                >
-                  {isUrlProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}
-                </button>
+                    }}
+                  >
+                    {isUrlProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}
+                  </button>
+                </div>
+                
+                {/* Info Icon with Tooltip */}
+                <div className="relative group">
+                  <AlertCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                    <div className="text-center">
+                      <div className="font-medium mb-1">URL Support Info</div>
+                      <div>✅ Indeed, Glassdoor, Company sites</div>
+                      <div>❌ LinkedIn (requires authentication)</div>
+                      <div className="text-gray-300 mt-1">For LinkedIn: Copy job description manually</div>
+                    </div>
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
