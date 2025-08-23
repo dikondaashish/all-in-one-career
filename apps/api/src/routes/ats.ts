@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import formidable from 'formidable';
-import fs from 'fs';
+import fs from 'fs/promises';
 import mammoth from 'mammoth';
-import { extractPdfText, extractTextFromPDF } from '../lib/pdf-parser';
+import { extractPdfText } from '../lib/pdf-parser';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -24,48 +24,51 @@ export default function atsRouter(prisma: PrismaClient): Router {
     try {
       const form = formidable({
         maxFileSize: 10 * 1024 * 1024, // 10MB limit
-        filter: ({ mimetype }) => {
-          return (
-            mimetype === 'application/pdf' ||
-            mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-            mimetype === 'application/msword' ||
-            mimetype === 'text/plain'
-          );
-        }
+        keepExtensions: true,
+        multiples: false,
+        filter: ({ mimetype }) =>
+          mimetype === "application/pdf" ||
+          mimetype === "application/msword" ||
+          mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+          mimetype === "text/plain"
       });
 
       const [fields, files] = await form.parse(req);
       const file = files.resume?.[0];
 
       if (!file) {
-        return res.status(400).json({ success: false, error: 'No file uploaded' });
+        return res.status(400).json({ success: false, error: "no_file_uploaded" });
       }
 
-      let extractedText = '';
-      
-      // Extract text based on file type
-      if (file.mimetype === 'application/pdf') {
-        const fileBuffer = fs.readFileSync(file.filepath);
-        const { text, isLikelyScanned } = await extractPdfText(fileBuffer);
-        if (!text && !isLikelyScanned) {
-          return res.status(422).json({ 
-            success: false, 
-            error: 'PDF has no extractable text. Please ensure the PDF contains selectable text or use a DOC/DOCX format.' 
+      const mime = file.mimetype || "application/octet-stream";
+      const buf = await fs.readFile(file.filepath);
+
+      let extractedText = "";
+
+      if (mime === "application/pdf") {
+        const { text, isLikelyScanned } = await extractPdfText(buf);
+        if (!text) {
+          return res.status(422).json({
+            success: false,
+            error: "pdf_no_extractable_text",
+            hint: isLikelyScanned ? "image_pdf_try_ocr" : "unknown_pdf_issue",
           });
         }
         extractedText = text;
-      } else if (file.mimetype?.includes('wordprocessingml') || file.mimetype === 'application/msword') {
-        const result = await mammoth.extractRawText({ path: file.filepath });
-        extractedText = result.value;
-      } else if (file.mimetype === 'text/plain') {
-        extractedText = fs.readFileSync(file.filepath, 'utf8');
+      } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+        const r = await mammoth.extractRawText({ buffer: buf });
+        extractedText = (r.value || "").trim();
+      } else if (mime === "text/plain") {
+        extractedText = buf.toString("utf8");
+      } else {
+        return res.status(415).json({ success: false, error: "unsupported_type" });
       }
 
       // Upload to S3 if available
       let s3Url = '';
       if (profileImageS3Service.isAvailable()) {
         try {
-          const fileBuffer = fs.readFileSync(file.filepath);
+          const fileBuffer = buf; // Already read above
           const result = await profileImageS3Service.uploadProfileImage(
             req.user?.uid || req.user?.id || '', 
             fileBuffer, 
@@ -84,21 +87,18 @@ export default function atsRouter(prisma: PrismaClient): Router {
       }
 
       // Clean up temp file
-      fs.unlinkSync(file.filepath);
+      await fs.unlink(file.filepath).catch(() => {}); // Don't fail if cleanup fails
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         text: extractedText,
         filename: file.originalFilename,
-        fileUrl: s3Url
+        fileUrl: s3Url || undefined,
       });
 
-    } catch (error) {
-      logger.error('Resume processing error: ' + (error as Error).message);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to process resume' 
-      });
+    } catch (e: any) {
+      console.error("upload-resume failed:", { msg: e?.message, stack: e?.stack, mime: e?.mime || 'unknown' });
+      return res.status(500).json({ success: false, error: "server_pdf_parse_failed" });
     }
   });
 

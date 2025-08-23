@@ -78,42 +78,58 @@ const ATSScanner: React.FC = () => {
         }
       }
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({} as any));
       
-      if (result.success) {
-        if (type === 'resume') {
-          setResumeData({
-            text: result.text,
-            filename: result.filename,
-            source: 'file'
-          });
-          showToast({ 
-            icon: '✅', 
-            title: 'Success', 
-            message: 'Resume uploaded successfully!' 
-          });
-        } else {
-          setJobData({
-            text: result.text,
-            title: result.filename,
-            source: 'file'
-          });
-          showToast({ 
-            icon: '✅', 
-            title: 'Success', 
-            message: 'Job description uploaded successfully!' 
-          });
+      if (!response.ok) {
+        let msg = "Upload failed";
+        if (result?.error === "pdf_no_extractable_text") {
+          msg = "This PDF has no selectable text. Please upload a text-based PDF or use DOCX/TXT. If it's a scanned image, try OCR.";
+        } else if (result?.error === "unsupported_type") {
+          msg = "Unsupported file type. Use PDF, DOC, DOCX, or TXT.";
+        } else if (response.status === 413) {
+          msg = "File too large. Max 10MB.";
+        } else if (result?.error === "no_file_uploaded") {
+          msg = "No file was uploaded. Please select a file.";
+        } else if (result?.error === "server_pdf_parse_failed") {
+          msg = "Server error processing file. Please try again or use a different format.";
+        } else if (result?.error) {
+          msg = result.error;
         }
-      } else {
-        setErrors(prev => ({ ...prev, [type]: result.error }));
+        setErrors(prev => ({ ...prev, [type]: msg }));
         showToast({ 
           icon: '❌', 
           title: 'Upload Failed', 
-          message: result.error || 'Upload failed' 
+          message: msg 
+        });
+        return;
+      }
+
+      // Success case
+      if (type === 'resume') {
+        setResumeData({
+          text: result.text,
+          filename: result.filename,
+          source: 'file'
+        });
+        showToast({ 
+          icon: '✅', 
+          title: 'Success', 
+          message: 'Resume uploaded successfully!' 
+        });
+      } else {
+        setJobData({
+          text: result.text,
+          title: result.filename,
+          source: 'file'
+        });
+        showToast({ 
+          icon: '✅', 
+          title: 'Success', 
+          message: 'Job description uploaded successfully!' 
         });
       }
     } catch (error) {
-      const errorMsg = 'Upload failed';
+      const errorMsg = 'Network error. Please check your connection and try again.';
       setErrors(prev => ({ ...prev, [type]: errorMsg }));
       showToast({ 
         icon: '❌', 
