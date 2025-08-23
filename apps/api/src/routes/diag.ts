@@ -5,15 +5,19 @@ const router: Router = Router();
 
 export async function atsDiagHandler(req: any, res: any) {
   try {
-    const tmpTest = "/opt/render/project/tmp/_writetest.txt";
+    const tmpDir = process.env.RENDER ? "/opt/render/project/tmp" : require('os').tmpdir();
+    const tmpTest = tmpDir + "/_writetest.txt";
     let tmpOk = false;
     
     try {
+      // Ensure tmp directory exists first
+      await fs.mkdir(tmpDir, { recursive: true });
       await fs.writeFile(tmpTest, "ok");
       const tmpContent = await fs.readFile(tmpTest, "utf8");
       tmpOk = tmpContent === "ok";
       await fs.unlink(tmpTest).catch(() => {}); // cleanup
-    } catch {
+    } catch (tmpErr: any) {
+      console.warn("tmp test failed:", tmpErr?.message);
       tmpOk = false;
     }
 
