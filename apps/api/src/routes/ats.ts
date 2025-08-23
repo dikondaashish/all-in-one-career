@@ -433,8 +433,20 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
       console.info('diag:url:processing_start', { url: url.substring(0, 100), type });
 
+      // Special handling for LinkedIn job URLs
+      let processUrl = url;
+      if (url.includes('linkedin.com/jobs')) {
+        // Convert collection URLs to direct job view URLs if possible
+        const jobIdMatch = url.match(/currentJobId=(\d+)/);
+        if (jobIdMatch) {
+          const directJobUrl = `https://www.linkedin.com/jobs/view/${jobIdMatch[1]}`;
+          console.info('diag:url:linkedin_redirect', { originalUrl: url, directUrl: directJobUrl });
+          processUrl = directJobUrl;
+        }
+      }
+
       // Handle regular web pages (job descriptions)
-      const response = await axios.get(url, {
+      const response = await axios.get(processUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         },
@@ -449,8 +461,68 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
       // LinkedIn job scraping
       if (url.includes('linkedin.com/jobs')) {
-        content = $('.description__text').text() || $('.show-more-less-html__markup').text();
-        title = $('.top-card-layout__title').text() || $('h1').first().text();
+        // Check if we hit the login page instead of job content
+        if ($('title').text().toLowerCase().includes('sign in') || 
+            $('h1').text().toLowerCase().includes('sign in') ||
+            $('.login-form').length > 0 ||
+            response.data.includes('Sign in with Apple') ||
+            response.data.includes('Keep me logged in')) {
+          
+          console.warn('diag:url:linkedin_auth_required', { url: url.substring(0, 100) });
+          return res.status(400).json({
+            success: false,
+            error: 'LinkedIn requires authentication to access job details. Please try one of these alternatives:\n\n1. Use the direct job URL format: https://www.linkedin.com/jobs/view/JOB_ID\n2. Copy the job description text manually and paste it\n3. Try a different job board (Indeed, Glassdoor, etc.)\n\nNote: LinkedIn blocks automated access to protect user privacy.'
+          });
+        }
+        
+        // Try different LinkedIn job content selectors
+        const jobSelectors = [
+          '.description__text',
+          '.show-more-less-html__markup',
+          '.jobs-description-content__text',
+          '.jobs-box__html-content',
+          '.jobs-description__content',
+          '[data-job-description]',
+          '.jobs-details__main-content'
+        ];
+        
+        for (const selector of jobSelectors) {
+          const jobContent = $(selector).text();
+          if (jobContent && jobContent.trim().length > 100) {
+            content = jobContent;
+            break;
+          }
+        }
+        
+        // Try different title selectors
+        const titleSelectors = [
+          '.top-card-layout__title',
+          '.jobs-unified-top-card__job-title',
+          '.job-details-jobs-unified-top-card__job-title',
+          'h1[data-job-title]',
+          '.jobs-details__main-content h1'
+        ];
+        
+        for (const selector of titleSelectors) {
+          const jobTitle = $(selector).text();
+          if (jobTitle && jobTitle.trim().length > 0) {
+            title = jobTitle;
+            break;
+          }
+        }
+        
+        if (!content || content.trim().length < 50) {
+          console.warn('diag:url:linkedin_no_content', { 
+            url: url.substring(0, 100),
+            contentLength: content?.length || 0,
+            pageTitle: $('title').text()
+          });
+          
+          return res.status(400).json({
+            success: false,
+            error: 'Could not extract job content from LinkedIn. This may be due to:\n\n1. The job posting is private or requires login\n2. The URL format is not supported\n3. LinkedIn\'s anti-bot protection\n\nSuggestions:\n• Try the direct job URL: https://www.linkedin.com/jobs/view/JOB_ID\n• Copy the job description manually\n• Use alternative job boards'
+          });
+        }
       }
       // Indeed job scraping
       else if (url.includes('indeed.com')) {
