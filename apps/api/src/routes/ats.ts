@@ -113,34 +113,49 @@ export default function atsRouter(prisma: PrismaClient): Router {
             scanned: r?.isLikelyScanned
           });
 
-          if (!r.text || r.text.length < 10) {
-            // Fallback if pdf.js returned little/no text
-            console.warn("diag:pdf:using_fallback_pdf-parse");
-            try {
-              const pdf = (await import('pdf-parse')).default;
-              const data = await pdf(buf);
-              extractedText = (data.text || "").trim();
-              console.info("diag:pdf:fallback_success", { textLen: extractedText.length });
-                              } catch (fallbackErr: any) {
-                    console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message });
+                          if (!r.text || r.text.length < 10) {
+                  // Fallback if pdf.js returned little/no text
+                  console.warn("diag:pdf:using_fallback_pdf-parse");
+                  try {
+                    const pdf = (await import('pdf-parse')).default;
+                    const data = await pdf(buf, {
+                      // Add options for better parsing
+                      max: 0, // Don't limit pages
+                      version: 'v1.10.100' // Use specific version
+                    });
+                    extractedText = (data.text || "").trim();
+                    console.info("diag:pdf:fallback_success", { 
+                      textLen: extractedText.length,
+                      pages: data.numpages,
+                      preview: extractedText.substring(0, 100) + "..."
+                    });
+                  } catch (fallbackErr: any) {
+                    console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message, stack: fallbackErr?.stack });
                     // Don't use filename as fallback
                     extractedText = '';
                   }
-          } else {
-            extractedText = r.text;
-          }
+                } else {
+                  extractedText = r.text;
+                }
         } catch (e: any) {
           console.error("diag:pdfjs:throw", { err: e?.message, stack: e?.stack });
           // Try fallback parser
           try {
             console.time("diag:pdfparse:extract");
             const pdf = (await import('pdf-parse')).default;
-            const data = await pdf(buf);
+            const data = await pdf(buf, {
+              max: 0, // Don't limit pages
+              version: 'v1.10.100' // Use specific version
+            });
             console.timeEnd("diag:pdfparse:extract");
             extractedText = (data.text || "").trim();
-            console.info("diag:pdf:fallback_after_error", { textLen: extractedText.length });
+            console.info("diag:pdf:fallback_after_error", { 
+              textLen: extractedText.length,
+              pages: data.numpages,
+              preview: extractedText.substring(0, 100) + "..."
+            });
           } catch (e2: any) {
-            console.error("diag:pdfparse:throw", { err: e2?.message });
+            console.error("diag:pdfparse:throw", { err: e2?.message, stack: e2?.stack });
             // No fallback to filename - this should be an error
             extractedText = '';
             console.warn("diag:pdf:both_parsers_failed");

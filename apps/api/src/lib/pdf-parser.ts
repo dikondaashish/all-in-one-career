@@ -7,11 +7,14 @@ import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
  */
 export async function extractPdfText(buffer: Buffer) {
   try {
+    console.info("diag:pdfjs:start", { bufferSize: buffer.length });
+    
     // Load the PDF from in-memory buffer with additional options
     const loadingTask = pdfjsLib.getDocument({ 
       data: buffer,
       disableFontFace: true,
-      verbosity: 0 // Reduce console noise
+      verbosity: 0, // Reduce console noise
+      useSystemFonts: true
     });
     const pdf = await loadingTask.promise;
 
