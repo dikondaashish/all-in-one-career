@@ -1,48 +1,32 @@
 /**
  * 🔐 SECURE AWS S3 SERVICE
- * 
- * Professional S3 service implementation with security-first approach.
- * Handles profile image uploads with proper validation, user isolation, and error handling.
+ * Production-ready S3 service for profile image uploads
  */
 
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { s3Config } from '../config/environment';
 
-// Simple logger for S3 service
 const logger = {
   info: (messageOrContext: string | any, message?: string) => {
     if (typeof messageOrContext === 'string') {
-      console.log(`📝 S3 INFO: ${messageOrContext}`);
+      console.log(`📝 S3: ${messageOrContext}`);
     } else {
-      console.log(`📝 S3 INFO: ${message}`, messageOrContext);
+      console.log(`📝 S3: ${message}`, messageOrContext);
     }
   },
-  warn: (message: string) => console.warn(`⚠️ S3 WARN: ${message}`),
+  warn: (message: string) => console.warn(`⚠️ S3: ${message}`),
   error: (contextOrMessage: any, message?: string) => {
     if (typeof contextOrMessage === 'string') {
-      console.error(`❌ S3 ERROR: ${contextOrMessage}`);
+      console.error(`❌ S3: ${contextOrMessage}`);
     } else {
-      console.error(`❌ S3 ERROR: ${message}`, contextOrMessage);
+      console.error(`❌ S3: ${message}`, contextOrMessage);
     }
   }
 };
 
-/**
- * 🛡️ SECURE S3 CONFIGURATION
- */
-interface S3ServiceConfig {
-  bucket: string;
-  region: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-}
-
-/**
- * 📸 PROFILE IMAGE METADATA
- */
 export interface ProfileImageMetadata {
   s3Key: string;
   url: string;
@@ -53,75 +37,51 @@ export interface ProfileImageMetadata {
   uploadedAt: Date;
 }
 
-/**
- * 📂 FILE UPLOAD RESULT
- */
 export interface UploadResult {
   success: boolean;
   data?: ProfileImageMetadata;
   error?: string;
 }
 
-/**
- * 🔐 PROFESSIONAL S3 SERVICE CLASS
- */
 export class ProfileImageS3Service {
   private s3Client: S3Client | null = null;
-  private config: S3ServiceConfig | null = null;
+  private config: any = null;
   private isConfigured = false;
-
-  // 🛡️ Security constraints
   private readonly MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
   private readonly ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-  private readonly UPLOAD_PREFIX = 'profile-images';
 
   constructor() {
     this.initializeS3Client();
   }
 
-  /**
-   * 🚀 INITIALIZE S3 CLIENT WITH SECURE CREDENTIALS
-   */
   private initializeS3Client(): void {
     try {
       if (!s3Config.isConfigured || !s3Config.config) {
-        logger.warn('⚠️ S3 not configured - profile image uploads will be disabled');
+        logger.warn('S3 not configured - profile image uploads disabled');
         return;
       }
 
-      this.config = {
-        bucket: s3Config.config.S3_BUCKET,
-        region: s3Config.config.S3_REGION,
-        accessKeyId: s3Config.config.S3_ACCESS_KEY_ID,
-        secretAccessKey: s3Config.config.S3_SECRET_ACCESS_KEY
-      };
-
+      this.config = s3Config.config;
       this.s3Client = new S3Client({
-        region: this.config.region,
+        region: this.config.S3_REGION,
         credentials: {
-          accessKeyId: this.config.accessKeyId,
-          secretAccessKey: this.config.secretAccessKey,
+          accessKeyId: this.config.S3_ACCESS_KEY_ID,
+          secretAccessKey: this.config.S3_SECRET_ACCESS_KEY,
         },
       });
 
       this.isConfigured = true;
       logger.info('✅ S3 client initialized successfully');
     } catch (error) {
-      logger.error({ error }, '❌ Failed to initialize S3 client');
+      logger.error(error, 'Failed to initialize S3 client');
       this.isConfigured = false;
     }
   }
 
-  /**
-   * 🔍 CHECK IF S3 IS AVAILABLE
-   */
   public isAvailable(): boolean {
     return this.isConfigured && this.s3Client !== null && this.config !== null;
   }
 
-  /**
-   * 📤 UPLOAD PROFILE IMAGE WITH SECURITY VALIDATION
-   */
   public async uploadProfileImage(
     userId: string,
     fileBuffer: Buffer,
@@ -129,45 +89,28 @@ export class ProfileImageS3Service {
     mimeType: string
   ): Promise<UploadResult> {
     try {
-      // 🛡️ Pre-flight security checks
-      const securityCheck = this.validateFileUpload(fileBuffer, mimeType);
-      if (!securityCheck.valid) {
-        return { success: false, error: securityCheck.error || 'Invalid file' };
+      const validation = this.validateFile(fileBuffer, mimeType);
+      if (!validation.valid) {
+        return { success: false, error: validation.error || 'Invalid file' };
       }
 
       if (!this.isAvailable()) {
         return { success: false, error: 'S3 service not available' };
       }
 
-      // 🎨 Process and optimize image
-      const processedImage = await this.processImage(fileBuffer, mimeType);
-      
-      // 🔐 Generate secure S3 key with user isolation
-      const s3Key = this.generateSecureS3Key(userId, originalName);
-      
-      // 🗑️ Clean up old images before uploading new one
-      await this.cleanupOldUserImages(userId);
+      const processedImage = await this.processImage(fileBuffer);
+      const s3Key = this.generateS3Key(userId, originalName);
 
-      // 📤 Upload to S3
       const uploadCommand = new PutObjectCommand({
-        Bucket: this.config!.bucket,
+        Bucket: this.config.S3_BUCKET,
         Key: s3Key,
         Body: processedImage.buffer,
         ContentType: processedImage.contentType,
-        Metadata: {
-          userId,
-          originalName,
-          uploadedAt: new Date().toISOString(),
-          processedBy: 'ProfileImageS3Service'
-        },
-        // 🔒 Security settings
         ServerSideEncryption: 'AES256',
-        CacheControl: 'max-age=31536000', // 1 year
       });
 
       await this.s3Client!.send(uploadCommand);
 
-      // 📊 Generate result metadata
       const metadata: ProfileImageMetadata = {
         s3Key,
         url: await this.getSignedUrl(s3Key),
@@ -178,210 +121,82 @@ export class ProfileImageS3Service {
         uploadedAt: new Date()
       };
 
-      logger.info({ 
-        userId, 
-        s3Key, 
-        size: metadata.size,
-        contentType: metadata.contentType 
-      }, '✅ Profile image uploaded successfully');
-
+      logger.info({ userId, s3Key, size: metadata.size }, '✅ Image uploaded successfully');
       return { success: true, data: metadata };
     } catch (error) {
-      logger.error({ error, userId }, '❌ Failed to upload profile image');
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Upload failed' 
-      };
+      logger.error({ error, userId }, 'Failed to upload image');
+      return { success: false, error: error instanceof Error ? error.message : 'Upload failed' };
     }
   }
 
-  /**
-   * 🗑️ DELETE PROFILE IMAGE
-   */
   public async deleteProfileImage(s3Key: string, userId: string): Promise<boolean> {
     try {
-      if (!this.isAvailable()) {
-        logger.warn('S3 not available for deletion');
-        return false;
-      }
+      if (!this.isAvailable()) return false;
 
-      // 🛡️ Security: Verify the key belongs to the user
-      if (!s3Key.includes(`${this.UPLOAD_PREFIX}/${userId}/`)) {
-        logger.error({ s3Key, userId }, '🚨 Security violation: Attempted to delete image not owned by user');
+      if (!s3Key.includes(`profile-images/${userId}/`)) {
+        logger.error({ s3Key, userId }, 'Security violation: Invalid S3 key');
         return false;
       }
 
       const deleteCommand = new DeleteObjectCommand({
-        Bucket: this.config!.bucket,
+        Bucket: this.config.S3_BUCKET,
         Key: s3Key,
       });
 
       await this.s3Client!.send(deleteCommand);
-      
-      logger.info({ s3Key, userId }, '✅ Profile image deleted successfully');
+      logger.info({ s3Key, userId }, '✅ Image deleted successfully');
       return true;
     } catch (error) {
-      logger.error({ error, s3Key, userId }, '❌ Failed to delete profile image');
+      logger.error({ error, s3Key, userId }, 'Failed to delete image');
       return false;
     }
   }
 
-  /**
-   * 🔗 GET SIGNED URL FOR SECURE ACCESS
-   */
   public async getSignedUrl(s3Key: string, expiresIn: number = 3600): Promise<string> {
-    try {
-      if (!this.isAvailable()) {
-        throw new Error('S3 service not available');
-      }
+    if (!this.isAvailable()) throw new Error('S3 service not available');
 
-      const command = new GetObjectCommand({
-        Bucket: this.config!.bucket,
-        Key: s3Key,
-      });
+    const command = new GetObjectCommand({
+      Bucket: this.config.S3_BUCKET,
+      Key: s3Key,
+    });
 
-      const signedUrl = await getSignedUrl(this.s3Client!, command, { expiresIn });
-      return signedUrl;
-    } catch (error) {
-      logger.error({ error, s3Key }, '❌ Failed to generate signed URL');
-      throw error;
-    }
+    return await getSignedUrl(this.s3Client!, command, { expiresIn });
   }
 
-  /**
-   * 📋 LIST USER IMAGES FOR CLEANUP
-   */
-  public async listUserImages(userId: string): Promise<string[]> {
-    try {
-      if (!this.isAvailable()) {
-        return [];
-      }
-
-      const listCommand = new ListObjectsV2Command({
-        Bucket: this.config!.bucket,
-        Prefix: `${this.UPLOAD_PREFIX}/${userId}/`,
-      });
-
-      const response = await this.s3Client!.send(listCommand);
-      return response.Contents?.map(obj => obj.Key!).filter(Boolean) || [];
-    } catch (error) {
-      logger.error({ error, userId }, '❌ Failed to list user images');
-      return [];
-    }
-  }
-
-  /**
-   * 🗑️ CLEANUP OLD USER IMAGES (Keep only latest 3)
-   */
-  private async cleanupOldUserImages(userId: string): Promise<void> {
-    try {
-      const userImages = await this.listUserImages(userId);
-      
-      if (userImages.length <= 3) {
-        return; // Keep up to 3 images
-      }
-
-      // Sort by creation date and delete older ones
-      const imagesToDelete = userImages.slice(0, -2); // Keep latest 2, delete rest
-      
-      for (const s3Key of imagesToDelete) {
-        await this.deleteProfileImage(s3Key, userId);
-      }
-
-      logger.info({ userId, deletedCount: imagesToDelete.length }, '🧹 Cleaned up old profile images');
-    } catch (error) {
-      logger.error({ error, userId }, '❌ Failed to cleanup old images');
-    }
-  }
-
-  /**
-   * 🛡️ FILE UPLOAD SECURITY VALIDATION
-   */
-  private validateFileUpload(fileBuffer: Buffer, mimeType: string): { valid: boolean; error?: string } {
-    // Check file size
+  private validateFile(fileBuffer: Buffer, mimeType: string): { valid: boolean; error?: string } {
     if (fileBuffer.length > this.MAX_FILE_SIZE) {
-      return { valid: false, error: `File size too large. Maximum ${this.MAX_FILE_SIZE / 1024 / 1024}MB allowed.` };
+      return { valid: false, error: 'File size too large. Maximum 5MB allowed.' };
     }
-
-    // Check MIME type
     if (!this.ALLOWED_MIME_TYPES.includes(mimeType)) {
-      return { valid: false, error: `Invalid file type. Allowed types: ${this.ALLOWED_MIME_TYPES.join(', ')}` };
+      return { valid: false, error: 'Invalid file type. Only JPEG, PNG, WebP, and GIF allowed.' };
     }
-
-    // Check for empty file
     if (fileBuffer.length === 0) {
       return { valid: false, error: 'File is empty' };
     }
-
     return { valid: true };
   }
 
-  /**
-   * 🎨 PROCESS AND OPTIMIZE IMAGE
-   */
-  private async processImage(fileBuffer: Buffer, mimeType: string): Promise<{ buffer: Buffer; contentType: string }> {
+  private async processImage(fileBuffer: Buffer): Promise<{ buffer: Buffer; contentType: string }> {
     try {
-      const sharpInstance = sharp(fileBuffer)
-        .resize(512, 512, { 
-          fit: 'inside',
-          withoutEnlargement: true 
-        })
-        .jpeg({ quality: 85 });
-
-      const processedBuffer = await sharpInstance.toBuffer();
+      const processedBuffer = await sharp(fileBuffer)
+        .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toBuffer();
       
-      return {
-        buffer: processedBuffer,
-        contentType: 'image/jpeg'
-      };
+      return { buffer: processedBuffer, contentType: 'image/jpeg' };
     } catch (error) {
-      logger.error({ error }, '❌ Failed to process image');
-      // Fallback: return original if processing fails
-      return {
-        buffer: fileBuffer,
-        contentType: mimeType
-      };
+      logger.error(error, 'Image processing failed, using original');
+      return { buffer: fileBuffer, contentType: 'image/jpeg' };
     }
   }
 
-  /**
-   * 🔐 GENERATE SECURE S3 KEY WITH USER ISOLATION
-   */
-  private generateSecureS3Key(userId: string, originalName: string): string {
+  private generateS3Key(userId: string, originalName: string): string {
     const timestamp = Date.now();
     const randomId = uuidv4();
     const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    
-    return `${this.UPLOAD_PREFIX}/${userId}/${timestamp}_${randomId}_${sanitizedName}`;
-  }
-
-  /**
-   * 🔍 TEST S3 CONNECTION
-   */
-  public async testConnection(): Promise<{ success: boolean; error?: string }> {
-    try {
-      if (!this.isAvailable()) {
-        return { success: false, error: 'S3 service not configured' };
-      }
-
-      // Test with a simple list operation
-      const listCommand = new ListObjectsV2Command({
-        Bucket: this.config!.bucket,
-        MaxKeys: 1,
-      });
-
-      await this.s3Client!.send(listCommand);
-      
-      logger.info('✅ S3 connection test successful');
-      return { success: true };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error({ error }, '❌ S3 connection test failed');
-      return { success: false, error: errorMessage };
-    }
+    return `profile-images/${userId}/${timestamp}_${randomId}_${sanitizedName}`;
   }
 }
 
-// 🔐 Export singleton instance
 export const profileImageS3Service = new ProfileImageS3Service();
 export default profileImageS3Service;

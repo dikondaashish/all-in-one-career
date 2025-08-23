@@ -1,10 +1,26 @@
 import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
+import multer from 'multer';
+import { profileImageS3Service } from '../services/s3Service';
 
 
 export default function profileRouter(prisma: PrismaClient, logger: pino.Logger): Router {
   const r = Router();
+
+  // 🔐 Secure multer configuration for S3 uploads
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type') as any, false);
+      }
+    }
+  });
 
 
 
@@ -296,6 +312,64 @@ export default function profileRouter(prisma: PrismaClient, logger: pino.Logger)
           userEmail: req.user?.email
         }
       });
+    }
+  });
+
+  // 📤 POST /api/profile/upload-avatar - S3 Profile Image Upload
+  r.post('/upload-avatar', upload.single('file'), async (req: any, res) => {
+    try {
+      const userId = req.user?.uid;
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      if (!profileImageS3Service.isAvailable()) {
+        return res.status(503).json({ error: 'Upload service temporarily unavailable' });
+      }
+
+      const uploadResult = await profileImageS3Service.uploadProfileImage(
+        userId,
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
+
+      if (!uploadResult.success) {
+        return res.status(400).json({ error: uploadResult.error });
+      }
+
+      // Update user profile in database
+      const existingUser = await prisma.user.findFirst({
+        where: { OR: [{ id: userId }, { email: req.user?.email }] },
+        select: { id: true }
+      });
+
+      if (!existingUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: { profileImage: uploadResult.data!.url }
+      });
+
+      res.json({
+        success: true,
+        avatarUrl: uploadResult.data!.url,
+        metadata: {
+          size: uploadResult.data!.size,
+          contentType: uploadResult.data!.contentType,
+          uploadedAt: uploadResult.data!.uploadedAt
+        }
+      });
+
+    } catch (error) {
+      logger.error({ error, userId: req.user?.uid }, 'Profile image upload error');
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
