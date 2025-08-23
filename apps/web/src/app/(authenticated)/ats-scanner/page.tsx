@@ -723,7 +723,8 @@ const ATSScanner: React.FC = () => {
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
                     <div className="text-center">
                       <div className="font-medium mb-1">URL Support Info</div>
-                      <div>✅ Google Drive, Indeed, Glassdoor</div>
+                      <div>✅ Google Drive, Indeed, Glassdoor, Monster</div>
+                      <div>✅ ZipRecruiter, Company career pages</div>
                       <div>❌ LinkedIn (requires authentication)</div>
                       <div className="text-gray-300 mt-1">For LinkedIn: Copy text manually</div>
                     </div>
@@ -906,7 +907,8 @@ const ATSScanner: React.FC = () => {
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
                     <div className="text-center">
                       <div className="font-medium mb-1">URL Support Info</div>
-                      <div>✅ Indeed, Glassdoor, Company sites</div>
+                      <div>✅ Indeed, Glassdoor, Monster, ZipRecruiter</div>
+                      <div>✅ Company career pages & job boards</div>
                       <div>❌ LinkedIn (requires authentication)</div>
                       <div className="text-gray-300 mt-1">For LinkedIn: Copy job description manually</div>
                     </div>
@@ -963,7 +965,7 @@ const ATSScanner: React.FC = () => {
             <div>
               <h3 className="text-lg font-medium text-blue-900 mb-2">For best results:</h3>
               <ul className="text-blue-800 space-y-1 text-sm">
-                <li>• Upload your resume in DOC or DOCX format (PDF temporarily disabled)</li>
+                <li>• Upload your resume in PDF,DOC or DOCX format </li>
                 <li>• Include the complete job description you're applying for</li>
                 <li>• Ensure your resume includes contact information and skills</li>
                 <li>• Use standard section headers (Experience, Education, Skills)</li>

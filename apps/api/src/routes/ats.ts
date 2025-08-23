@@ -445,14 +445,84 @@ export default function atsRouter(prisma: PrismaClient): Router {
         }
       }
 
-      // Handle regular web pages (job descriptions)
-      const response = await axios.get(processUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      // Retry mechanism for handling anti-bot protection
+      let response;
+      let lastError;
+      
+      // Try different strategies
+      const strategies = [
+        {
+          name: 'standard',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+          }
         },
-        timeout: 30000,
-        maxRedirects: 5
-      });
+        {
+          name: 'mobile',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br'
+          }
+        },
+        {
+          name: 'simple',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; JobScraper/1.0)',
+            'Accept': 'text/html'
+          }
+        }
+      ];
+
+      for (const strategy of strategies) {
+        try {
+          console.info('diag:url:trying_strategy', { strategy: strategy.name, url: processUrl.substring(0, 100) });
+          
+          response = await axios.get(processUrl, {
+            headers: strategy.headers,
+            timeout: 30000,
+            maxRedirects: 5,
+            validateStatus: (status) => status < 500 // Accept 4xx but retry on 5xx
+          });
+
+          if (response.status === 200) {
+            console.info('diag:url:strategy_success', { strategy: strategy.name, status: response.status });
+            break;
+          } else if (response.status === 403 || response.status === 429) {
+            console.warn('diag:url:strategy_blocked', { strategy: strategy.name, status: response.status });
+            lastError = new Error(`HTTP ${response.status}: Access forbidden or rate limited`);
+            continue;
+          }
+        } catch (error: any) {
+          console.warn('diag:url:strategy_failed', { strategy: strategy.name, error: error.message });
+          lastError = error;
+          
+          // Wait a bit before trying next strategy
+          if (strategy !== strategies[strategies.length - 1]) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+      }
+
+      if (!response || response.status !== 200) {
+        console.error('diag:url:all_strategies_failed', { 
+          url: processUrl.substring(0, 100),
+          lastError: lastError?.message,
+          status: response?.status
+        });
+        
+        return res.status(400).json({
+          success: false,
+          error: 'Access forbidden. The website may be blocking automated requests. Please try:\n\n1. Copy the job description text manually\n2. Use a different job board\n3. Try the mobile version of the site\n\nSome sites (Indeed, LinkedIn) actively block automated access to protect user privacy.'
+        });
+      }
 
       const $ = cheerio.load(response.data);
       
@@ -526,10 +596,97 @@ export default function atsRouter(prisma: PrismaClient): Router {
       }
       // Indeed job scraping
       else if (url.includes('indeed.com')) {
-        content = $('#jobDescriptionText').text() || $('.jobsearch-jobDescriptionText').text();
-        title = $('h1[data-jk]').text() || $('.jobsearch-JobInfoHeader-title').text();
+        // Check if we're on a search results page vs. individual job page
+        if (url.includes('/jobs?') || url.includes('l-') && url.includes('-jobs.html')) {
+          console.warn('diag:url:indeed_search_page', { url: url.substring(0, 100) });
+          return res.status(400).json({
+            success: false,
+            error: 'This appears to be an Indeed search results page. Please click on a specific job posting and use that URL instead.\n\nTip: Look for URLs that contain "/viewjob?jk=" for individual job postings.'
+          });
+        }
+
+        // Try multiple Indeed job content selectors
+        const indeedSelectors = [
+          '#jobDescriptionText',
+          '.jobsearch-jobDescriptionText',
+          '.jobsearch-JobComponent-description',
+          '[data-jk] .jobsearch-jobDescriptionText',
+          '.jobDescriptionContent',
+          '#vjs-desc',
+          '.vjs-desc',
+          '.jobDescription'
+        ];
+        
+        for (const selector of indeedSelectors) {
+          const jobContent = $(selector).text();
+          if (jobContent && jobContent.trim().length > 100) {
+            content = jobContent;
+            break;
+          }
+        }
+        
+        // Try different title selectors for Indeed
+        const indeedTitleSelectors = [
+          'h1[data-jk]',
+          '.jobsearch-JobInfoHeader-title',
+          '.jobsearch-JobInfoHeader-title span',
+          'h1.jobsearch-JobInfoHeader-title',
+          '.vjs-jobtitle',
+          'h1'
+        ];
+        
+        for (const selector of indeedTitleSelectors) {
+          const jobTitle = $(selector).text();
+          if (jobTitle && jobTitle.trim().length > 0) {
+            title = jobTitle;
+            break;
+          }
+        }
+
+        if (!content || content.trim().length < 50) {
+          console.warn('diag:url:indeed_no_content', { 
+            url: url.substring(0, 100),
+            contentLength: content?.length || 0,
+            pageTitle: $('title').text()
+          });
+          
+          return res.status(400).json({
+            success: false,
+            error: 'Could not extract job content from Indeed. This may be due to:\n\n1. Anti-bot protection blocking the request\n2. The job posting has been removed\n3. You\'re on a search results page instead of individual job\n\nSuggestions:\n• Use the direct job URL (contains "/viewjob?jk=")\n• Try copying the job description manually\n• Use alternative job boards'
+          });
+        }
       }
-      // Generic job page scraping
+      // Glassdoor job scraping
+      else if (url.includes('glassdoor.com')) {
+        const glassdoorSelectors = [
+          '.jobDescriptionContent',
+          '[data-test="jobDescription"]',
+          '.desc',
+          '.jobDesc',
+          '.jobDescription'
+        ];
+        
+        for (const selector of glassdoorSelectors) {
+          const jobContent = $(selector).text();
+          if (jobContent && jobContent.trim().length > 100) {
+            content = jobContent;
+            break;
+          }
+        }
+        
+        title = $('h1[data-test="job-title"]').text() || $('h1').first().text();
+      }
+      // Monster job scraping
+      else if (url.includes('monster.com')) {
+        content = $('.job-description').text() || $('.jobview-description').text();
+        title = $('h1.job-title').text() || $('h1').first().text();
+      }
+      // ZipRecruiter job scraping  
+      else if (url.includes('ziprecruiter.com')) {
+        content = $('.job_description').text() || $('.jobDescriptionSection').text();
+        title = $('h1.job_title').text() || $('h1').first().text();
+      }
+      // Generic job page scraping for company career pages
       else {
         // Remove script and style elements
         $('script, style').remove();
