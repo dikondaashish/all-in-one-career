@@ -14,21 +14,11 @@ export async function extractPdfText(buffer: Buffer) {
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const content = await page.getTextContent();
-    
-    // Extract text items and handle spacing properly
+    // Join text items into a line; keep spaces
     const pageText = content.items
-      .map((item: any) => {
-        if ("str" in item && item.str) {
-          return item.str;
-        }
-        return "";
-      })
-      .filter(str => str.trim()) // Remove empty strings
-      .join(" "); // Join with spaces
-    
-    if (pageText.trim()) {
-      text += pageText + "\n";
-    }
+      .map((item: any) => ("str" in item ? item.str : ""))
+      .join(" ");
+    text += pageText + "\n";
   }
 
   const cleaned = text.replace(/\u0000/g, "").trim();

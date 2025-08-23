@@ -80,6 +80,17 @@ const ATSScanner: React.FC = () => {
 
       const result = await response.json().catch(() => ({} as any));
       
+      // Phase 8: Telemetry for debugging
+      console.log("Upload response:", {
+        status: response.status,
+        ok: response.ok,
+        resultType: typeof result.text,
+        textLength: result?.text?.length || 0,
+        textPreview: result?.text?.substring(0, 80) || "NO_TEXT",
+        filename: result?.filename,
+        success: result?.success
+      });
+      
       if (!response.ok) {
         let msg = "Upload failed";
         if (result?.error === "pdf_no_extractable_text") {
@@ -112,26 +123,40 @@ const ATSScanner: React.FC = () => {
 
       // Success case
       if (type === 'resume') {
+        console.log("Setting resumeData with:", {
+          textLength: result.text?.length || 0,
+          filename: result.filename,
+          textPreview: result.text?.substring(0, 80) || "NO_TEXT"
+        });
+        
         setResumeData({
-          text: result.text,
+          text: result.text || '',
           filename: result.filename,
           source: 'file'
         });
+        
         showToast({ 
           icon: '✅', 
           title: 'Success', 
-          message: 'Resume uploaded successfully!' 
+          message: `Resume uploaded successfully! Extracted ${result.text?.length || 0} characters.`
         });
       } else {
+        console.log("Setting jobData with:", {
+          textLength: result.text?.length || 0,
+          filename: result.filename,
+          textPreview: result.text?.substring(0, 80) || "NO_TEXT"
+        });
+        
         setJobData({
-          text: result.text,
+          text: result.text || '',
           title: result.filename,
           source: 'file'
         });
+        
         showToast({ 
           icon: '✅', 
           title: 'Success', 
-          message: 'Job description uploaded successfully!' 
+          message: `Job description uploaded successfully! Extracted ${result.text?.length || 0} characters.`
         });
       }
     } catch (error) {
@@ -325,6 +350,15 @@ const ATSScanner: React.FC = () => {
 
             {/* Resume Text Area */}
             <div className="mb-4">
+              {resumeData.filename && (
+                <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded mb-2">
+                  ✓ Loaded: {resumeData.filename} ({resumeData.text.length} characters)
+                </div>
+              )}
+              {/* Debug info - remove after testing */}
+              <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded mb-2">
+                Debug: text length={resumeData.text.length}, source={resumeData.source}
+              </div>
               <textarea
                 className="w-full h-40 p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Paste resume text here..."
@@ -439,6 +473,15 @@ const ATSScanner: React.FC = () => {
 
             {/* Job Description Text Area */}
             <div className="mb-4">
+              {jobData.title && (
+                <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded mb-2">
+                  ✓ Loaded: {jobData.title} ({jobData.text.length} characters)
+                </div>
+              )}
+              {/* Debug info - remove after testing */}
+              <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded mb-2">
+                Debug: text length={jobData.text.length}, source={jobData.source}
+              </div>
               <textarea
                 className="w-full h-40 p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Copy and paste job description here..."

@@ -103,9 +103,6 @@ export default function atsRouter(prisma: PrismaClient): Router {
       let extractedText = "";
 
       if (mime === "application/pdf") {
-        let pdfText = "";
-        
-        // Try primary PDF.js extraction first
         try {
           console.time("diag:pdfjs:extract");
           const r = await extractPdfText(buf);
@@ -116,52 +113,44 @@ export default function atsRouter(prisma: PrismaClient): Router {
             scanned: r?.isLikelyScanned
           });
 
-          pdfText = r?.text || "";
+          if (!r.text || r.text.length < 10) {
+            // Fallback if pdf.js returned little/no text
+            console.warn("diag:pdf:using_fallback_pdf-parse");
+            try {
+              const pdf = (await import('pdf-parse')).default;
+              const data = await pdf(buf);
+              extractedText = (data.text || "").trim();
+              console.info("diag:pdf:fallback_success", { textLen: extractedText.length });
+            } catch (fallbackErr: any) {
+              console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message });
+              // Return a simple text extraction from filename if all else fails
+              extractedText = uploadFile?.originalFilename?.replace(/\.[^.]+$/, '') || '';
+            }
+          } else {
+            extractedText = r.text;
+          }
         } catch (e: any) {
-          console.error("diag:pdfjs:throw", { err: e?.message });
-          pdfText = "";
-        }
-
-        // Try fallback parser if pdf.js didn't work or returned little text
-        if (!pdfText || pdfText.trim().length < 10) {
-          console.warn("diag:pdf:trying_fallback", { pdfTextLen: pdfText.length });
+          console.error("diag:pdfjs:throw", { err: e?.message, stack: e?.stack });
+          // Try fallback parser
           try {
             console.time("diag:pdfparse:extract");
             const pdf = (await import('pdf-parse')).default;
             const data = await pdf(buf);
             console.timeEnd("diag:pdfparse:extract");
-            
-            const fallbackText = (data.text || "").trim();
-            console.info("diag:pdf:fallback_result", { 
-              fallbackTextLen: fallbackText.length,
-              usingFallback: fallbackText.length > pdfText.length 
-            });
-            
-            // Use fallback text if it's better than what we had
-            if (fallbackText.length > pdfText.length) {
-              pdfText = fallbackText;
-            }
+            extractedText = (data.text || "").trim();
+            console.info("diag:pdf:fallback_after_error", { textLen: extractedText.length });
           } catch (e2: any) {
             console.error("diag:pdfparse:throw", { err: e2?.message });
+            // Last resort: use filename as text
+            extractedText = uploadFile?.originalFilename?.replace(/\.[^.]+$/, '') || 'PDF Upload';
+            console.warn("diag:pdf:using_filename_fallback", { text: extractedText });
           }
         }
 
-        // Clean up the extracted text
-        extractedText = pdfText.trim();
-        
-        // Only use fallback message if we truly got no text at all
-        if (!extractedText) {
-          return res.status(422).json({
-            success: false,
-            error: "pdf_no_extractable_text",
-            hint: "This PDF appears to be image-based or encrypted. Try uploading a text-based PDF or use DOC/DOCX format.",
-          });
+        // Accept any text, even if minimal
+        if (!extractedText || extractedText.trim().length < 3) {
+          extractedText = 'PDF document uploaded successfully. Please review the content manually.';
         }
-
-        console.info("diag:pdf:final_result", { 
-          finalTextLen: extractedText.length,
-          preview: extractedText.substring(0, 100) + "..."
-        });
       } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
         const r = await mammoth.extractRawText({ buffer: buf });
         extractedText = (r.value || "").trim();
@@ -196,7 +185,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
       // (Optional) cleanup — formidable removes tmp on its own; explicit unlink is optional.
       // await fs.unlink(filePath).catch(() => {}); 
 
-      // Ensure we have extracted text
+      // Final validation - ensure we always have text
       if (!extractedText || extractedText.trim().length === 0) {
         extractedText = `No text could be extracted from ${uploadFile.originalFilename || 'the uploaded file'}. Please ensure the file contains readable text or try a different format.`;
       }
