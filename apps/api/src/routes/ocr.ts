@@ -14,13 +14,13 @@ const logger = pino();
  */
 router.post('/start', authenticateToken, async (req: any, res) => {
   try {
-    const { s3Key, scanId } = req.body;
+    const { s3Key, scanId, fileBuffer, filename } = req.body;
     const userId = req.user?.uid || req.user?.id;
 
-    if (!s3Key || !userId) {
+    if ((!s3Key && !fileBuffer) || !userId) {
       return res.status(400).json({
         ok: false,
-        error: 'Missing required fields: s3Key and userId'
+        error: 'Missing required fields: (s3Key or fileBuffer) and userId'
       });
     }
 
@@ -34,13 +34,61 @@ router.post('/start', authenticateToken, async (req: any, res) => {
     console.info('diag:ocr:start_requested', { 
       userId: userId, 
       s3Key: s3Key, 
+      hasFileBuffer: !!fileBuffer,
       scanId: scanId 
     });
+
+    let finalS3Key = s3Key;
+    
+    // If we don't have an S3 key but have file buffer, upload to S3 first
+    if (!finalS3Key && fileBuffer) {
+      try {
+        // Create a simple S3 upload for OCR documents
+        const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+        
+        if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !process.env.AWS_REGION || !process.env.S3_BUCKET) {
+          return res.status(503).json({
+            ok: false,
+            error: 'AWS S3 configuration not available for OCR'
+          });
+        }
+
+        const s3Client = new S3Client({
+          region: process.env.AWS_REGION,
+          credentials: {
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+          },
+        });
+
+        const buffer = Buffer.from(fileBuffer, 'base64');
+        const timestamp = Date.now();
+        finalS3Key = `ocr-documents/${userId}/${timestamp}_${filename || 'document.pdf'}`;
+
+        const uploadCommand = new PutObjectCommand({
+          Bucket: process.env.S3_BUCKET,
+          Key: finalS3Key,
+          Body: buffer,
+          ContentType: 'application/pdf',
+          ServerSideEncryption: 'AES256',
+        });
+
+        await s3Client.send(uploadCommand);
+        console.info('diag:ocr:s3_upload_success', { s3Key: finalS3Key });
+
+      } catch (s3Error: any) {
+        console.error('diag:ocr:s3_upload_failed', { err: s3Error?.message });
+        return res.status(500).json({
+          ok: false,
+          error: 'Failed to upload file for OCR processing'
+        });
+      }
+    }
 
     // Check if there's already a running or completed job for this S3 key
     const existingJob = await prisma.ocrJob.findFirst({
       where: {
-        s3Key: s3Key,
+        s3Key: finalS3Key,
         userId: userId,
         status: {
           in: ['queued', 'running', 'succeeded']
@@ -76,9 +124,9 @@ router.post('/start', authenticateToken, async (req: any, res) => {
       data: {
         userId: userId,
         scanId: scanId || null,
-        s3Key: s3Key,
+        s3Key: finalS3Key,
         status: 'queued',
-        filename: req.body.filename || null,
+        filename: req.body.filename || filename || null,
       }
     });
 
@@ -86,7 +134,7 @@ router.post('/start', authenticateToken, async (req: any, res) => {
 
     // Start Textract job
     try {
-      const textractJobId = await textractService.startDocumentTextDetection(s3Key);
+      const textractJobId = await textractService.startDocumentTextDetection(finalS3Key);
       
       if (!textractJobId) {
         await prisma.ocrJob.update({

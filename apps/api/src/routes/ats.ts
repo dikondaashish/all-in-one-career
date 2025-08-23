@@ -115,10 +115,10 @@ export default function atsRouter(prisma: PrismaClient): Router {
             uploadFile.originalFilename || 'resume', 
             uploadFile.mimetype || 'application/pdf'
           );
-          if (result.success) {
-            // For now, we'll get the file URL through a different method
-            // This can be enhanced later to return the actual S3 URL
-            s3Url = `uploaded-${Date.now()}`;
+          if (result.success && result.data) {
+            // Get the actual S3 key for OCR processing
+            s3Url = result.data.s3Key;
+            console.info('diag:s3:upload_success', { s3Key: s3Url });
           }
         } catch (s3Error) {
           logger.error('S3 upload failed: ' + (s3Error as Error).message);
@@ -239,27 +239,20 @@ export default function atsRouter(prisma: PrismaClient): Router {
           console.warn("diag:pdf:insufficient_text", { 
             textLen: extractedText?.length || 0, 
             text: extractedText?.substring(0, 50),
-            isFilenameOnly 
+            isFilenameOnly,
+            s3Available: !!s3Url
           });
           
-          // If S3 upload was successful, offer OCR
-          if (s3Url) {
-            return res.status(422).json({
-              success: false,
-              error: "pdf_no_extractable_text",
-              can_ocr: true,
-              s3Key: s3Url, // This should be the S3 key, not URL
-              filename: uploadFile.originalFilename || "document.pdf",
-              hint: "This PDF appears to be image-only or scanned. Try OCR to extract text.",
-            });
-          } else {
-            return res.status(422).json({
-              success: false,
-              error: "pdf_no_extractable_text", 
-              can_ocr: false,
-              hint: "This PDF appears to be image-only, password-protected, or has no selectable text. Try OCR or upload DOCX/TXT.",
-            });
-          }
+          // Always offer OCR for now - we'll upload to S3 when OCR is requested
+          return res.status(422).json({
+            success: false,
+            error: "pdf_no_extractable_text",
+            can_ocr: true,
+            s3Key: s3Url || null,
+            filename: uploadFile.originalFilename || "document.pdf",
+            fileBuffer: buf.toString('base64'), // Temporary: send file data for OCR
+            hint: "This PDF appears to be image-only or scanned. Try OCR to extract text.",
+          });
         }
       } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
         const r = await mammoth.extractRawText({ buffer: buf });

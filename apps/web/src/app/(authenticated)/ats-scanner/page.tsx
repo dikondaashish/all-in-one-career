@@ -34,8 +34,8 @@ const ATSScanner: React.FC = () => {
   const [resumeName, setResumeName] = useState('');
   const [errors, setErrors] = useState<{ resume?: string; job?: string }>({});
   const [ocrStatus, setOcrStatus] = useState<{
-    resume?: { show: boolean; running: boolean; jobId?: string; s3Key?: string; filename?: string };
-    job?: { show: boolean; running: boolean; jobId?: string; s3Key?: string; filename?: string };
+    resume?: { show: boolean; running: boolean; jobId?: string; s3Key?: string; filename?: string; fileBuffer?: string };
+    job?: { show: boolean; running: boolean; jobId?: string; s3Key?: string; filename?: string; fileBuffer?: string };
   }>({});
 
   const handleFileUpload = async (file: File, type: 'resume' | 'job') => {
@@ -221,7 +221,7 @@ const ATSScanner: React.FC = () => {
   };
 
   const handleOcrPrompt = (result: any, type: 'resume' | 'job') => {
-    console.info("OCR prompt triggered", { type, s3Key: result.s3Key, filename: result.filename });
+    console.info("OCR prompt triggered", { type, s3Key: result.s3Key, filename: result.filename, hasBuffer: !!result.fileBuffer });
     
     setOcrStatus(prev => ({
       ...prev,
@@ -229,16 +229,17 @@ const ATSScanner: React.FC = () => {
         show: true,
         running: false,
         s3Key: result.s3Key,
-        filename: result.filename
+        filename: result.filename,
+        fileBuffer: result.fileBuffer // Store the file buffer for OCR
       }
     }));
   };
 
   const startOcr = async (type: 'resume' | 'job') => {
     const ocrInfo = ocrStatus[type];
-    if (!ocrInfo?.s3Key || !user) return;
+    if ((!ocrInfo?.s3Key && !ocrInfo?.fileBuffer) || !user) return;
 
-    console.info("Starting OCR", { type, s3Key: ocrInfo.s3Key });
+    console.info("Starting OCR", { type, s3Key: ocrInfo.s3Key, hasBuffer: !!ocrInfo.fileBuffer });
 
     setOcrStatus(prev => ({
       ...prev,
@@ -257,7 +258,8 @@ const ATSScanner: React.FC = () => {
         },
         body: JSON.stringify({
           s3Key: ocrInfo.s3Key,
-          filename: ocrInfo.filename
+          filename: ocrInfo.filename,
+          fileBuffer: ocrInfo.fileBuffer
         }),
       });
 
