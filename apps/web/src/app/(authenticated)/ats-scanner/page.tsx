@@ -33,6 +33,10 @@ const ATSScanner: React.FC = () => {
   const [saveResume, setSaveResume] = useState(false);
   const [resumeName, setResumeName] = useState('');
   const [errors, setErrors] = useState<{ resume?: string; job?: string }>({});
+  const [ocrStatus, setOcrStatus] = useState<{
+    resume?: { show: boolean; running: boolean; jobId?: string; s3Key?: string; filename?: string };
+    job?: { show: boolean; running: boolean; jobId?: string; s3Key?: string; filename?: string };
+  }>({});
 
   const handleFileUpload = async (file: File, type: 'resume' | 'job') => {
     setIsUploading(true);
@@ -98,20 +102,19 @@ const ATSScanner: React.FC = () => {
         fileType: file.type,
         filename: result?.filename,
         uploadType: type,
-        resultKeys: Object.keys(result || {}),
-        error: result?.error,
-        debug: result?.debug
+        resultKeys: Object.keys(result || {})
       });
-      
-      // Log debug information if available
-      if (result?.debug) {
-        console.info("Server debug info", result.debug);
-      }
       
       if (!response.ok) {
         let msg = "Upload failed";
-                  if (result?.error === "pdf_no_extractable_text") {
-            msg = "This PDF couldn't be processed with our advanced parsing system. It may be corrupted, password-protected, or contain no readable content. Try uploading DOCX/TXT format.";
+        if (result?.error === "pdf_no_extractable_text") {
+          if (result?.can_ocr) {
+            // Handle OCR capability - don't show error, show OCR prompt instead
+            handleOcrPrompt(result, type);
+            return;
+          } else {
+            msg = "This PDF has no selectable text. Upload a text-based PDF or use DOCX/TXT. If it's scanned, try OCR.";
+          }
         } else if (result?.error === "pdf_parse_unsupported") {
           msg = "We couldn't read this PDF. Try exporting it again or upload DOCX.";
         } else if (result?.error === "unsupported_type") {
@@ -120,8 +123,8 @@ const ATSScanner: React.FC = () => {
           msg = "File too large. Max 10MB.";
         } else if (result?.error === "no_file_uploaded") {
           msg = "No file detected. Please choose a file and try again.";
-                  } else if (result?.error === "no_extractable_text") {
-            msg = "The uploaded file contains no readable text even after advanced processing. Please try a different format.";
+        } else if (result?.error === "no_extractable_text") {
+          msg = "The uploaded file contains no readable text. Please try a different format or file.";
         } else if (result?.error === "empty_file") {
           msg = "Empty file received. Please try again.";
         } else if (result?.error === "method_not_allowed") {
@@ -215,6 +218,164 @@ const ATSScanner: React.FC = () => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleOcrPrompt = (result: any, type: 'resume' | 'job') => {
+    console.info("OCR prompt triggered", { type, s3Key: result.s3Key, filename: result.filename });
+    
+    setOcrStatus(prev => ({
+      ...prev,
+      [type]: {
+        show: true,
+        running: false,
+        s3Key: result.s3Key,
+        filename: result.filename
+      }
+    }));
+  };
+
+  const startOcr = async (type: 'resume' | 'job') => {
+    const ocrInfo = ocrStatus[type];
+    if (!ocrInfo?.s3Key || !user) return;
+
+    console.info("Starting OCR", { type, s3Key: ocrInfo.s3Key });
+
+    setOcrStatus(prev => ({
+      ...prev,
+      [type]: { ...prev[type]!, running: true }
+    }));
+
+    try {
+      const authToken = await user.getIdToken();
+      
+      // Start OCR job
+      const startResponse = await fetch(`${API_BASE_URL}/api/ats/ocr/start`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          s3Key: ocrInfo.s3Key,
+          filename: ocrInfo.filename
+        }),
+      });
+
+      const startResult = await startResponse.json();
+      
+      if (!startResponse.ok || !startResult.ok) {
+        throw new Error(startResult.error || 'Failed to start OCR');
+      }
+
+      const jobId = startResult.jobId;
+      console.info("OCR job started", { type, jobId });
+
+      setOcrStatus(prev => ({
+        ...prev,
+        [type]: { ...prev[type]!, jobId }
+      }));
+
+      // Poll for results
+      pollOcrStatus(jobId, type);
+
+    } catch (error: any) {
+      console.error("OCR start failed", { type, error: error.message });
+      
+      setOcrStatus(prev => ({
+        ...prev,
+        [type]: { ...prev[type]!, running: false }
+      }));
+
+      setErrors(prev => ({ 
+        ...prev, 
+        [type]: `OCR failed to start: ${error.message}` 
+      }));
+    }
+  };
+
+  const pollOcrStatus = async (jobId: string, type: 'resume' | 'job') => {
+    if (!user) return;
+
+    try {
+      const authToken = await user.getIdToken();
+      
+      const statusResponse = await fetch(`${API_BASE_URL}/api/ats/ocr/status?jobId=${jobId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+
+      const statusResult = await statusResponse.json();
+      
+      if (statusResult.status === 'succeeded') {
+        console.info("OCR completed successfully", { type, textLength: statusResult.text?.length || 0 });
+        
+        // Update the appropriate data state
+        if (type === 'resume') {
+          setResumeData({
+            text: statusResult.text || '',
+            filename: statusResult.filename,
+            source: 'file'
+          });
+        } else {
+          setJobData({
+            text: statusResult.text || '',
+            title: statusResult.filename,
+            source: 'file'
+          });
+        }
+
+        // Hide OCR status
+        setOcrStatus(prev => ({
+          ...prev,
+          [type]: { show: false, running: false }
+        }));
+
+        showToast({
+          icon: '✅',
+          title: 'OCR Complete',
+          message: `Text extracted successfully! (${statusResult.text?.length || 0} characters)`
+        });
+
+      } else if (statusResult.status === 'failed') {
+        console.error("OCR failed", { type, error: statusResult.error });
+        
+        setOcrStatus(prev => ({
+          ...prev,
+          [type]: { show: false, running: false }
+        }));
+
+        setErrors(prev => ({ 
+          ...prev, 
+          [type]: `OCR failed: ${statusResult.error || 'Unknown error'}` 
+        }));
+
+      } else if (statusResult.status === 'running') {
+        // Continue polling
+        setTimeout(() => pollOcrStatus(jobId, type), 2000);
+      }
+
+    } catch (error: any) {
+      console.error("OCR polling failed", { type, error: error.message });
+      
+      setOcrStatus(prev => ({
+        ...prev,
+        [type]: { show: false, running: false }
+      }));
+
+      setErrors(prev => ({ 
+        ...prev, 
+        [type]: `OCR polling failed: ${error.message}` 
+      }));
+    }
+  };
+
+  const cancelOcr = (type: 'resume' | 'job') => {
+    setOcrStatus(prev => ({
+      ...prev,
+      [type]: { show: false, running: false }
+    }));
   };
 
   const handleUrlProcess = async (url: string, type: 'resume' | 'job') => {
@@ -459,12 +620,56 @@ const ATSScanner: React.FC = () => {
                       <span className="text-gray-500"> or drag and drop</span>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      PDF (with advanced parsing), DOC, DOCX, TXT files only (max 10MB)
+                      PDF, DOC, DOCX, TXT files only (max 10MB)
                     </p>
                   </>
                 )}
               </div>
             </div>
+            
+            {/* OCR Prompt for Resume */}
+            {ocrStatus.resume?.show && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-blue-900 mb-2">
+                      This PDF looks scanned
+                    </h4>
+                    <p className="text-sm text-blue-700 mb-3">
+                      We couldn't extract text directly. Run OCR to convert the image content to text.
+                    </p>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => startOcr('resume')}
+                        disabled={ocrStatus.resume?.running}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                      >
+                        {ocrStatus.resume?.running ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Processing OCR...
+                          </>
+                        ) : (
+                          'Run OCR'
+                        )}
+                      </button>
+                      <button
+                        onClick={() => cancelOcr('resume')}
+                        disabled={ocrStatus.resume?.running}
+                        className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* URL Input */}
             <div className="mb-6">
@@ -582,12 +787,56 @@ const ATSScanner: React.FC = () => {
                       <span className="text-gray-500"> or drag and drop</span>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      PDF (with advanced parsing), DOC, DOCX, TXT files only (max 10MB)
+                      PDF, DOC, DOCX, TXT files only (max 10MB)
                     </p>
                   </>
                 )}
               </div>
             </div>
+            
+            {/* OCR Prompt for Job Description */}
+            {ocrStatus.job?.show && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-blue-900 mb-2">
+                      This PDF looks scanned
+                    </h4>
+                    <p className="text-sm text-blue-700 mb-3">
+                      We couldn't extract text directly. Run OCR to convert the image content to text.
+                    </p>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => startOcr('job')}
+                        disabled={ocrStatus.job?.running}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                      >
+                        {ocrStatus.job?.running ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Processing OCR...
+                          </>
+                        ) : (
+                          'Run OCR'
+                        )}
+                      </button>
+                      <button
+                        onClick={() => cancelOcr('job')}
+                        disabled={ocrStatus.job?.running}
+                        className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* URL Input */}
             <div className="mb-6">

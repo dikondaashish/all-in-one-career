@@ -7,13 +7,13 @@ import os from 'os';
 import mammoth from 'mammoth';
 import { extractPdfText } from '../lib/pdf-parser';
 import { extractPdfTextWithGemini } from '../lib/gemini';
-import { EnhancedPDFService } from '../lib/ocr-service';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { authenticateToken } from '../middleware/auth';
 import { profileImageS3Service } from '../services/s3Service';
 import { atsDiagHandler } from './diag';
+import ocrRouter from './ocr';
 import pino from 'pino';
 
 const logger = pino({ transport: { target: 'pino-pretty' } });
@@ -37,115 +37,6 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
   // Diagnostic endpoint (temporary)
   router.get('/_diag', atsDiagHandler);
-  
-  // Temporary PDF test endpoint for debugging
-  router.post('/_test-pdf', authenticateToken, async (req: any, res) => {
-    try {
-      const form = formidable({
-        uploadDir: TMP_DIR,
-        keepExtensions: true,
-        multiples: false,
-        maxFileSize: 10 * 1024 * 1024,
-        allowEmptyFiles: false,
-      });
-
-      const [fields, files] = await form.parse(req);
-      const uploadFile = (files as any)?.resume?.[0] || (files as any)?.file?.[0] || (files as any)?.upload?.[0];
-      
-      if (!uploadFile) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
-
-      const buf = await fs.readFile(uploadFile.filepath);
-      const mime = uploadFile.mimetype || "application/octet-stream";
-
-      console.info("Test PDF upload", {
-        filename: uploadFile.originalFilename,
-        size: uploadFile.size,
-        mime: uploadFile.mimetype,
-        bufferSize: buf.length
-      });
-
-      if (mime === "application/pdf") {
-        const testResults = {
-          file: {
-            name: uploadFile.originalFilename,
-            size: uploadFile.size,
-            mime: uploadFile.mimetype,
-            bufferSize: buf.length
-          },
-          parsing: {
-            pdfjs: null as any,
-            pdfparse: null as any,
-            enhanced: null as any,
-            gemini: null as any
-          }
-        };
-
-        // Test pdfjs-dist
-        try {
-          const r = await extractPdfText(buf);
-          testResults.parsing.pdfjs = {
-            success: true,
-            textLength: r.text?.length || 0,
-            pages: r.numPages,
-            isLikelyScanned: r.isLikelyScanned,
-            preview: r.text?.substring(0, 100) + "..."
-          };
-        } catch (e: any) {
-          testResults.parsing.pdfjs = { success: false, error: e.message };
-        }
-
-        // Test pdf-parse
-        try {
-          const pdf = (await import('pdf-parse')).default;
-          const data = await pdf(buf);
-          testResults.parsing.pdfparse = {
-            success: true,
-            textLength: data.text?.length || 0,
-            pages: data.numpages,
-            preview: data.text?.substring(0, 100) + "..."
-          };
-        } catch (e: any) {
-          testResults.parsing.pdfparse = { success: false, error: e.message };
-        }
-
-        // Test enhanced PDF service
-        try {
-          const enhancedResult = await EnhancedPDFService.extractTextFromPDF(buf);
-          testResults.parsing.enhanced = {
-            success: true,
-            textLength: enhancedResult.text?.length || 0,
-            confidence: enhancedResult.confidence,
-            pages: enhancedResult.pageCount,
-            method: enhancedResult.method,
-            preview: enhancedResult.text?.substring(0, 100) + "..."
-          };
-        } catch (e: any) {
-          testResults.parsing.enhanced = { success: false, error: e.message };
-        }
-
-        // Test Gemini (if enabled)
-        try {
-          const geminiResult = await extractPdfTextWithGemini(buf);
-          testResults.parsing.gemini = {
-            success: true,
-            textLength: geminiResult?.length || 0,
-            preview: geminiResult?.substring(0, 100) + "..."
-          };
-        } catch (e: any) {
-          testResults.parsing.gemini = { success: false, error: e.message };
-        }
-
-        return res.json(testResults);
-      } else {
-        return res.json({ error: "Not a PDF file", mime });
-      }
-    } catch (error: any) {
-      console.error("Test endpoint error:", error);
-      return res.status(500).json({ error: error.message });
-    }
-  });
 
   // Upload and process resume
   router.post('/upload-resume', authenticateToken, async (req: any, res) => {
@@ -212,6 +103,28 @@ export default function atsRouter(prisma: PrismaClient): Router {
       }
 
       let extractedText = "";
+      
+      // Upload to S3 if available (do this early so we have s3Key for OCR fallback)
+      let s3Url = '';
+      if (profileImageS3Service.isAvailable()) {
+        try {
+          const fileBuffer = buf; // Already read above
+          const result = await profileImageS3Service.uploadProfileImage(
+            req.user?.uid || req.user?.id || '', 
+            fileBuffer, 
+            uploadFile.originalFilename || 'resume', 
+            uploadFile.mimetype || 'application/pdf'
+          );
+          if (result.success) {
+            // For now, we'll get the file URL through a different method
+            // This can be enhanced later to return the actual S3 URL
+            s3Url = `uploaded-${Date.now()}`;
+          }
+        } catch (s3Error) {
+          logger.error('S3 upload failed: ' + (s3Error as Error).message);
+          // Continue without S3 upload
+        }
+      }
 
       if (mime === "application/pdf") {
         console.info("diag:pdf:processing_start", { 
@@ -255,45 +168,20 @@ export default function atsRouter(prisma: PrismaClient): Router {
                     console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message, stack: fallbackErr?.stack });
                     console.warn("diag:pdf:trying_gemini_after_minimal_text");
                     
-                    // Try enhanced PDF parsing as fallback
+                    // Try Gemini AI as final fallback (non-blocking)
                     try {
-                      console.warn("diag:pdf:trying_enhanced_after_minimal_text");
-                      console.time("diag:enhanced_pdf:extract_after_minimal");
-                      
-                      const enhancedResult = await EnhancedPDFService.extractTextFromPDF(buf);
-                      console.timeEnd("diag:enhanced_pdf:extract_after_minimal");
-                      
-                      if (enhancedResult.text && enhancedResult.text.length >= 20) {
-                        extractedText = enhancedResult.text;
-                        console.info("diag:enhanced_pdf:success_after_minimal", { 
-                          textLen: extractedText.length,
-                          confidence: enhancedResult.confidence,
-                          pages: enhancedResult.pageCount,
-                          method: enhancedResult.method
-                        });
+                      console.time("diag:gemini:extract_after_minimal");
+                      const geminiResult = await extractPdfTextWithGemini(buf);
+                      console.timeEnd("diag:gemini:extract_after_minimal");
+                      if (geminiResult && geminiResult.length >= 10) {
+                        extractedText = geminiResult;
+                        console.info("diag:gemini:success_after_minimal", { textLen: extractedText.length });
                       } else {
-                        console.warn("diag:enhanced_pdf:insufficient_after_minimal", {
-                          textLen: enhancedResult.text?.length || 0,
-                          method: enhancedResult.method
-                        });
-                        
-                        // Try Gemini as absolute final fallback
-                        try {
-                          console.warn("diag:pdf:trying_gemini_final_fallback");
-                          const geminiResult = await extractPdfTextWithGemini(buf);
-                          if (geminiResult && geminiResult.length >= 20) {
-                            extractedText = geminiResult;
-                            console.info("diag:gemini:final_success", { textLen: extractedText.length });
-                          } else {
-                            extractedText = '';
-                          }
-                        } catch (geminiErr: any) {
-                          console.error("diag:gemini:final_failed", { err: geminiErr?.message });
-                          extractedText = '';
-                        }
+                        console.warn("diag:gemini:insufficient_after_minimal");
+                        extractedText = '';
                       }
-                    } catch (enhancedErr: any) {
-                      console.error("diag:enhanced_pdf:failed_after_minimal", { err: enhancedErr?.message });
+                    } catch (geminiErr: any) {
+                      console.error("diag:gemini:failed_after_minimal", { err: geminiErr?.message });
                       extractedText = '';
                     }
                   }
@@ -321,47 +209,21 @@ export default function atsRouter(prisma: PrismaClient): Router {
             console.error("diag:pdfparse:throw", { err: e2?.message, stack: e2?.stack });
             console.warn("diag:pdf:trying_gemini_fallback");
             
-            // Try enhanced PDF parsing as fallback
+            // Try Gemini AI as final fallback for complex PDFs (non-blocking)
             try {
-              console.warn("diag:pdf:trying_enhanced_fallback");
-              console.time("diag:enhanced_pdf:extract");
-              
-              const enhancedResult = await EnhancedPDFService.extractTextFromPDF(buf);
-              console.timeEnd("diag:enhanced_pdf:extract");
-              
-              if (enhancedResult.text && enhancedResult.text.length >= 20) {
-                extractedText = enhancedResult.text;
-                console.info("diag:enhanced_pdf:success", { 
-                  textLen: extractedText.length,
-                  confidence: enhancedResult.confidence,
-                  pages: enhancedResult.pageCount,
-                  method: enhancedResult.method
-                });
+              console.time("diag:gemini:extract");
+              const geminiResult = await extractPdfTextWithGemini(buf);
+              console.timeEnd("diag:gemini:extract");
+              if (geminiResult && geminiResult.length >= 10) {
+                extractedText = geminiResult;
+                console.info("diag:gemini:success", { textLen: extractedText.length });
               } else {
-                console.warn("diag:enhanced_pdf:insufficient", {
-                  textLen: enhancedResult.text?.length || 0,
-                  method: enhancedResult.method
-                });
-                
-                // Try Gemini as absolute final fallback
-                try {
-                  console.warn("diag:pdf:trying_gemini_absolute_final");
-                  const geminiResult = await extractPdfTextWithGemini(buf);
-                  if (geminiResult && geminiResult.length >= 20) {
-                    extractedText = geminiResult;
-                    console.info("diag:gemini:absolute_final_success", { textLen: extractedText.length });
-                  } else {
-                    extractedText = '';
-                    console.warn("diag:pdf:all_parsers_failed");
-                  }
-                } catch (geminiErr: any) {
-                  console.error("diag:gemini:absolute_final_failed", { err: geminiErr?.message });
-                  extractedText = '';
-                  console.warn("diag:pdf:all_parsers_failed");
-                }
+                console.warn("diag:gemini:insufficient");
+                extractedText = '';
+                console.warn("diag:pdf:all_parsers_failed");
               }
-            } catch (enhancedErr: any) {
-              console.error("diag:enhanced_pdf:failed", { err: enhancedErr?.message });
+            } catch (geminiErr: any) {
+              console.error("diag:gemini:failed", { err: geminiErr?.message });
               extractedText = '';
               console.warn("diag:pdf:all_parsers_failed");
             }
@@ -377,23 +239,27 @@ export default function atsRouter(prisma: PrismaClient): Router {
           console.warn("diag:pdf:insufficient_text", { 
             textLen: extractedText?.length || 0, 
             text: extractedText?.substring(0, 50),
-            isFilenameOnly,
-            filename: uploadFile?.originalFilename,
-            fileSize: uploadFile?.size,
-            mimeType: uploadFile?.mimetype
+            isFilenameOnly 
           });
-          return res.status(422).json({
-            success: false,
-            error: "pdf_no_extractable_text",
-            hint: "This PDF appears to be corrupted, password-protected, or completely unreadable. Please try uploading DOCX/TXT format.",
-            debug: {
-              textLength: extractedText?.length || 0,
-              filename: uploadFile?.originalFilename,
-              fileSize: uploadFile?.size,
-              mimeType: uploadFile?.mimetype,
-              extractedPreview: extractedText?.substring(0, 50) || "none"
-            }
-          });
+          
+          // If S3 upload was successful, offer OCR
+          if (s3Url) {
+            return res.status(422).json({
+              success: false,
+              error: "pdf_no_extractable_text",
+              can_ocr: true,
+              s3Key: s3Url, // This should be the S3 key, not URL
+              filename: uploadFile.originalFilename || "document.pdf",
+              hint: "This PDF appears to be image-only or scanned. Try OCR to extract text.",
+            });
+          } else {
+            return res.status(422).json({
+              success: false,
+              error: "pdf_no_extractable_text", 
+              can_ocr: false,
+              hint: "This PDF appears to be image-only, password-protected, or has no selectable text. Try OCR or upload DOCX/TXT.",
+            });
+          }
         }
       } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
         const r = await mammoth.extractRawText({ buffer: buf });
@@ -404,27 +270,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
         return res.status(415).json({ success: false, error: "unsupported_type" });
       }
 
-      // Upload to S3 if available
-      let s3Url = '';
-      if (profileImageS3Service.isAvailable()) {
-        try {
-          const fileBuffer = buf; // Already read above
-          const result = await profileImageS3Service.uploadProfileImage(
-            req.user?.uid || req.user?.id || '', 
-            fileBuffer, 
-            uploadFile.originalFilename || 'resume', 
-            uploadFile.mimetype || 'application/pdf'
-          );
-          if (result.success) {
-            // For now, we'll get the file URL through a different method
-            // This can be enhanced later to return the actual S3 URL
-            s3Url = `uploaded-${Date.now()}`;
-          }
-        } catch (s3Error) {
-          logger.error('S3 upload failed: ' + (s3Error as Error).message);
-          // Continue without S3 upload
-        }
-      }
+
 
       // Final validation - ensure we always have meaningful text
       if (!extractedText || extractedText.trim().length < 10) {
@@ -449,6 +295,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
         text: extractedText,
         filename: uploadFile.originalFilename || "resume",
         fileUrl: undefined,
+        s3Key: s3Url || undefined,
       });
 
     } catch (e: any) {
@@ -831,6 +678,9 @@ export default function atsRouter(prisma: PrismaClient): Router {
       res.status(500).json({ error: 'Failed to fetch saved resumes' });
     }
   });
+
+  // OCR routes
+  router.use('/ocr', ocrRouter);
 
   return router;
 }
