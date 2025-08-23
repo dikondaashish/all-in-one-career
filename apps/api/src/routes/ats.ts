@@ -11,6 +11,7 @@ import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { authenticateToken } from '../middleware/auth';
 import { profileImageS3Service } from '../services/s3Service';
+import { atsDiagHandler } from './diag';
 import pino from 'pino';
 
 const logger = pino({ transport: { target: 'pino-pretty' } });
@@ -23,13 +24,16 @@ export default function atsRouter(prisma: PrismaClient): Router {
   // Initialize Gemini AI
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
+  // Diagnostic endpoint (temporary)
+  router.get('/_diag', atsDiagHandler);
+
   // Upload and process resume
   router.post('/upload-resume', authenticateToken, async (req: any, res) => {
     if (req.method !== "POST") {
       return res.status(405).json({ success: false, error: "method_not_allowed" });
     }
 
-    console.info("ats:upload-resume:start", { method: req.method, url: req.url });
+    console.info("diag:upload:start", { method: req.method, url: req.url, ts: Date.now() });
     
     try {
       const form = formidable({
@@ -46,12 +50,12 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
       // Formidable v3 returns [fields, files] — keep it consistent.
       const [fields, files] = await form.parse(req);
-      console.info("ats:upload-resume:parsed", {
+      console.info("diag:upload:parsed", {
         fieldsCount: Object.keys(fields || {}).length,
-        filesKeys: Object.keys(files || {}),
-        resumeCount: (files as any)?.resume?.length,
-        fileCount: (files as any)?.file?.length,
-        uploadCount: (files as any)?.upload?.length,
+        fileKeys: Object.keys(files || {}),
+        resumeLen: (files as any)?.resume?.length ?? 0,
+        fileLen: (files as any)?.file?.length ?? 0,
+        uploadLen: (files as any)?.upload?.length ?? 0,
       });
 
       const uploadFile =
@@ -65,38 +69,63 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
       const mime = uploadFile.mimetype || "application/octet-stream";
       const filePath = uploadFile.filepath;
-      console.info("ats:upload-resume:filemeta", {
-        name: uploadFile.originalFilename, mime, size: uploadFile.size, filePath
+      console.info("diag:upload:filemeta", {
+        name: uploadFile?.originalFilename,
+        mime: uploadFile?.mimetype,
+        size: uploadFile?.size,
+        filepath: uploadFile?.filepath,
       });
 
       const buf = await fs.readFile(filePath);
-      console.info("ats:upload-resume:buffer", { bytes: buf?.length || 0 });
+      console.info("diag:upload:buffer", { bytes: buf?.length ?? 0 });
+
+      if (!buf?.length) {
+        return res.status(400).json({ success: false, error: "empty_file" });
+      }
 
       let extractedText = "";
 
       if (mime === "application/pdf") {
         try {
-          console.time("ats:pdf:extract");
-          const { text, isLikelyScanned, numPages } = await extractPdfText(buf);
-          console.timeEnd("ats:pdf:extract");
-          console.info("ats:pdf:result", {
-            textLen: text?.length || 0,
-            pages: numPages,
-            scanned: isLikelyScanned
+          console.time("diag:pdfjs:extract");
+          const r = await extractPdfText(buf);
+          console.timeEnd("diag:pdfjs:extract");
+          console.info("diag:pdfjs:result", {
+            textLen: r?.text?.length ?? 0,
+            pages: r?.numPages,
+            scanned: r?.isLikelyScanned
           });
 
-          if (!text) {
-            return res.status(422).json({
-              success: false,
-              error: "pdf_no_extractable_text",
-              hint: isLikelyScanned ? "image_pdf_try_ocr" : "unknown_pdf_issue",
-            });
+          if (!r.text || r.text.length < 10) {
+            // Fallback if pdf.js returned little/no text
+            console.warn("diag:pdf:using_fallback_pdf-parse");
+            const pdf = (await import('pdf-parse')).default;
+            const data = await pdf(buf);
+            extractedText = (data.text || "").trim();
+          } else {
+            extractedText = r.text;
           }
-
-          extractedText = text;
         } catch (e: any) {
-          console.error("ats:pdf:parse_throw", { err: e?.message, stack: e?.stack });
-          return res.status(415).json({ success: false, error: "pdf_parse_unsupported" });
+          console.error("diag:pdfjs:throw", { err: e?.message });
+          // Try fallback parser
+          try {
+            console.time("diag:pdfparse:extract");
+            const pdf = (await import('pdf-parse')).default;
+            const data = await pdf(buf);
+            console.timeEnd("diag:pdfparse:extract");
+            extractedText = (data.text || "").trim();
+          } catch (e2: any) {
+            console.error("diag:pdfparse:throw", { err: e2?.message });
+            return res.status(415).json({ success: false, error: "pdf_parse_unsupported" });
+          }
+        }
+
+        if (!extractedText) {
+          return res.status(422).json({
+            success: false,
+            error: "pdf_no_extractable_text",
+            hint: "image_pdf_try_ocr",
+          });
         }
       } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
         const r = await mammoth.extractRawText({ buffer: buf });
@@ -140,9 +169,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
       });
 
     } catch (e: any) {
-      console.error("ats:upload-resume:ERROR", {
-        err: e?.message, stack: e?.stack
-      });
+      console.error("diag:upload:error", { err: e?.message, stack: e?.stack });
       return res.status(500).json({ success: false, error: "server_pdf_parse_failed" });
     }
   });

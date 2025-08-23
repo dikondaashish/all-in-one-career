@@ -92,6 +92,8 @@ const ATSScanner: React.FC = () => {
           msg = "File too large. Max 10MB.";
         } else if (result?.error === "no_file_uploaded") {
           msg = "No file detected. Please choose a file and try again.";
+        } else if (result?.error === "empty_file") {
+          msg = "Empty file received. Please try again.";
         } else if (result?.error === "method_not_allowed") {
           msg = "Request method not allowed. Please try again.";
         } else if (result?.error === "server_pdf_parse_failed") {
