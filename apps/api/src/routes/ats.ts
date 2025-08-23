@@ -123,8 +123,8 @@ export default function atsRouter(prisma: PrismaClient): Router {
               console.info("diag:pdf:fallback_success", { textLen: extractedText.length });
             } catch (fallbackErr: any) {
               console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message });
-              // Return a simple text extraction from filename if all else fails
-              extractedText = uploadFile?.originalFilename?.replace(/\.[^.]+$/, '') || '';
+              // Don't use filename - let it fall through to actual error handling
+              extractedText = '';
             }
           } else {
             extractedText = r.text;
@@ -141,9 +141,9 @@ export default function atsRouter(prisma: PrismaClient): Router {
             console.info("diag:pdf:fallback_after_error", { textLen: extractedText.length });
           } catch (e2: any) {
             console.error("diag:pdfparse:throw", { err: e2?.message });
-            // Last resort: use filename as text
-            extractedText = uploadFile?.originalFilename?.replace(/\.[^.]+$/, '') || 'PDF Upload';
-            console.warn("diag:pdf:using_filename_fallback", { text: extractedText });
+            // Don't use filename fallback - let proper error handling take over
+            extractedText = '';
+            console.error("diag:pdf:both_parsers_failed", { pdfjs: e?.message, pdfparse: e2?.message });
           }
         }
 
