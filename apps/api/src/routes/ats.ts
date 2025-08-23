@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import formidable from 'formidable';
 import fs from 'fs';
-// import pdf from 'pdf-parse'; // Removed due to production issues
 import mammoth from 'mammoth';
+import { extractTextFromPDF } from '../lib/pdf-parser';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -26,7 +26,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
         maxFileSize: 10 * 1024 * 1024, // 10MB limit
         filter: ({ mimetype }) => {
           return (
-            // mimetype === 'application/pdf' || // Temporarily disabled due to production issues
+            mimetype === 'application/pdf' ||
             mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
             mimetype === 'application/msword' ||
             mimetype === 'text/plain'
@@ -45,9 +45,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
       
       // Extract text based on file type
       if (file.mimetype === 'application/pdf') {
-        // PDF processing temporarily disabled due to production issues
-        // Will implement with a more stable PDF parser in future update
-        extractedText = 'PDF upload is temporarily disabled. Please copy and paste your resume text or use DOC/DOCX format.';
+        extractedText = await extractTextFromPDF(file.filepath);
       } else if (file.mimetype?.includes('wordprocessingml') || file.mimetype === 'application/msword') {
         const result = await mammoth.extractRawText({ path: file.filepath });
         extractedText = result.value;

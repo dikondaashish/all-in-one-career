@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, FileText, Calendar, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from '../../../../components/notifications/ToastContainer';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SavedResume {
   id: string;
@@ -16,6 +17,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://all-in-one
 const SavedResumesPage: React.FC = () => {
   const router = useRouter();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [resumes, setResumes] = useState<SavedResume[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -25,12 +27,38 @@ const SavedResumesPage: React.FC = () => {
 
   const fetchSavedResumes = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/ats/saved-resumes`, {
+      // Get Firebase ID token for authentication
+      let authToken = '';
+      if (user) {
+        try {
+          authToken = await user.getIdToken();
+        } catch (tokenError) {
+          console.error('Failed to get Firebase ID token:', tokenError);
+          throw new Error('Authentication failed. Please log in again.');
+        }
+      } else {
+        throw new Error('No user authentication available');
+      }
+
+      let response = await fetch(`${API_BASE_URL}/api/ats/saved-resumes`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${authToken}`,
         },
       });
+      
+      // If unauthorized, refresh token once and retry
+      if (response.status === 401 && user) {
+        try {
+          const freshToken = await user.getIdToken(true);
+          response = await fetch(`${API_BASE_URL}/api/ats/saved-resumes`, {
+            headers: {
+              'Authorization': `Bearer ${freshToken}`,
+            },
+          });
+        } catch (refreshErr) {
+          console.error('Failed to refresh token:', refreshErr);
+        }
+      }
       
       if (!response.ok) {
         throw new Error('Failed to fetch saved resumes');

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Search, Calendar, Loader2, TrendingUp, Building } from 'lucide-react';
 import { useToast } from '../../../../components/notifications/ToastContainer';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ScanHistoryItem {
   id: string;
@@ -19,6 +20,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://all-in-one
 const ScanHistoryPage: React.FC = () => {
   const router = useRouter();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [scans, setScans] = useState<ScanHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,10 +30,22 @@ const ScanHistoryPage: React.FC = () => {
 
   const fetchScanHistory = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/ats/history?limit=20`, {
+      // Get Firebase ID token for authentication
+      let authToken = '';
+      if (user) {
+        try {
+          authToken = await user.getIdToken();
+        } catch (tokenError) {
+          console.error('Failed to get Firebase ID token:', tokenError);
+          throw new Error('Authentication failed. Please log in again.');
+        }
+      } else {
+        throw new Error('No user authentication available');
+      }
+
+      let response = await fetch(`${API_BASE_URL}/api/ats/history?limit=20`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${authToken}`,
         },
       });
       

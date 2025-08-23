@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, Link, Zap, Search, AlertCircle, FileText, Loader2 } from 'lucide-react';
 import { useToast } from '../../../components/notifications/ToastContainer';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ResumeData {
   text: string;
@@ -22,6 +23,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://all-in-one
 const ATSScanner: React.FC = () => {
   const router = useRouter();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [resumeData, setResumeData] = useState<ResumeData>({ text: '', source: 'text' });
   const [jobData, setJobData] = useState<JobData>({ text: '', source: 'text' });
   const [isProcessing, setIsProcessing] = useState(false);
@@ -39,14 +41,42 @@ const ATSScanner: React.FC = () => {
     formData.append('resume', file);
 
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/ats/upload-resume`, {
+      // Get Firebase ID token for authentication
+      let authToken = '';
+      if (user) {
+        try {
+          authToken = await user.getIdToken();
+        } catch (tokenError) {
+          console.error('Failed to get Firebase ID token:', tokenError);
+          throw new Error('Authentication failed. Please log in again.');
+        }
+      } else {
+        throw new Error('No user authentication available');
+      }
+
+      let response = await fetch(`${API_BASE_URL}/api/ats/upload-resume`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${authToken}`,
         },
         body: formData,
       });
+
+      // If unauthorized, refresh token once and retry
+      if (response.status === 401 && user) {
+        try {
+          const freshToken = await user.getIdToken(true);
+          response = await fetch(`${API_BASE_URL}/api/ats/upload-resume`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${freshToken}`,
+            },
+            body: formData,
+          });
+        } catch (refreshErr) {
+          console.error('Failed to refresh token:', refreshErr);
+        }
+      }
 
       const result = await response.json();
       
@@ -102,15 +132,44 @@ const ATSScanner: React.FC = () => {
     setErrors(prev => ({ ...prev, [type]: undefined }));
 
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/api/ats/process-url`, {
+      // Get Firebase ID token for authentication
+      let authToken = '';
+      if (user) {
+        try {
+          authToken = await user.getIdToken();
+        } catch (tokenError) {
+          console.error('Failed to get Firebase ID token:', tokenError);
+          throw new Error('Authentication failed. Please log in again.');
+        }
+      } else {
+        throw new Error('No user authentication available');
+      }
+
+      let response = await fetch(`${API_BASE_URL}/api/ats/process-url`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({ url, type }),
       });
+
+      // If unauthorized, refresh token once and retry
+      if (response.status === 401 && user) {
+        try {
+          const freshToken = await user.getIdToken(true);
+          response = await fetch(`${API_BASE_URL}/api/ats/process-url`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${freshToken}`,
+            },
+            body: JSON.stringify({ url, type }),
+          });
+        } catch (refreshErr) {
+          console.error('Failed to refresh token:', refreshErr);
+        }
+      }
 
       const result = await response.json();
       
@@ -284,7 +343,7 @@ const ATSScanner: React.FC = () => {
                         <input
                           type="file"
                           className="hidden"
-                          accept=".doc,.docx,.txt"
+                          accept=".pdf,.doc,.docx,.txt"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) handleFileUpload(file, 'resume');
@@ -294,7 +353,7 @@ const ATSScanner: React.FC = () => {
                       <span className="text-gray-500"> or drag and drop</span>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      DOC, DOCX, TXT files only (max 10MB) - PDF temporarily disabled
+                      PDF, DOC, DOCX, TXT files only (max 10MB)
                     </p>
                   </>
                 )}
@@ -401,7 +460,7 @@ const ATSScanner: React.FC = () => {
                         <input
                           type="file"
                           className="hidden"
-                          accept=".doc,.docx,.txt"
+                          accept=".pdf,.doc,.docx,.txt"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) handleFileUpload(file, 'job');
@@ -411,7 +470,7 @@ const ATSScanner: React.FC = () => {
                       <span className="text-gray-500"> or drag and drop</span>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      DOC, DOCX, TXT files only (max 10MB) - PDF temporarily disabled
+                      PDF, DOC, DOCX, TXT files only (max 10MB)
                     </p>
                   </>
                 )}
