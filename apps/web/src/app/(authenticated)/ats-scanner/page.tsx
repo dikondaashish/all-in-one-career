@@ -40,6 +40,13 @@ const ATSScanner: React.FC = () => {
 
     const formData = new FormData();
     formData.append('resume', file);
+    
+    console.info("File upload initiated", {
+      uploadType: type,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type
+    });
 
     try {
       // Get Firebase ID token for authentication
@@ -162,14 +169,27 @@ const ATSScanner: React.FC = () => {
       } else {
         console.info("Setting job data", { 
           textLength: result.text?.length || 0,
-          textPreview: result.text?.substring(0, 80) + "..."
+          textPreview: result.text?.substring(0, 80) + "...",
+          currentJobText: jobData.text.length,
+          willOverwrite: !!jobData.text
         });
         
-        setJobData({
+        const newJobData = {
           text: result.text || '',
           title: result.filename,
-          source: 'file'
-        });
+          source: 'file' as const
+        };
+        
+        console.info("New job data object", newJobData);
+        setJobData(newJobData);
+        
+        // Verify state update after a brief delay
+        setTimeout(() => {
+          console.info("Job state verification check", {
+            stateTextLength: jobData.text.length,
+            expectedLength: result.text?.length || 0
+          });
+        }, 100);
         
         showToast({ 
           icon: '✅', 
@@ -493,6 +513,12 @@ const ATSScanner: React.FC = () => {
           {/* Job Description Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Job Description</h2>
+
+            {/* Debug Info - Remove after fixing */}
+            <div className="mb-2 p-2 bg-yellow-50 text-xs text-gray-600 border border-yellow-200 rounded">
+              Debug: Job text length: {jobData.text.length} | Source: {jobData.source} | 
+              {jobData.title && ` File: ${jobData.title}`}
+            </div>
 
             {/* Job Description Text Area */}
             <div className="mb-4">
