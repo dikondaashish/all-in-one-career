@@ -7,6 +7,7 @@ import os from 'os';
 import mammoth from 'mammoth';
 import { extractPdfText } from '../lib/pdf-parser';
 import { extractPdfTextWithGemini } from '../lib/gemini';
+import { OCRService } from '../lib/ocr-service';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -145,20 +146,35 @@ export default function atsRouter(prisma: PrismaClient): Router {
                     console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message, stack: fallbackErr?.stack });
                     console.warn("diag:pdf:trying_gemini_after_minimal_text");
                     
-                    // Try Gemini AI as final fallback (non-blocking)
+                    // Try OCR as final fallback for scanned/image PDFs
                     try {
-                      console.time("diag:gemini:extract_after_minimal");
-                      const geminiResult = await extractPdfTextWithGemini(buf);
-                      console.timeEnd("diag:gemini:extract_after_minimal");
-                      if (geminiResult && geminiResult.length >= 10) {
-                        extractedText = geminiResult;
-                        console.info("diag:gemini:success_after_minimal", { textLen: extractedText.length });
+                      console.warn("diag:pdf:trying_ocr_after_minimal_text");
+                      console.time("diag:ocr:extract_after_minimal");
+                      
+                      const ocrResult = await OCRService.extractTextFromPDF(buf, {
+                        maxPages: 5, // Limit to first 5 pages for performance
+                        quality: 2,
+                        lang: 'eng'
+                      });
+                      
+                      console.timeEnd("diag:ocr:extract_after_minimal");
+                      
+                      if (ocrResult.text && ocrResult.text.length >= 20) {
+                        extractedText = ocrResult.text;
+                        console.info("diag:ocr:success_after_minimal", { 
+                          textLen: extractedText.length,
+                          confidence: Math.round(ocrResult.confidence),
+                          pages: ocrResult.pageCount
+                        });
                       } else {
-                        console.warn("diag:gemini:insufficient_after_minimal");
+                        console.warn("diag:ocr:insufficient_after_minimal", {
+                          textLen: ocrResult.text?.length || 0,
+                          confidence: Math.round(ocrResult.confidence)
+                        });
                         extractedText = '';
                       }
-                    } catch (geminiErr: any) {
-                      console.error("diag:gemini:failed_after_minimal", { err: geminiErr?.message });
+                    } catch (ocrErr: any) {
+                      console.error("diag:ocr:failed_after_minimal", { err: ocrErr?.message });
                       extractedText = '';
                     }
                   }
@@ -186,28 +202,44 @@ export default function atsRouter(prisma: PrismaClient): Router {
             console.error("diag:pdfparse:throw", { err: e2?.message, stack: e2?.stack });
             console.warn("diag:pdf:trying_gemini_fallback");
             
-            // Try Gemini AI as final fallback for complex PDFs (non-blocking)
+            // Try OCR as final fallback for scanned/image PDFs
             try {
-              console.time("diag:gemini:extract");
-              const geminiResult = await extractPdfTextWithGemini(buf);
-              console.timeEnd("diag:gemini:extract");
-              if (geminiResult && geminiResult.length >= 10) {
-                extractedText = geminiResult;
-                console.info("diag:gemini:success", { textLen: extractedText.length });
+              console.warn("diag:pdf:trying_ocr_fallback");
+              console.time("diag:ocr:extract");
+              
+              const ocrResult = await OCRService.extractTextFromPDF(buf, {
+                maxPages: 5, // Limit to first 5 pages for performance
+                quality: 2,
+                lang: 'eng'
+              });
+              
+              console.timeEnd("diag:ocr:extract");
+              
+              if (ocrResult.text && ocrResult.text.length >= 20) {
+                extractedText = ocrResult.text;
+                console.info("diag:ocr:success", { 
+                  textLen: extractedText.length,
+                  confidence: Math.round(ocrResult.confidence),
+                  pages: ocrResult.pageCount
+                });
               } else {
-                console.warn("diag:gemini:insufficient");
+                console.warn("diag:ocr:insufficient", {
+                  textLen: ocrResult.text?.length || 0,
+                  confidence: Math.round(ocrResult.confidence)
+                });
                 extractedText = '';
                 console.warn("diag:pdf:all_parsers_failed");
               }
-            } catch (geminiErr: any) {
-              console.error("diag:gemini:failed", { err: geminiErr?.message });
+            } catch (ocrErr: any) {
+              console.error("diag:ocr:failed", { err: ocrErr?.message });
               extractedText = '';
               console.warn("diag:pdf:all_parsers_failed");
             }
           }
         }
 
-        // Enhanced validation for text extraction and OCR results
+        // Enforce minimum text requirement for success
+        // Also check if text is just the filename (which shouldn't happen now)
         const isFilenameOnly = extractedText && uploadFile?.originalFilename && 
           extractedText.trim() === uploadFile.originalFilename.replace(/\.[^.]+$/, '');
         
@@ -220,18 +252,9 @@ export default function atsRouter(prisma: PrismaClient): Router {
           return res.status(422).json({
             success: false,
             error: "pdf_no_extractable_text",
-            hint: "This PDF contains no readable text or is corrupted. Our OCR system couldn't extract content. Try uploading DOCX/TXT format.",
+            hint: "This PDF appears to be corrupted, password-protected, or completely unreadable. Please try uploading DOCX/TXT format.",
           });
         }
-
-        // Log successful extraction with type detection
-        const extractionMethod = extractedText.length > 1000 ? "OCR" : "text-extraction";
-        console.info("diag:pdf:success", {
-          textLength: extractedText.length,
-          wordsCount: extractedText.split(/\s+/).length,
-          extractionMethod,
-          preview: extractedText.substring(0, 100) + "..."
-        });
       } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
         const r = await mammoth.extractRawText({ buffer: buf });
         extractedText = (r.value || "").trim();

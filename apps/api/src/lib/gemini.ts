@@ -21,12 +21,12 @@ export async function geminiGenerate(
 }
 
 /**
- * Extract text from PDF using Gemini Vision AI with OCR capabilities
- * This handles complex PDFs and performs OCR on scanned/image-based PDFs
+ * Extract text from PDF using Gemini Vision AI
+ * This handles complex PDFs that traditional parsers can't read
  */
 export async function extractPdfTextWithGemini(buffer: Buffer): Promise<string> {
   try {
-    console.info("diag:gemini:ocr:start", { bufferSize: buffer.length });
+    console.info("diag:gemini:start", { bufferSize: buffer.length });
     
     // Check if API key is available
     if (!apiKey || apiKey.length < 20) {
@@ -35,19 +35,8 @@ export async function extractPdfTextWithGemini(buffer: Buffer): Promise<string> 
     }
     
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-pro", // Use Pro model for better OCR accuracy
-      systemInstruction: `You are a professional OCR system. Extract ALL text from this PDF document with high accuracy.
-
-IMPORTANT INSTRUCTIONS:
-1. Extract ALL visible text exactly as it appears, including headers, body text, and contact information
-2. Maintain original formatting and structure where possible
-3. Include names, addresses, phone numbers, emails, dates, and all content
-4. For resumes: include Summary, Experience, Education, Skills, Contact Info, etc.
-5. For scanned or image-based PDFs: perform OCR to read the text from images
-6. Return ONLY the extracted text content - no commentary or analysis
-7. If you cannot extract any readable text, return exactly: "NO_READABLE_TEXT_FOUND"
-8. Preserve line breaks and paragraph structure
-9. Include ALL numerical data, dates, and special characters`
+      model: "gemini-1.5-flash", // Use flash model for better performance
+      systemInstruction: `Extract ALL text from this PDF. Return only the text content, no analysis.`
     });
 
     // Convert buffer to base64 for Gemini
@@ -60,40 +49,33 @@ IMPORTANT INSTRUCTIONS:
           data: base64Data
         }
       },
-      "Perform high-accuracy OCR and extract all text from this PDF document. Include all content even if it appears to be scanned or image-based."
+      "Extract all text from this document."
     ]);
 
     const extractedText = result.response?.text()?.trim() || '';
     
-    console.info("diag:gemini:ocr:result", { 
+    console.info("diag:gemini:result", { 
       textLength: extractedText.length,
-      preview: extractedText.substring(0, 150) + "...",
-      hasContent: extractedText.length > 50,
-      looksLikeOcr: extractedText.length > 200 // Likely successful OCR
+      preview: extractedText.substring(0, 100) + "...",
+      hasContent: extractedText.length > 20
     });
 
-    // Enhanced validation for OCR results
-    if (extractedText === "NO_READABLE_TEXT_FOUND" || 
-        extractedText.length < 50 ||
-        extractedText.toLowerCase().includes('cannot extract') ||
-        extractedText.toLowerCase().includes('unable to read') ||
-        extractedText.toLowerCase().includes('no text found')) {
-      console.warn("diag:gemini:ocr:insufficient_response", { text: extractedText.substring(0, 100) });
+    // Basic validation - return empty if response is too short or looks like an error
+    if (extractedText.length < 20 || 
+        extractedText.toLowerCase().includes('cannot') ||
+        extractedText.toLowerCase().includes('unable') ||
+        extractedText.toLowerCase().includes('error')) {
+      console.warn("diag:gemini:insufficient_response");
       return '';
     }
 
-    console.info("diag:gemini:ocr:success", { 
-      textLength: extractedText.length,
-      wordsCount: extractedText.split(/\s+/).length 
-    });
-
     return extractedText;
   } catch (error: any) {
-    console.error("diag:gemini:ocr:error", { 
+    console.error("diag:gemini:error", { 
       err: error?.message, 
       stack: error?.stack 
     });
-    // Don't throw error, just return empty to allow graceful handling
+    // Don't throw error, just return empty to allow other fallbacks
     return '';
   }
 }
