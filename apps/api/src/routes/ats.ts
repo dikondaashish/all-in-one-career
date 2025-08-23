@@ -6,6 +6,7 @@ import path from 'path';
 import os from 'os';
 import mammoth from 'mammoth';
 import { extractPdfText } from '../lib/pdf-parser';
+import { extractPdfTextWithGemini } from '../lib/gemini';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -131,8 +132,18 @@ export default function atsRouter(prisma: PrismaClient): Router {
                     });
                   } catch (fallbackErr: any) {
                     console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message, stack: fallbackErr?.stack });
-                    // Don't use filename as fallback
-                    extractedText = '';
+                    console.warn("diag:pdf:trying_gemini_after_minimal_text");
+                    
+                    // Try Gemini AI as final fallback
+                    try {
+                      console.time("diag:gemini:extract_after_minimal");
+                      extractedText = await extractPdfTextWithGemini(buf);
+                      console.timeEnd("diag:gemini:extract_after_minimal");
+                      console.info("diag:gemini:success_after_minimal", { textLen: extractedText.length });
+                    } catch (geminiErr: any) {
+                      console.error("diag:gemini:failed_after_minimal", { err: geminiErr?.message });
+                      extractedText = '';
+                    }
                   }
                 } else {
                   extractedText = r.text;
@@ -156,9 +167,19 @@ export default function atsRouter(prisma: PrismaClient): Router {
             });
           } catch (e2: any) {
             console.error("diag:pdfparse:throw", { err: e2?.message, stack: e2?.stack });
-            // No fallback to filename - this should be an error
-            extractedText = '';
-            console.warn("diag:pdf:both_parsers_failed");
+            console.warn("diag:pdf:trying_gemini_fallback");
+            
+            // Try Gemini AI as final fallback for complex PDFs
+            try {
+              console.time("diag:gemini:extract");
+              extractedText = await extractPdfTextWithGemini(buf);
+              console.timeEnd("diag:gemini:extract");
+              console.info("diag:gemini:success", { textLen: extractedText.length });
+            } catch (geminiErr: any) {
+              console.error("diag:gemini:failed", { err: geminiErr?.message });
+              extractedText = '';
+              console.warn("diag:pdf:all_parsers_failed");
+            }
           }
         }
 
