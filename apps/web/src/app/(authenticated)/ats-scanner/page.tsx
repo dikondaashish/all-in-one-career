@@ -80,15 +80,13 @@ const ATSScanner: React.FC = () => {
 
       const result = await response.json().catch(() => ({} as any));
       
-      // Phase 8: Telemetry for debugging
-      console.log("Upload response:", {
-        status: response.status,
-        ok: response.ok,
-        resultType: typeof result.text,
-        textLength: result?.text?.length || 0,
-        textPreview: result?.text?.substring(0, 80) || "NO_TEXT",
-        filename: result?.filename,
-        success: result?.success
+      // Debug logging for PDF uploads
+      console.info("PDF upload result", { 
+        status: response.status, 
+        success: result?.success,
+        textLength: result?.text?.length || 0, 
+        fileType: file.type,
+        filename: result?.filename 
       });
       
       if (!response.ok) {
@@ -103,6 +101,8 @@ const ATSScanner: React.FC = () => {
           msg = "File too large. Max 10MB.";
         } else if (result?.error === "no_file_uploaded") {
           msg = "No file detected. Please choose a file and try again.";
+        } else if (result?.error === "no_extractable_text") {
+          msg = "The uploaded file contains no readable text. Please try a different format or file.";
         } else if (result?.error === "empty_file") {
           msg = "Empty file received. Please try again.";
         } else if (result?.error === "method_not_allowed") {
@@ -123,10 +123,9 @@ const ATSScanner: React.FC = () => {
 
       // Success case
       if (type === 'resume') {
-        console.log("Setting resumeData with:", {
+        console.info("Setting resume data", { 
           textLength: result.text?.length || 0,
-          filename: result.filename,
-          textPreview: result.text?.substring(0, 80) || "NO_TEXT"
+          textPreview: result.text?.substring(0, 80) + "..."
         });
         
         setResumeData({
@@ -138,13 +137,12 @@ const ATSScanner: React.FC = () => {
         showToast({ 
           icon: '✅', 
           title: 'Success', 
-          message: `Resume uploaded successfully! Extracted ${result.text?.length || 0} characters.`
+          message: `Resume uploaded successfully! (${result.text?.length || 0} characters)` 
         });
       } else {
-        console.log("Setting jobData with:", {
+        console.info("Setting job data", { 
           textLength: result.text?.length || 0,
-          filename: result.filename,
-          textPreview: result.text?.substring(0, 80) || "NO_TEXT"
+          textPreview: result.text?.substring(0, 80) + "..."
         });
         
         setJobData({
@@ -156,7 +154,7 @@ const ATSScanner: React.FC = () => {
         showToast({ 
           icon: '✅', 
           title: 'Success', 
-          message: `Job description uploaded successfully! Extracted ${result.text?.length || 0} characters.`
+          message: `Job description uploaded successfully! (${result.text?.length || 0} characters)` 
         });
       }
     } catch (error) {
@@ -350,15 +348,6 @@ const ATSScanner: React.FC = () => {
 
             {/* Resume Text Area */}
             <div className="mb-4">
-              {resumeData.filename && (
-                <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded mb-2">
-                  ✓ Loaded: {resumeData.filename} ({resumeData.text.length} characters)
-                </div>
-              )}
-              {/* Debug info - remove after testing */}
-              <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded mb-2">
-                Debug: text length={resumeData.text.length}, source={resumeData.source}
-              </div>
               <textarea
                 className="w-full h-40 p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Paste resume text here..."
@@ -473,15 +462,6 @@ const ATSScanner: React.FC = () => {
 
             {/* Job Description Text Area */}
             <div className="mb-4">
-              {jobData.title && (
-                <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded mb-2">
-                  ✓ Loaded: {jobData.title} ({jobData.text.length} characters)
-                </div>
-              )}
-              {/* Debug info - remove after testing */}
-              <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded mb-2">
-                Debug: text length={jobData.text.length}, source={jobData.source}
-              </div>
               <textarea
                 className="w-full h-40 p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Copy and paste job description here..."

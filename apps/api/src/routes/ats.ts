@@ -147,9 +147,13 @@ export default function atsRouter(prisma: PrismaClient): Router {
           }
         }
 
-        // Accept any text, even if minimal
-        if (!extractedText || extractedText.trim().length < 3) {
-          extractedText = 'PDF document uploaded successfully. Please review the content manually.';
+        // Enforce minimum text requirement for success
+        if (!extractedText || extractedText.trim().length < 10) {
+          return res.status(422).json({
+            success: false,
+            error: "pdf_no_extractable_text",
+            hint: "This PDF appears to be image-only or has no selectable text. Try OCR or upload DOCX/TXT.",
+          });
         }
       } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
         const r = await mammoth.extractRawText({ buffer: buf });
@@ -182,19 +186,23 @@ export default function atsRouter(prisma: PrismaClient): Router {
         }
       }
 
-      // (Optional) cleanup — formidable removes tmp on its own; explicit unlink is optional.
-      // await fs.unlink(filePath).catch(() => {}); 
-
-      // Final validation - ensure we always have text
-      if (!extractedText || extractedText.trim().length === 0) {
-        extractedText = `No text could be extracted from ${uploadFile.originalFilename || 'the uploaded file'}. Please ensure the file contains readable text or try a different format.`;
+      // Final validation - ensure we always have meaningful text
+      if (!extractedText || extractedText.trim().length < 10) {
+        return res.status(422).json({
+          success: false,
+          error: "no_extractable_text",
+          hint: "The uploaded file contains no readable text. Please try a different format or file.",
+        });
       }
 
       console.info("diag:upload:success", { 
         filename: uploadFile.originalFilename,
         textLength: extractedText.length,
-        textPreview: extractedText.substring(0, 150) + "..."
+        textPreview: extractedText.substring(0, 100) + "..."
       });
+
+      // (Optional) cleanup — formidable removes tmp on its own; explicit unlink is optional.
+      // await fs.unlink(filePath).catch(() => {}); 
 
       return res.status(200).json({
         success: true,
