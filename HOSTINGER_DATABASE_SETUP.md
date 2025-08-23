@@ -92,7 +92,7 @@ DATABASE_URL="mysql://username:password@localhost:3306/database_name"
 - ✅ Test connection with a MySQL client first
 
 ### Migration Issues  
-- ✅ Make sure old Neon DATABASE_URL is completely replaced
+- ✅ Make sure old DATABASE_URL is completely replaced
 - ✅ Clear any cached connections: `rm -rf node_modules/.prisma`
 - ✅ Regenerate Prisma client: `npx prisma generate`
 
@@ -110,14 +110,15 @@ DATABASE_URL="mysql://username:password@localhost:3306/database_name"
 
 ## Data Migration (Optional)
 
-If you want to preserve existing data from Neon:
+If you want to preserve existing data from your previous database:
 
-1. **Export from Neon:**
+1. **Export from Previous Database:**
    ```bash
-   pg_dump "your_neon_connection_string" > neon_backup.sql
+   # For PostgreSQL
+   pg_dump "your_old_connection_string" > old_backup.sql
    ```
 
-2. **Convert PostgreSQL to MySQL** (manual process)
+2. **Convert PostgreSQL to MySQL** (manual process if needed)
 3. **Import to Hostinger** via phpMyAdmin or MySQL command line
 
 **Note**: This is complex due to SQL dialect differences. Consider starting fresh if data isn't critical.

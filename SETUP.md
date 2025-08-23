@@ -27,7 +27,7 @@ PORT=4000
 ## Getting the Required Keys
 
 ### 1. Database URL
-- You already have this set up (Neon PostgreSQL)
+- You already have this set up (Hostinger MySQL)
 - Check your existing `.env` file for the DATABASE_URL
 
 ### 2. Firebase Service Account
