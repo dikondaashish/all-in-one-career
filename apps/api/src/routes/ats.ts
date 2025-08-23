@@ -37,6 +37,115 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
   // Diagnostic endpoint (temporary)
   router.get('/_diag', atsDiagHandler);
+  
+  // Temporary PDF test endpoint for debugging
+  router.post('/_test-pdf', authenticateToken, async (req: any, res) => {
+    try {
+      const form = formidable({
+        uploadDir: TMP_DIR,
+        keepExtensions: true,
+        multiples: false,
+        maxFileSize: 10 * 1024 * 1024,
+        allowEmptyFiles: false,
+      });
+
+      const [fields, files] = await form.parse(req);
+      const uploadFile = (files as any)?.resume?.[0] || (files as any)?.file?.[0] || (files as any)?.upload?.[0];
+      
+      if (!uploadFile) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const buf = await fs.readFile(uploadFile.filepath);
+      const mime = uploadFile.mimetype || "application/octet-stream";
+
+      console.info("Test PDF upload", {
+        filename: uploadFile.originalFilename,
+        size: uploadFile.size,
+        mime: uploadFile.mimetype,
+        bufferSize: buf.length
+      });
+
+      if (mime === "application/pdf") {
+        const testResults = {
+          file: {
+            name: uploadFile.originalFilename,
+            size: uploadFile.size,
+            mime: uploadFile.mimetype,
+            bufferSize: buf.length
+          },
+          parsing: {
+            pdfjs: null as any,
+            pdfparse: null as any,
+            enhanced: null as any,
+            gemini: null as any
+          }
+        };
+
+        // Test pdfjs-dist
+        try {
+          const r = await extractPdfText(buf);
+          testResults.parsing.pdfjs = {
+            success: true,
+            textLength: r.text?.length || 0,
+            pages: r.numPages,
+            isLikelyScanned: r.isLikelyScanned,
+            preview: r.text?.substring(0, 100) + "..."
+          };
+        } catch (e: any) {
+          testResults.parsing.pdfjs = { success: false, error: e.message };
+        }
+
+        // Test pdf-parse
+        try {
+          const pdf = (await import('pdf-parse')).default;
+          const data = await pdf(buf);
+          testResults.parsing.pdfparse = {
+            success: true,
+            textLength: data.text?.length || 0,
+            pages: data.numpages,
+            preview: data.text?.substring(0, 100) + "..."
+          };
+        } catch (e: any) {
+          testResults.parsing.pdfparse = { success: false, error: e.message };
+        }
+
+        // Test enhanced PDF service
+        try {
+          const enhancedResult = await EnhancedPDFService.extractTextFromPDF(buf);
+          testResults.parsing.enhanced = {
+            success: true,
+            textLength: enhancedResult.text?.length || 0,
+            confidence: enhancedResult.confidence,
+            pages: enhancedResult.pageCount,
+            method: enhancedResult.method,
+            preview: enhancedResult.text?.substring(0, 100) + "..."
+          };
+        } catch (e: any) {
+          testResults.parsing.enhanced = { success: false, error: e.message };
+        }
+
+        // Test Gemini (if enabled)
+        try {
+          const geminiResult = await extractPdfTextWithGemini(buf);
+          testResults.parsing.gemini = {
+            success: true,
+            textLength: geminiResult?.length || 0,
+            preview: geminiResult?.substring(0, 100) + "..."
+          };
+        } catch (e: any) {
+          testResults.parsing.gemini = { success: false, error: e.message };
+        }
+
+        return res.json(testResults);
+      } else {
+        return res.json({ error: "Not a PDF file", mime });
+      }
+    } catch (error: any) {
+      console.error("Test endpoint error:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
 
   // Upload and process resume
   router.post('/upload-resume', authenticateToken, async (req: any, res) => {
@@ -268,12 +377,22 @@ export default function atsRouter(prisma: PrismaClient): Router {
           console.warn("diag:pdf:insufficient_text", { 
             textLen: extractedText?.length || 0, 
             text: extractedText?.substring(0, 50),
-            isFilenameOnly 
+            isFilenameOnly,
+            filename: uploadFile?.originalFilename,
+            fileSize: uploadFile?.size,
+            mimeType: uploadFile?.mimetype
           });
           return res.status(422).json({
             success: false,
             error: "pdf_no_extractable_text",
             hint: "This PDF appears to be corrupted, password-protected, or completely unreadable. Please try uploading DOCX/TXT format.",
+            debug: {
+              textLength: extractedText?.length || 0,
+              filename: uploadFile?.originalFilename,
+              fileSize: uploadFile?.size,
+              mimeType: uploadFile?.mimetype,
+              extractedPreview: extractedText?.substring(0, 50) || "none"
+            }
           });
         }
       } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {

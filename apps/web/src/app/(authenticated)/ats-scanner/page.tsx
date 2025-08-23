@@ -98,8 +98,15 @@ const ATSScanner: React.FC = () => {
         fileType: file.type,
         filename: result?.filename,
         uploadType: type,
-        resultKeys: Object.keys(result || {})
+        resultKeys: Object.keys(result || {}),
+        error: result?.error,
+        debug: result?.debug
       });
+      
+      // Log debug information if available
+      if (result?.debug) {
+        console.info("Server debug info", result.debug);
+      }
       
       if (!response.ok) {
         let msg = "Upload failed";
