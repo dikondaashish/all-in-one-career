@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, Link, Zap, Search, AlertCircle, FileText, Loader2 } from 'lucide-react';
 import { useToast } from '../../../components/notifications/ToastContainer';
@@ -27,6 +27,7 @@ const ATSScanner: React.FC = () => {
   const [resumeData, setResumeData] = useState<ResumeData>({ text: '', source: 'text' });
   const [jobData, setJobData] = useState<JobData>({ text: '', source: 'text' });
   const [isProcessing, setIsProcessing] = useState(false);
+  const resumeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isUrlProcessing, setIsUrlProcessing] = useState(false);
   const [saveResume, setSaveResume] = useState(false);
@@ -147,7 +148,9 @@ const ATSScanner: React.FC = () => {
         setTimeout(() => {
           console.info("State verification check", {
             stateTextLength: resumeData.text.length,
-            expectedLength: result.text?.length || 0
+            expectedLength: result.text?.length || 0,
+            textareaValue: resumeTextareaRef.current?.value?.length || 0,
+            textareaExists: !!resumeTextareaRef.current
           });
         }, 100);
         
@@ -372,6 +375,7 @@ const ATSScanner: React.FC = () => {
             {/* Resume Text Area */}
             <div className="mb-4">
               <textarea
+                ref={resumeTextareaRef}
                 className="w-full h-40 p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Paste resume text here..."
                 value={resumeData.text}
