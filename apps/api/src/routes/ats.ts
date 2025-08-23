@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import formidable from 'formidable';
 import fs from 'fs';
 import mammoth from 'mammoth';
-import { extractTextFromPDF } from '../lib/pdf-parser';
+import { extractPdfText, extractTextFromPDF } from '../lib/pdf-parser';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -45,7 +45,15 @@ export default function atsRouter(prisma: PrismaClient): Router {
       
       // Extract text based on file type
       if (file.mimetype === 'application/pdf') {
-        extractedText = await extractTextFromPDF(file.filepath);
+        const fileBuffer = fs.readFileSync(file.filepath);
+        const { text, isLikelyScanned } = await extractPdfText(fileBuffer);
+        if (!text && !isLikelyScanned) {
+          return res.status(422).json({ 
+            success: false, 
+            error: 'PDF has no extractable text. Please ensure the PDF contains selectable text or use a DOC/DOCX format.' 
+          });
+        }
+        extractedText = text;
       } else if (file.mimetype?.includes('wordprocessingml') || file.mimetype === 'application/msword') {
         const result = await mammoth.extractRawText({ path: file.filepath });
         extractedText = result.value;

@@ -1,35 +1,43 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import fs from 'fs';
+// apps/api/src/lib/pdf-parser.ts
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
-// Configure PDF.js to work in Node.js environment
-const { getDocument } = pdfjsLib;
+/**
+ * Extract plain text and basic stats from a PDF buffer.
+ * Works in Node without DOM. No worker, no canvas.
+ */
+export async function extractPdfText(buffer: Buffer) {
+  // Load the PDF from in-memory buffer
+  const loadingTask = pdfjsLib.getDocument({ data: buffer });
+  const pdf = await loadingTask.promise;
 
-export async function extractTextFromPDF(filePath: string): Promise<string> {
-  try {
-    // Read the PDF file
-    const data = new Uint8Array(fs.readFileSync(filePath));
-    
-    // Load the PDF document
-    const pdf = await getDocument({ data }).promise;
-    
-    let fullText = '';
-    
-    // Extract text from each page
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      
-      // Combine text items from the page
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
-      
-      fullText += pageText + '\n';
-    }
-    
-    return fullText.trim();
-  } catch (error) {
-    console.error('PDF parsing error:', error);
-    throw new Error('Failed to extract text from PDF file');
+  let text = "";
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    // Join text items into a line; keep spaces
+    const pageText = content.items
+      .map((item: any) => ("str" in item ? item.str : ""))
+      .join(" ");
+    text += pageText + "\n";
   }
+
+  const cleaned = text.replace(/\u0000/g, "").trim();
+  const isLikelyScanned = cleaned.length < 30 && pdf.numPages > 0;
+
+  return {
+    text: cleaned,
+    numPages: pdf.numPages,
+    isLikelyScanned, // hint to offer OCR path (optional)
+  };
+}
+
+/**
+ * Legacy function for backward compatibility.
+ * Extracts text from a PDF file path.
+ */
+export async function extractTextFromPDF(filePath: string): Promise<string> {
+  const fs = await import('fs');
+  const buffer = fs.readFileSync(filePath);
+  const result = await extractPdfText(buffer);
+  return result.text;
 }
