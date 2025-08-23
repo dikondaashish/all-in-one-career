@@ -644,8 +644,8 @@ export default function atsRouter(prisma: PrismaClient): Router {
             educationCertifications: analysisData.educationCertifications,
             atsFormat: analysisData.atsFormat,
           },
-          foundKeywords: analysisData.hardSkillsFound || [],
-          missingKeywords: analysisData.hardSkillsMissing || [],
+          foundKeywords: JSON.stringify(analysisData.hardSkillsFound || []),
+          missingKeywords: JSON.stringify(analysisData.hardSkillsMissing || []),
           recruiterTips: analysisData.recruiterTips || [],
           improvementSuggestions: analysisData.keywordAnalysis?.optimizationSuggestions || []
         }
@@ -740,19 +740,19 @@ export default function atsRouter(prisma: PrismaClient): Router {
         atsCompatibility: scan.atsCompatibilityScore,
         detailedAnalysis: scan.detailedAnalysis,
         hardSkills: {
-          found: scan.foundKeywords || [],
-          missing: scan.missingKeywords || [],
+          found: scan.foundKeywords ? JSON.parse(scan.foundKeywords as string) : [],
+          missing: scan.missingKeywords ? JSON.parse(scan.missingKeywords as string) : [],
           matchPercentage: Math.round(
-            (scan.foundKeywords?.length || 0) / 
-            ((scan.foundKeywords?.length || 0) + (scan.missingKeywords?.length || 0)) * 100
+            ((scan.foundKeywords ? JSON.parse(scan.foundKeywords as string).length : 0)) / 
+            (((scan.foundKeywords ? JSON.parse(scan.foundKeywords as string).length : 0)) + ((scan.missingKeywords ? JSON.parse(scan.missingKeywords as string).length : 0))) * 100
           )
         },
         recruiterTips: scan.recruiterTips || [],
         keywordOptimization: {
           score: scan.matchRate,
-          totalKeywords: (scan.foundKeywords?.length || 0) + (scan.missingKeywords?.length || 0),
-          foundKeywords: scan.foundKeywords || [],
-          missingKeywords: scan.missingKeywords || [],
+          totalKeywords: ((scan.foundKeywords ? JSON.parse(scan.foundKeywords as string).length : 0)) + ((scan.missingKeywords ? JSON.parse(scan.missingKeywords as string).length : 0)),
+          foundKeywords: scan.foundKeywords ? JSON.parse(scan.foundKeywords as string) : [],
+          missingKeywords: scan.missingKeywords ? JSON.parse(scan.missingKeywords as string) : [],
           suggestions: scan.improvementSuggestions || []
         },
         competitiveAnalysis: {
