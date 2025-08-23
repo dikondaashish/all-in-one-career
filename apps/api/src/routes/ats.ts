@@ -121,11 +121,11 @@ export default function atsRouter(prisma: PrismaClient): Router {
               const data = await pdf(buf);
               extractedText = (data.text || "").trim();
               console.info("diag:pdf:fallback_success", { textLen: extractedText.length });
-            } catch (fallbackErr: any) {
-              console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message });
-              // Don't use filename - let it fall through to actual error handling
-              extractedText = '';
-            }
+                              } catch (fallbackErr: any) {
+                    console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message });
+                    // Don't use filename as fallback
+                    extractedText = '';
+                  }
           } else {
             extractedText = r.text;
           }
@@ -141,18 +141,27 @@ export default function atsRouter(prisma: PrismaClient): Router {
             console.info("diag:pdf:fallback_after_error", { textLen: extractedText.length });
           } catch (e2: any) {
             console.error("diag:pdfparse:throw", { err: e2?.message });
-            // Don't use filename fallback - let proper error handling take over
+            // No fallback to filename - this should be an error
             extractedText = '';
-            console.error("diag:pdf:both_parsers_failed", { pdfjs: e?.message, pdfparse: e2?.message });
+            console.warn("diag:pdf:both_parsers_failed");
           }
         }
 
         // Enforce minimum text requirement for success
-        if (!extractedText || extractedText.trim().length < 10) {
+        // Also check if text is just the filename (which shouldn't happen now)
+        const isFilenameOnly = extractedText && uploadFile?.originalFilename && 
+          extractedText.trim() === uploadFile.originalFilename.replace(/\.[^.]+$/, '');
+        
+        if (!extractedText || extractedText.trim().length < 10 || isFilenameOnly) {
+          console.warn("diag:pdf:insufficient_text", { 
+            textLen: extractedText?.length || 0, 
+            text: extractedText?.substring(0, 50),
+            isFilenameOnly 
+          });
           return res.status(422).json({
             success: false,
             error: "pdf_no_extractable_text",
-            hint: "This PDF appears to be image-only or has no selectable text. Try OCR or upload DOCX/TXT.",
+            hint: "This PDF appears to be image-only, password-protected, or has no selectable text. Try OCR or upload DOCX/TXT.",
           });
         }
       } else if (mime === "application/msword" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {

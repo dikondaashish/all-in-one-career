@@ -7,16 +7,15 @@ import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
  */
 export async function extractPdfText(buffer: Buffer) {
   try {
-    console.info("pdfjs: Starting PDF text extraction", { bufferSize: buffer.length });
-    
-    // Load the PDF from in-memory buffer
+    // Load the PDF from in-memory buffer with additional options
     const loadingTask = pdfjsLib.getDocument({ 
       data: buffer,
-      verbosity: 0 // Reduce verbose logging
+      disableFontFace: true,
+      verbosity: 0 // Reduce console noise
     });
     const pdf = await loadingTask.promise;
-    
-    console.info("pdfjs: PDF loaded successfully", { numPages: pdf.numPages });
+
+    console.info("diag:pdfjs:loaded", { numPages: pdf.numPages });
 
     let text = "";
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -24,32 +23,30 @@ export async function extractPdfText(buffer: Buffer) {
         const page = await pdf.getPage(pageNum);
         const content = await page.getTextContent();
         
-        // Join text items into a line; keep spaces
+        // More robust text extraction
         const pageText = content.items
-          .map((item: any) => ("str" in item ? item.str : ""))
+          .filter((item: any) => item && typeof item === 'object' && 'str' in item)
+          .map((item: any) => item.str || "")
+          .filter(str => str.trim().length > 0)
           .join(" ");
-        text += pageText + "\n";
         
-        console.info(`pdfjs: Extracted page ${pageNum}`, { 
-          pageTextLength: pageText.length,
-          totalLength: text.length 
-        });
-      } catch (pageError: any) {
-        console.error(`pdfjs: Failed to extract page ${pageNum}`, { 
-          error: pageError?.message 
-        });
+        if (pageText.trim()) {
+          text += pageText + "\n";
+          console.info(`diag:pdfjs:page${pageNum}`, { chars: pageText.length });
+        }
+      } catch (pageErr: any) {
+        console.warn(`diag:pdfjs:page${pageNum}:error`, { err: pageErr?.message });
         // Continue with other pages
       }
     }
 
-    const cleaned = text.replace(/\u0000/g, "").trim();
+    const cleaned = text.replace(/\u0000/g, "").replace(/\s+/g, " ").trim();
     const isLikelyScanned = cleaned.length < 30 && pdf.numPages > 0;
-    
-    console.info("pdfjs: Text extraction completed", {
-      totalPages: pdf.numPages,
-      extractedLength: cleaned.length,
+
+    console.info("diag:pdfjs:final", { 
+      totalChars: cleaned.length, 
       isLikelyScanned,
-      preview: cleaned.substring(0, 100)
+      preview: cleaned.substring(0, 100) + "..."
     });
 
     return {
@@ -57,13 +54,9 @@ export async function extractPdfText(buffer: Buffer) {
       numPages: pdf.numPages,
       isLikelyScanned,
     };
-  } catch (error: any) {
-    console.error("pdfjs: PDF extraction failed", {
-      error: error?.message,
-      stack: error?.stack,
-      name: error?.name
-    });
-    throw error;
+  } catch (loadErr: any) {
+    console.error("diag:pdfjs:load_error", { err: loadErr?.message, stack: loadErr?.stack });
+    throw loadErr;
   }
 }
 
