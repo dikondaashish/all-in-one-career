@@ -545,6 +545,9 @@ export default function atsRouter(prisma: PrismaClient): Router {
           });
         }
         
+        // Remove LinkedIn-specific unwanted elements first  
+        $('script, style, nav, header, footer, .nav, .global-nav, .msg-overlay', '.artdeco-modal', '.artdeco-toasts', '.aside', '.right-rail').remove();
+        
         // Try different LinkedIn job content selectors
         const jobSelectors = [
           '.description__text',
@@ -557,10 +560,15 @@ export default function atsRouter(prisma: PrismaClient): Router {
         ];
         
         for (const selector of jobSelectors) {
-          const jobContent = $(selector).text();
-          if (jobContent && jobContent.trim().length > 100) {
-            content = jobContent;
-            break;
+          const element = $(selector);
+          if (element.length) {
+            // Remove nested unwanted elements
+            element.find('.show-more-less-html__button, .jobs-box__generic-cta', '[class*="cta"]').remove();
+            const jobContent = element.text().trim();
+            if (jobContent && jobContent.length > 100) {
+              content = jobContent;
+              break;
+            }
           }
         }
         
@@ -605,6 +613,9 @@ export default function atsRouter(prisma: PrismaClient): Router {
           });
         }
 
+        // Remove Indeed-specific unwanted elements first
+        $('script, style, nav, header, footer, .gnav, .pn, .jobsearch-SerpJobCard', '.jobsearch-RecommendedJobs', '.jobsearch-LeftPane', '.jobsearch-RightPane', '.jobsearch-Footer').remove();
+        
         // Try multiple Indeed job content selectors
         const indeedSelectors = [
           '#jobDescriptionText',
@@ -618,10 +629,15 @@ export default function atsRouter(prisma: PrismaClient): Router {
         ];
         
         for (const selector of indeedSelectors) {
-          const jobContent = $(selector).text();
-          if (jobContent && jobContent.trim().length > 100) {
-            content = jobContent;
-            break;
+          const element = $(selector);
+          if (element.length) {
+            // Remove nested unwanted elements
+            element.find('.jobsearch-RecommendedJobs, .jobsearch-Footer, .similar-jobs, [class*="ad"]').remove();
+            const jobContent = element.text().trim();
+            if (jobContent && jobContent.length > 100) {
+              content = jobContent;
+              break;
+            }
           }
         }
         
@@ -688,44 +704,155 @@ export default function atsRouter(prisma: PrismaClient): Router {
       }
       // Generic job page scraping for company career pages
       else {
-        // Remove script and style elements
-        $('script, style').remove();
+        // Remove unwanted elements (scripts, styles, navigation, ads, etc.)
+        $('script, style, nav, header, footer, aside, .nav, .navigation, .header, .footer, .sidebar, .ads, .advertisement, .social, .share, .comments, .related, .recommended, .breadcrumb, .pagination, .menu').remove();
         
-        // Try to find job description content
+        // Try to find job description content with prioritized selectors
         const jobSelectors = [
+          // High priority - job-specific selectors
           '[class*="job-description"]',
-          '[class*="description"]',
+          '[class*="job-detail"]',
+          '[class*="job-content"]',
           '[id*="job-description"]',
+          '[id*="job-detail"]',
+          '[id*="job-content"]',
+          
+          // Medium priority - general content selectors
+          '[class*="description"]',
+          '[class*="content"]',
+          '[class*="body"]',
           '[id*="description"]',
+          '[id*="content"]',
+          '[id*="body"]',
+          
+          // Lower priority - structural selectors
+          'main [class*="text"]',
+          'article [class*="text"]',
+          '.main-content',
+          '#main-content',
           'main',
-          '.content'
+          'article',
+          
+          // Last resort - semantic HTML
+          '[role="main"]',
+          '.container .row [class*="col"]'
         ];
         
+        // Try each selector and find the one with the most substantial content
+        let bestContent = '';
+        let bestScore = 0;
+        
         for (const selector of jobSelectors) {
-          const element = $(selector);
-          if (element.length && element.text().length > 100) {
-            content = element.text();
-            break;
+          try {
+            const elements = $(selector);
+            elements.each((i, element) => {
+              const elementText = $(element).text().trim();
+              
+              // Score based on length and job-related keywords
+              const jobKeywords = ['responsibilities', 'requirements', 'qualifications', 'experience', 'skills', 'job', 'role', 'position', 'duties', 'apply', 'salary', 'benefits', 'company', 'team'];
+              const keywordMatches = jobKeywords.filter(keyword => 
+                elementText.toLowerCase().includes(keyword)
+              ).length;
+              
+              // Prefer longer content with more job keywords
+              const score = elementText.length + (keywordMatches * 100);
+              
+              if (score > bestScore && elementText.length > 200) {
+                bestContent = elementText;
+                bestScore = score;
+              }
+            });
+          } catch (e) {
+            // Skip invalid selectors
+            continue;
           }
         }
         
-        if (!content) {
-          content = $('body').text();
+        content = bestContent;
+        
+        // If no content found with smart selection, fallback to basic selectors
+        if (!content || content.length < 200) {
+          for (const selector of jobSelectors) {
+            const element = $(selector);
+            if (element.length && element.text().trim().length > 200) {
+              content = element.text().trim();
+              break;
+            }
+          }
+        }
+        
+        // Last resort: get main content and clean it
+        if (!content || content.length < 100) {
+          // Remove more unwanted elements before taking body content
+          $('script, style, nav, header, footer, aside, .nav, .navigation, .header, .footer, .sidebar, .ads, .advertisement, .social, .share, .comments, .related, .recommended, .breadcrumb, .pagination, .menu, .banner, .popup, .modal, .overlay, form, input, button').remove();
+          
+          // Try main content areas first
+          const fallbackSelectors = ['main', 'article', '[role="main"]', '.content', '.main-content', 'body'];
+          for (const selector of fallbackSelectors) {
+            const element = $(selector);
+            if (element.length) {
+              const text = element.text().trim();
+              if (text.length > 200) {
+                content = text;
+                break;
+              }
+            }
+          }
+        }
+        
+        // Extract title if not already set
+        if (!title || title.includes('404') || title.includes('Error') || title.length < 5) {
+          const titleSelectors = ['h1', 'h2', '[class*="title"]', '[class*="heading"]', '[class*="job"]'];
+          for (const selector of titleSelectors) {
+            const headingText = $(selector).first().text().trim();
+            if (headingText && headingText.length > 5 && headingText.length < 150) {
+              title = headingText;
+              break;
+            }
+          }
         }
       }
 
       // Clean up the extracted text
-      content = content.replace(/\s+/g, ' ').trim();
-      
-      // Remove common unwanted text
-      const unwantedPatterns = [
-        /cookies?/gi, /privacy policy/gi, /terms of service/gi,
-        /subscribe/gi, /newsletter/gi, /follow us/gi, /social media/gi
-      ];
-      
-      unwantedPatterns.forEach(pattern => {
-        content = content.replace(pattern, '');
-      });
+      if (content) {
+        // Normalize whitespace
+        content = content.replace(/\s+/g, ' ').trim();
+        
+        // Remove common unwanted phrases and patterns
+        const unwantedPatterns = [
+          /cookies?\s+policy/gi,
+          /privacy\s+policy/gi,
+          /terms\s+of\s+use/gi,
+          /terms\s+and\s+conditions/gi,
+          /copyright\s+\d{4}/gi,
+          /all\s+rights\s+reserved/gi,
+          /subscribe\s+to\s+our\s+newsletter/gi,
+          /follow\s+us\s+on/gi,
+          /share\s+this\s+job/gi,
+          /apply\s+now\s+button/gi,
+          /save\s+this\s+job/gi,
+          /email\s+this\s+job/gi,
+          /print\s+this\s+job/gi,
+          /back\s+to\s+search/gi,
+          /similar\s+jobs/gi,
+          /recommended\s+jobs/gi,
+          /related\s+jobs/gi,
+          /more\s+jobs\s+like\s+this/gi,
+          /\bads?\s+by\b/gi,
+          /sponsored\s+by/gi,
+          /powered\s+by/gi
+        ];
+        
+        for (const pattern of unwantedPatterns) {
+          content = content.replace(pattern, '');
+        }
+        
+        // Remove excessive repetition (same phrase repeated 3+ times)
+        content = content.replace(/(.{10,}?)\s*\1\s*\1/gi, '$1');
+        
+        // Clean up multiple spaces again
+        content = content.replace(/\s+/g, ' ').trim();
+      }
       
       content = content.trim();
 
