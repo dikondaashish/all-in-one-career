@@ -35,7 +35,15 @@ export class TextractService {
   }
 
   isAvailable(): boolean {
-    return this.client !== null && this.bucket !== '' && process.env.OCR_TEXTRACT_ENABLED === 'true';
+    const available = this.client !== null && this.bucket !== '' && process.env.OCR_TEXTRACT_ENABLED === 'true';
+    console.info('diag:textract:availability_check', {
+      hasClient: this.client !== null,
+      hasBucket: this.bucket !== '',
+      enabled: process.env.OCR_TEXTRACT_ENABLED === 'true',
+      available: available,
+      bucket: this.bucket
+    });
+    return available;
   }
 
   /**
@@ -66,7 +74,12 @@ export class TextractService {
     } catch (error: any) {
       console.error('diag:textract:start_failed', { 
         err: error?.message, 
-        s3Key: s3Key 
+        stack: error?.stack,
+        code: error?.code,
+        name: error?.name,
+        s3Key: s3Key,
+        bucket: this.bucket,
+        region: process.env.AWS_REGION
       });
       throw error;
     }

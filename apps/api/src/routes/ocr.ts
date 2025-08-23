@@ -77,10 +77,15 @@ router.post('/start', authenticateToken, async (req: any, res) => {
         console.info('diag:ocr:s3_upload_success', { s3Key: finalS3Key });
 
       } catch (s3Error: any) {
-        console.error('diag:ocr:s3_upload_failed', { err: s3Error?.message });
+        console.error('diag:ocr:s3_upload_failed', { 
+          err: s3Error?.message, 
+          stack: s3Error?.stack,
+          code: s3Error?.code,
+          name: s3Error?.name
+        });
         return res.status(500).json({
           ok: false,
-          error: 'Failed to upload file for OCR processing'
+          error: `Failed to upload file for OCR processing: ${s3Error?.message || 'Unknown S3 error'}`
         });
       }
     }
@@ -173,7 +178,10 @@ router.post('/start', authenticateToken, async (req: any, res) => {
     } catch (textractError: any) {
       console.error('diag:ocr:textract_start_failed', { 
         jobId: ocrJob.id, 
-        err: textractError?.message 
+        err: textractError?.message,
+        stack: textractError?.stack,
+        code: textractError?.code,
+        name: textractError?.name
       });
 
       await prisma.ocrJob.update({
@@ -186,15 +194,20 @@ router.post('/start', authenticateToken, async (req: any, res) => {
 
       return res.status(500).json({
         ok: false,
-        error: 'Failed to start OCR processing'
+        error: `Failed to start OCR processing: ${textractError?.message || 'Unknown Textract error'}`
       });
     }
 
   } catch (error: any) {
-    console.error('diag:ocr:start_error', { err: error?.message });
+    console.error('diag:ocr:start_error', { 
+      err: error?.message, 
+      stack: error?.stack,
+      code: error?.code,
+      name: error?.name
+    });
     return res.status(500).json({
       ok: false,
-      error: 'Internal server error'
+      error: `Internal server error: ${error?.message || 'Unknown error'}`
     });
   }
 });
