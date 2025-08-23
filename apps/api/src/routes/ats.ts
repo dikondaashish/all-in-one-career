@@ -316,33 +316,118 @@ export default function atsRouter(prisma: PrismaClient): Router {
           });
         }
         
-        // Try to get document as text export first
-        const textExportUrl = `https://docs.google.com/document/d/${fileId}/export?format=txt`;
+        console.info('diag:url:google_drive_processing', { fileId, originalUrl: url });
         
+        // Strategy 1: Try as Google Document (text export)
         try {
-          const response = await axios.get(textExportUrl, {
+          const textExportUrl = `https://docs.google.com/document/d/${fileId}/export?format=txt`;
+          console.info('diag:url:trying_doc_export', { textExportUrl });
+          
+          const docResponse = await axios.get(textExportUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             },
             timeout: 30000
           });
           
-          if (response.data && response.data.trim().length > 10) {
+          if (docResponse.data && docResponse.data.trim().length > 10) {
+            console.info('diag:url:doc_export_success', { textLength: docResponse.data.trim().length });
             return res.status(200).json({
               success: true,
-              content: response.data.trim(),
+              content: docResponse.data.trim(),
               title: `Google Doc ${fileId}`,
-              source: 'google-drive'
+              source: 'google-drive-doc'
             });
           }
-        } catch (textError: any) {
-          console.warn('diag:url:google_text_failed', { fileId, error: textError?.message });
+        } catch (docError: any) {
+          console.warn('diag:url:doc_export_failed', { fileId, error: docError?.message, status: docError?.response?.status });
         }
         
-        // Fallback: suggest manual download
+        // Strategy 2: Try direct file download (for PDFs, Word docs, etc.)
+        try {
+          const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+          console.info('diag:url:trying_file_download', { downloadUrl });
+          
+          const fileResponse = await axios.get(downloadUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            timeout: 30000,
+            responseType: 'arraybuffer'
+          });
+          
+          const buffer = Buffer.from(fileResponse.data);
+          console.info('diag:url:file_download_success', { bufferSize: buffer.length });
+          
+          // Try to extract text based on content type
+          const contentType = fileResponse.headers['content-type'] || '';
+          let extractedText = '';
+          
+          if (contentType.includes('pdf') || buffer.subarray(0, 4).toString() === '%PDF') {
+            // It's a PDF - extract text
+            try {
+              const pdfResult = await extractPdfText(buffer);
+              extractedText = pdfResult.text || '';
+              console.info('diag:url:pdf_extraction', { textLength: extractedText.length });
+            } catch (pdfError: any) {
+              console.warn('diag:url:pdf_extraction_failed', { error: pdfError?.message });
+            }
+          } else if (contentType.includes('msword') || contentType.includes('wordprocessingml')) {
+            // It's a Word document
+            try {
+              const wordResult = await mammoth.extractRawText({ buffer });
+              extractedText = wordResult.value || '';
+              console.info('diag:url:word_extraction', { textLength: extractedText.length });
+            } catch (wordError: any) {
+              console.warn('diag:url:word_extraction_failed', { error: wordError?.message });
+            }
+          } else if (contentType.includes('text/plain')) {
+            // It's a text file
+            extractedText = buffer.toString('utf8');
+            console.info('diag:url:text_extraction', { textLength: extractedText.length });
+          }
+          
+          if (extractedText && extractedText.trim().length > 10) {
+            return res.status(200).json({
+              success: true,
+              content: extractedText.trim(),
+              title: `Google Drive File ${fileId}`,
+              source: 'google-drive-file'
+            });
+          }
+        } catch (fileError: any) {
+          console.warn('diag:url:file_download_failed', { fileId, error: fileError?.message, status: fileError?.response?.status });
+        }
+        
+        // Strategy 3: Try alternative download URL format
+        try {
+          const altDownloadUrl = `https://drive.google.com/uc?id=${fileId}&export=download`;
+          console.info('diag:url:trying_alt_download', { altDownloadUrl });
+          
+          const altResponse = await axios.get(altDownloadUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            timeout: 30000
+          });
+          
+          if (altResponse.data && typeof altResponse.data === 'string' && altResponse.data.trim().length > 10) {
+            console.info('diag:url:alt_download_success', { textLength: altResponse.data.trim().length });
+            return res.status(200).json({
+              success: true,
+              content: altResponse.data.trim(),
+              title: `Google Drive Content ${fileId}`,
+              source: 'google-drive-alt'
+            });
+          }
+        } catch (altError: any) {
+          console.warn('diag:url:alt_download_failed', { fileId, error: altError?.message });
+        }
+        
+        // All strategies failed
         return res.status(400).json({
           success: false,
-          error: 'Could not extract text from Google Drive document. Please ensure the document is publicly accessible, or download it and upload directly.'
+          error: 'Could not extract content from Google Drive. Please ensure the file is publicly accessible (Anyone with the link can view) and try again, or download it and upload directly.'
         });
       }
 
@@ -757,6 +842,17 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
 // Helper function to extract Google Drive file ID
 function extractGoogleDriveFileId(url: string): string {
-  const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  return match?.[1] || '';
+  // Handle different Google Drive URL formats:
+  // https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+  // https://drive.google.com/open?id=FILE_ID
+  // https://docs.google.com/document/d/FILE_ID/edit
+  // https://docs.google.com/spreadsheets/d/FILE_ID/edit
+  
+  let match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (match && match[1]) return match[1];
+  
+  match = url.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+  if (match && match[1]) return match[1];
+  
+  return '';
 }
