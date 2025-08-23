@@ -80,13 +80,17 @@ const ATSScanner: React.FC = () => {
 
       const result = await response.json().catch(() => ({} as any));
       
-      // Debug logging for PDF uploads
-      console.info("PDF upload result", { 
+      // Enhanced debug logging for uploads
+      console.info("Upload response received", { 
         status: response.status, 
         success: result?.success,
         textLength: result?.text?.length || 0, 
+        textType: typeof result?.text,
+        hasText: !!result?.text,
         fileType: file.type,
-        filename: result?.filename 
+        filename: result?.filename,
+        uploadType: type,
+        resultKeys: Object.keys(result || {})
       });
       
       if (!response.ok) {
@@ -123,16 +127,29 @@ const ATSScanner: React.FC = () => {
 
       // Success case
       if (type === 'resume') {
-        console.info("Setting resume data", { 
+        console.info("About to set resume data", { 
           textLength: result.text?.length || 0,
-          textPreview: result.text?.substring(0, 80) + "..."
+          textPreview: result.text?.substring(0, 80) + "...",
+          currentResumeText: resumeData.text.length,
+          willOverwrite: !!resumeData.text
         });
         
-        setResumeData({
+        const newResumeData = {
           text: result.text || '',
           filename: result.filename,
-          source: 'file'
-        });
+          source: 'file' as const
+        };
+        
+        console.info("New resume data object", newResumeData);
+        setResumeData(newResumeData);
+        
+        // Verify state update after a brief delay
+        setTimeout(() => {
+          console.info("State verification check", {
+            stateTextLength: resumeData.text.length,
+            expectedLength: result.text?.length || 0
+          });
+        }, 100);
         
         showToast({ 
           icon: '✅', 
@@ -346,17 +363,30 @@ const ATSScanner: React.FC = () => {
               </button>
             </div>
 
+            {/* Debug Info - Remove after fixing */}
+            <div className="mb-2 p-2 bg-yellow-50 text-xs text-gray-600 border border-yellow-200 rounded">
+              Debug: Resume text length: {resumeData.text.length} | Source: {resumeData.source} | 
+              {resumeData.filename && ` File: ${resumeData.filename}`}
+            </div>
+
             {/* Resume Text Area */}
             <div className="mb-4">
               <textarea
                 className="w-full h-40 p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Paste resume text here..."
                 value={resumeData.text}
-                onChange={(e) => setResumeData(prev => ({ 
-                  ...prev, 
-                  text: e.target.value, 
-                  source: 'text' 
-                }))}
+                onChange={(e) => {
+                  console.info("Textarea manual change", {
+                    newLength: e.target.value.length,
+                    oldLength: resumeData.text.length,
+                    source: 'manual_typing'
+                  });
+                  setResumeData(prev => ({ 
+                    ...prev, 
+                    text: e.target.value, 
+                    source: 'text' 
+                  }));
+                }}
               />
               {errors.resume && (
                 <p className="text-red-600 text-sm mt-1 flex items-center">
