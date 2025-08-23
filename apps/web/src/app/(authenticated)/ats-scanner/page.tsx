@@ -452,7 +452,7 @@ const ATSScanner: React.FC = () => {
                       <span className="text-gray-500"> or drag and drop</span>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      PDF, DOC, DOCX, TXT files only (max 10MB)
+                      PDF (with AI OCR), DOC, DOCX, TXT files only (max 10MB)
                     </p>
                   </>
                 )}
@@ -575,7 +575,7 @@ const ATSScanner: React.FC = () => {
                       <span className="text-gray-500"> or drag and drop</span>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      PDF, DOC, DOCX, TXT files only (max 10MB)
+                      PDF (with AI OCR), DOC, DOCX, TXT files only (max 10MB)
                     </p>
                   </>
                 )}

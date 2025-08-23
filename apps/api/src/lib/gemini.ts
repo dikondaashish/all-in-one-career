@@ -21,8 +21,8 @@ export async function geminiGenerate(
 }
 
 /**
- * Extract text from PDF using Gemini Vision AI
- * This handles complex PDFs that traditional parsers can't read
+ * Extract text from PDF using Gemini Vision AI with OCR capabilities
+ * This handles both regular PDFs and scanned/image-based PDFs
  */
 export async function extractPdfTextWithGemini(buffer: Buffer): Promise<string> {
   try {
@@ -35,8 +35,21 @@ export async function extractPdfTextWithGemini(buffer: Buffer): Promise<string> 
     }
     
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash", // Use flash model for better performance
-      systemInstruction: `Extract ALL text from this PDF. Return only the text content, no analysis.`
+      model: "gemini-1.5-pro", // Use Pro model for better OCR accuracy
+      systemInstruction: `You are an expert OCR (Optical Character Recognition) system. Your task is to extract ALL text from this PDF document with maximum accuracy.
+
+INSTRUCTIONS:
+1. Extract ALL visible text exactly as it appears
+2. Maintain original formatting, spacing, and line breaks where possible
+3. Include ALL content: names, addresses, phone numbers, emails, dates, skills, experience, education
+4. If the document is scanned or image-based, use OCR to read ALL text
+5. Preserve the structure of sections, bullet points, and paragraphs
+6. Do NOT add any commentary, analysis, or interpretation
+7. Do NOT summarize or paraphrase - extract verbatim
+8. If you cannot read specific text clearly, skip it rather than guess
+9. Return ONLY the extracted text content
+
+Focus on accuracy and completeness for resume/job description parsing.`
     });
 
     // Convert buffer to base64 for Gemini
@@ -49,115 +62,51 @@ export async function extractPdfTextWithGemini(buffer: Buffer): Promise<string> 
           data: base64Data
         }
       },
-      "Extract all text from this document."
+      "Extract all text from this document using OCR if needed. Be thorough and accurate."
     ]);
 
     const extractedText = result.response?.text()?.trim() || '';
     
     console.info("diag:gemini:result", { 
       textLength: extractedText.length,
-      preview: extractedText.substring(0, 100) + "...",
-      hasContent: extractedText.length > 20
+      preview: extractedText.substring(0, 150) + "...",
+      hasContent: extractedText.length > 50,
+      isOcrResult: true
     });
 
-    // Basic validation - return empty if response is too short or looks like an error
-    if (extractedText.length < 20 || 
-        extractedText.toLowerCase().includes('cannot') ||
-        extractedText.toLowerCase().includes('unable') ||
-        extractedText.toLowerCase().includes('error')) {
-      console.warn("diag:gemini:insufficient_response");
+    // Enhanced validation for OCR results
+    if (extractedText.length < 30) {
+      console.warn("diag:gemini:insufficient_ocr_response", { length: extractedText.length });
       return '';
     }
 
+    // Check for common OCR error patterns
+    const errorPatterns = [
+      'cannot read', 'unable to process', 'error occurred', 
+      'no text found', 'illegible', 'unreadable'
+    ];
+    
+    const hasErrors = errorPatterns.some(pattern => 
+      extractedText.toLowerCase().includes(pattern)
+    );
+
+    if (hasErrors) {
+      console.warn("diag:gemini:ocr_error_detected");
+      return '';
+    }
+
+    console.info("diag:gemini:ocr_success", { 
+      extractedLength: extractedText.length,
+      wordCount: extractedText.split(/\s+/).length
+    });
+
     return extractedText;
   } catch (error: any) {
-    console.error("diag:gemini:error", { 
+    console.error("diag:gemini:ocr_error", { 
       err: error?.message, 
       stack: error?.stack 
     });
     // Don't throw error, just return empty to allow other fallbacks
-    return '';
-  }
-}
-
-/**
- * Advanced OCR extraction for scanned/image-based PDFs using Gemini Vision AI
- * This is specifically optimized for non-selectable PDFs (scanned documents)
- */
-export async function extractPdfTextWithOCR(buffer: Buffer): Promise<string> {
-  try {
-    console.info("diag:gemini:ocr:start", { bufferSize: buffer.length });
-    
-    // Check if API key is available
-    if (!apiKey || apiKey.length < 20) {
-      console.warn("diag:gemini:ocr:no_api_key");
-      throw new Error("Gemini API key not available");
-    }
-    
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-pro", // Use Pro model for better OCR accuracy
-      systemInstruction: `You are a professional OCR (Optical Character Recognition) system. Your task is to extract ALL text from this scanned PDF document with maximum accuracy.
-
-INSTRUCTIONS:
-1. Read ALL visible text in the document, including headers, body text, lists, and any annotations
-2. Maintain the original structure and formatting as much as possible
-3. Include names, contact information, dates, addresses, and all professional details
-4. For resumes: Extract all sections like Summary, Experience, Education, Skills, Certifications
-5. For job descriptions: Extract requirements, responsibilities, qualifications, and company details
-6. Do NOT add any commentary, analysis, or explanations
-7. Do NOT summarize or paraphrase - extract the exact text as it appears
-8. If text is unclear, make your best reasonable interpretation
-9. Return ONLY the extracted text content
-
-QUALITY STANDARDS:
-- Accuracy: Ensure spelling and formatting are preserved
-- Completeness: Don't skip any visible text sections
-- Structure: Maintain logical text flow and organization`
-    });
-
-    // Convert buffer to base64 for Gemini
-    const base64Data = buffer.toString('base64');
-    
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: 'application/pdf',
-          data: base64Data
-        }
-      },
-      "Perform high-accuracy OCR on this scanned PDF document. Extract all visible text with maximum precision."
-    ]);
-
-    const extractedText = result.response?.text()?.trim() || '';
-    
-    console.info("diag:gemini:ocr:result", { 
-      textLength: extractedText.length,
-      preview: extractedText.substring(0, 150) + "...",
-      hasContent: extractedText.length > 50,
-      wordsEstimate: extractedText.split(/\s+/).length
-    });
-
-    // More lenient validation for OCR - accept shorter text as scanned docs might have less content
-    if (extractedText.length < 30) {
-      console.warn("diag:gemini:ocr:insufficient_text");
-      return '';
-    }
-
-    // Check for common OCR error indicators
-    if (extractedText.toLowerCase().includes('cannot read') ||
-        extractedText.toLowerCase().includes('unable to process') ||
-        extractedText.toLowerCase().includes('no text found')) {
-      console.warn("diag:gemini:ocr:error_response");
-      return '';
-    }
-
-    return extractedText;
-  } catch (error: any) {
-    console.error("diag:gemini:ocr:error", { 
-      err: error?.message, 
-      stack: error?.stack 
-    });
-    // Don't throw error, just return empty
     return '';
   }
 }
