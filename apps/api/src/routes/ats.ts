@@ -126,14 +126,14 @@ export default function atsRouter(prisma: PrismaClient): Router {
           });
 
           // If PDF appears to be scanned/image-based, use Gemini OCR first
-          if (r?.isLikelyScanned || !r.text || r.text.length < 50) {
+          if (r?.isLikelyScanned || (!r.text || r.text.length < 20)) {
             console.warn("diag:pdf:trying_gemini_ocr_first");
             try {
               console.time("diag:gemini:ocr_primary");
               const geminiOcrResult = await extractPdfTextWithGemini(buf);
               console.timeEnd("diag:gemini:ocr_primary");
               
-              if (geminiOcrResult && geminiOcrResult.length >= 30) {
+              if (geminiOcrResult && geminiOcrResult.length >= 10) {
                 extractedText = geminiOcrResult;
                 console.info("diag:gemini:ocr_primary_success", { 
                   textLen: extractedText.length,

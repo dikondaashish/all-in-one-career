@@ -35,21 +35,18 @@ export async function extractPdfTextWithGemini(buffer: Buffer): Promise<string> 
     }
     
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-pro", // Use Pro model for better OCR accuracy
-      systemInstruction: `You are an expert OCR (Optical Character Recognition) system. Your task is to extract ALL text from this PDF document with maximum accuracy.
+      model: "gemini-2.0-flash-exp", // Latest experimental model for best performance
+      systemInstruction: `You are an expert document text extractor. Extract ALL text from this PDF document.
 
-INSTRUCTIONS:
-1. Extract ALL visible text exactly as it appears
-2. Maintain original formatting, spacing, and line breaks where possible
-3. Include ALL content: names, addresses, phone numbers, emails, dates, skills, experience, education
-4. If the document is scanned or image-based, use OCR to read ALL text
-5. Preserve the structure of sections, bullet points, and paragraphs
-6. Do NOT add any commentary, analysis, or interpretation
-7. Do NOT summarize or paraphrase - extract verbatim
-8. If you cannot read specific text clearly, skip it rather than guess
-9. Return ONLY the extracted text content
+RULES:
+1. Extract ALL visible text exactly as written
+2. Include names, contact info, dates, skills, experience, education
+3. Preserve spacing and line breaks
+4. Handle both digital text and scanned images
+5. Return only the text content, no analysis
+6. If unclear text exists, include what you can read clearly
 
-Focus on accuracy and completeness for resume/job description parsing.`
+Extract everything accurately.`
     });
 
     // Convert buffer to base64 for Gemini
@@ -74,24 +71,20 @@ Focus on accuracy and completeness for resume/job description parsing.`
       isOcrResult: true
     });
 
-    // Enhanced validation for OCR results
-    if (extractedText.length < 30) {
+    // More lenient validation for OCR results
+    if (extractedText.length < 10) {
       console.warn("diag:gemini:insufficient_ocr_response", { length: extractedText.length });
       return '';
     }
 
-    // Check for common OCR error patterns
-    const errorPatterns = [
-      'cannot read', 'unable to process', 'error occurred', 
-      'no text found', 'illegible', 'unreadable'
-    ];
-    
-    const hasErrors = errorPatterns.some(pattern => 
+    // Only check for explicit failure messages
+    const criticalErrors = ['cannot process', 'error occurred', 'failed to'];
+    const hasCriticalErrors = criticalErrors.some(pattern => 
       extractedText.toLowerCase().includes(pattern)
     );
 
-    if (hasErrors) {
-      console.warn("diag:gemini:ocr_error_detected");
+    if (hasCriticalErrors) {
+      console.warn("diag:gemini:critical_error_detected");
       return '';
     }
 
@@ -106,6 +99,36 @@ Focus on accuracy and completeness for resume/job description parsing.`
       err: error?.message, 
       stack: error?.stack 
     });
+    
+    // Try fallback with stable model if experimental fails
+    try {
+      console.warn("diag:gemini:trying_fallback_model");
+      const fallbackModel = genAI.getGenerativeModel({
+        model: "gemini-1.5-pro",
+        systemInstruction: "Extract all text from this PDF document."
+      });
+      
+      const base64Data = buffer.toString('base64');
+      const fallbackResult = await fallbackModel.generateContent([
+        {
+          inlineData: {
+            mimeType: 'application/pdf',
+            data: base64Data
+          }
+        },
+        "Extract all text."
+      ]);
+      
+      const fallbackText = fallbackResult.response?.text()?.trim() || '';
+      
+      if (fallbackText && fallbackText.length >= 10) {
+        console.info("diag:gemini:fallback_success", { textLen: fallbackText.length });
+        return fallbackText;
+      }
+    } catch (fallbackError: any) {
+      console.error("diag:gemini:fallback_failed", { err: fallbackError?.message });
+    }
+    
     // Don't throw error, just return empty to allow other fallbacks
     return '';
   }
