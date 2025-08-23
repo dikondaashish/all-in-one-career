@@ -30,6 +30,7 @@ const ATSScanner: React.FC = () => {
   const resumeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isUrlProcessing, setIsUrlProcessing] = useState(false);
+  const [urlInputs, setUrlInputs] = useState({ resume: '', job: '' });
   const [saveResume, setSaveResume] = useState(false);
   const [resumeName, setResumeName] = useState('');
   const [errors, setErrors] = useState<{ resume?: string; job?: string }>({});
@@ -381,8 +382,12 @@ const ATSScanner: React.FC = () => {
   };
 
   const handleUrlProcess = async (url: string, type: 'resume' | 'job') => {
-    if (!url.trim()) return;
+    if (!url.trim()) {
+      setErrors(prev => ({ ...prev, [type]: 'Please enter a valid URL' }));
+      return;
+    }
     
+    console.info("URL processing started", { type, url: url.substring(0, 50) + "..." });
     setIsUrlProcessing(true);
     setErrors(prev => ({ ...prev, [type]: undefined }));
 
@@ -428,36 +433,48 @@ const ATSScanner: React.FC = () => {
 
       const result = await response.json();
       
+      console.info("URL processing response", { 
+        type, 
+        success: result.success, 
+        contentLength: result.content?.length || 0,
+        title: result.title,
+        error: result.error
+      });
+      
       if (result.success) {
+        // Clear the URL input after successful processing
+        setUrlInputs(prev => ({ ...prev, [type]: '' }));
+        
         if (type === 'resume') {
           setResumeData({
-            text: result.content,
-            filename: result.title,
+            text: result.content || '',
+            filename: result.title || 'URL Content',
             source: 'url'
           });
           showToast({ 
             icon: '✅', 
             title: 'Success', 
-            message: 'Resume extracted from URL successfully!' 
+            message: `Resume extracted from URL! (${result.content?.length || 0} characters)` 
           });
         } else {
           setJobData({
-            text: result.content,
-            title: result.title,
+            text: result.content || '',
+            title: result.title || 'URL Content',
             source: 'url'
           });
           showToast({ 
             icon: '✅', 
             title: 'Success', 
-            message: 'Job description extracted from URL successfully!' 
+            message: `Job description extracted from URL! (${result.content?.length || 0} characters)` 
           });
         }
       } else {
-        setErrors(prev => ({ ...prev, [type]: result.error }));
+        const errorMsg = result.error || 'Failed to extract content from URL';
+        setErrors(prev => ({ ...prev, [type]: errorMsg }));
         showToast({ 
           icon: '❌', 
           title: 'URL Processing Failed', 
-          message: result.error || 'URL processing failed' 
+          message: errorMsg
         });
       }
     } catch (error) {
@@ -680,19 +697,19 @@ const ATSScanner: React.FC = () => {
                   type="url"
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter Google Drive or cloud storage URL"
+                  value={urlInputs.resume}
+                  onChange={(e) => setUrlInputs(prev => ({ ...prev, resume: e.target.value }))}
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
-                      const url = (e.target as HTMLInputElement).value;
-                      if (url) handleUrlProcess(url, 'resume');
+                      if (urlInputs.resume.trim()) handleUrlProcess(urlInputs.resume, 'resume');
                     }
                   }}
                 />
                 <button
                   className="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  disabled={isUrlProcessing}
+                  disabled={isUrlProcessing || !urlInputs.resume.trim()}
                   onClick={() => {
-                    const input = document.querySelector('input[type="url"]') as HTMLInputElement;
-                    if (input?.value) handleUrlProcess(input.value, 'resume');
+                    if (urlInputs.resume.trim()) handleUrlProcess(urlInputs.resume, 'resume');
                   }}
                 >
                   {isUrlProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}
@@ -847,20 +864,19 @@ const ATSScanner: React.FC = () => {
                   type="url"
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter job posting URL (LinkedIn, Indeed, etc.)"
+                  value={urlInputs.job}
+                  onChange={(e) => setUrlInputs(prev => ({ ...prev, job: e.target.value }))}
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
-                      const url = (e.target as HTMLInputElement).value;
-                      if (url) handleUrlProcess(url, 'job');
+                      if (urlInputs.job.trim()) handleUrlProcess(urlInputs.job, 'job');
                     }
                   }}
                 />
                 <button
                   className="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  disabled={isUrlProcessing}
+                  disabled={isUrlProcessing || !urlInputs.job.trim()}
                   onClick={() => {
-                    const inputs = document.querySelectorAll('input[type="url"]');
-                    const input = inputs[1] as HTMLInputElement; // Second URL input
-                    if (input?.value) handleUrlProcess(input.value, 'job');
+                    if (urlInputs.job.trim()) handleUrlProcess(urlInputs.job, 'job');
                   }}
                 >
                   {isUrlProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}

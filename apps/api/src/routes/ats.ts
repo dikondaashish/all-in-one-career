@@ -309,27 +309,58 @@ export default function atsRouter(prisma: PrismaClient): Router {
       // Handle Google Drive links
       if (url.includes('drive.google.com')) {
         const fileId = extractGoogleDriveFileId(url);
-        const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+        if (!fileId) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid Google Drive URL. Please ensure the link is publicly accessible.'
+          });
+        }
         
-        // PDF processing from Google Drive temporarily disabled
+        // Try to get document as text export first
+        const textExportUrl = `https://docs.google.com/document/d/${fileId}/export?format=txt`;
+        
+        try {
+          const response = await axios.get(textExportUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            timeout: 30000
+          });
+          
+          if (response.data && response.data.trim().length > 10) {
+            return res.status(200).json({
+              success: true,
+              content: response.data.trim(),
+              title: `Google Doc ${fileId}`,
+              source: 'google-drive'
+            });
+          }
+        } catch (textError: any) {
+          console.warn('diag:url:google_text_failed', { fileId, error: textError?.message });
+        }
+        
+        // Fallback: suggest manual download
         return res.status(400).json({
           success: false,
-          error: 'PDF processing from Google Drive is temporarily disabled. Please download the file and upload it directly, or use DOC/DOCX format.'
+          error: 'Could not extract text from Google Drive document. Please ensure the document is publicly accessible, or download it and upload directly.'
         });
       }
+
+      console.info('diag:url:processing_start', { url: url.substring(0, 100), type });
 
       // Handle regular web pages (job descriptions)
       const response = await axios.get(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         },
-        timeout: 30000
+        timeout: 30000,
+        maxRedirects: 5
       });
 
       const $ = cheerio.load(response.data);
       
       let content = '';
-      let title = $('title').text();
+      let title = $('title').text().trim();
 
       // LinkedIn job scraping
       if (url.includes('linkedin.com/jobs')) {
@@ -371,18 +402,64 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
       // Clean up the extracted text
       content = content.replace(/\s+/g, ' ').trim();
+      
+      // Remove common unwanted text
+      const unwantedPatterns = [
+        /cookies?/gi, /privacy policy/gi, /terms of service/gi,
+        /subscribe/gi, /newsletter/gi, /follow us/gi, /social media/gi
+      ];
+      
+      unwantedPatterns.forEach(pattern => {
+        content = content.replace(pattern, '');
+      });
+      
+      content = content.trim();
+
+      console.info('diag:url:extraction_result', { 
+        url: url.substring(0, 100), 
+        contentLength: content.length,
+        title: title?.substring(0, 50),
+        type
+      });
+
+      if (!content || content.length < 20) {
+        return res.status(400).json({
+          success: false,
+          error: `No meaningful content could be extracted from the URL. Found ${content.length} characters. Please try a different URL or copy the content manually.`
+        });
+      }
 
       res.status(200).json({
         success: true,
         content,
-        title: title.trim()
+        title: title.trim() || 'Web Content',
+        source: 'web-scraping'
       });
 
-    } catch (error) {
-      logger.error('URL processing error: ' + (error as Error).message);
+    } catch (error: any) {
+      console.error('diag:url:processing_error', { 
+        requestUrl: req.body.url?.substring(0, 100), 
+        error: error?.message,
+        code: error?.code,
+        status: error?.response?.status
+      });
+      
+      let errorMessage = 'Failed to process URL';
+      if (error?.code === 'ENOTFOUND') {
+        errorMessage = 'URL not found. Please check the URL and try again.';
+      } else if (error?.code === 'ECONNREFUSED') {
+        errorMessage = 'Connection refused. The website may be blocking automated requests.';
+      } else if (error?.response?.status === 403) {
+        errorMessage = 'Access forbidden. The website may be blocking automated requests.';
+      } else if (error?.response?.status === 404) {
+        errorMessage = 'Page not found. Please check the URL.';
+      } else if (error?.code === 'ECONNABORTED') {
+        errorMessage = 'Request timeout. The website took too long to respond.';
+      }
+      
       res.status(500).json({ 
         success: false, 
-        error: 'Failed to process URL' 
+        error: errorMessage
       });
     }
   });
