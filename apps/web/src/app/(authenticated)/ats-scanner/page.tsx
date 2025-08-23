@@ -104,7 +104,7 @@ const ATSScanner: React.FC = () => {
       if (!response.ok) {
         let msg = "Upload failed";
         if (result?.error === "pdf_no_extractable_text") {
-          msg = "This PDF has no selectable text. Upload a text-based PDF or use DOCX/TXT. If it's scanned, try OCR.";
+          msg = "This PDF could not be processed with our advanced AI OCR. It may be password-protected, corrupted, or contain no readable content. Try uploading DOCX/TXT format.";
         } else if (result?.error === "pdf_parse_unsupported") {
           msg = "We couldn't read this PDF. Try exporting it again or upload DOCX.";
         } else if (result?.error === "unsupported_type") {
