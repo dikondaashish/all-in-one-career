@@ -7,7 +7,7 @@ import os from 'os';
 import mammoth from 'mammoth';
 import { extractPdfText } from '../lib/pdf-parser';
 import { extractPdfTextWithGemini } from '../lib/gemini';
-import { OCRService } from '../lib/ocr-service';
+import { EnhancedPDFService } from '../lib/ocr-service';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -146,35 +146,45 @@ export default function atsRouter(prisma: PrismaClient): Router {
                     console.error("diag:pdf:fallback_failed", { err: fallbackErr?.message, stack: fallbackErr?.stack });
                     console.warn("diag:pdf:trying_gemini_after_minimal_text");
                     
-                    // Try OCR as final fallback for scanned/image PDFs
+                    // Try enhanced PDF parsing as fallback
                     try {
-                      console.warn("diag:pdf:trying_ocr_after_minimal_text");
-                      console.time("diag:ocr:extract_after_minimal");
+                      console.warn("diag:pdf:trying_enhanced_after_minimal_text");
+                      console.time("diag:enhanced_pdf:extract_after_minimal");
                       
-                      const ocrResult = await OCRService.extractTextFromPDF(buf, {
-                        maxPages: 5, // Limit to first 5 pages for performance
-                        quality: 2,
-                        lang: 'eng'
-                      });
+                      const enhancedResult = await EnhancedPDFService.extractTextFromPDF(buf);
+                      console.timeEnd("diag:enhanced_pdf:extract_after_minimal");
                       
-                      console.timeEnd("diag:ocr:extract_after_minimal");
-                      
-                      if (ocrResult.text && ocrResult.text.length >= 20) {
-                        extractedText = ocrResult.text;
-                        console.info("diag:ocr:success_after_minimal", { 
+                      if (enhancedResult.text && enhancedResult.text.length >= 20) {
+                        extractedText = enhancedResult.text;
+                        console.info("diag:enhanced_pdf:success_after_minimal", { 
                           textLen: extractedText.length,
-                          confidence: Math.round(ocrResult.confidence),
-                          pages: ocrResult.pageCount
+                          confidence: enhancedResult.confidence,
+                          pages: enhancedResult.pageCount,
+                          method: enhancedResult.method
                         });
                       } else {
-                        console.warn("diag:ocr:insufficient_after_minimal", {
-                          textLen: ocrResult.text?.length || 0,
-                          confidence: Math.round(ocrResult.confidence)
+                        console.warn("diag:enhanced_pdf:insufficient_after_minimal", {
+                          textLen: enhancedResult.text?.length || 0,
+                          method: enhancedResult.method
                         });
-                        extractedText = '';
+                        
+                        // Try Gemini as absolute final fallback
+                        try {
+                          console.warn("diag:pdf:trying_gemini_final_fallback");
+                          const geminiResult = await extractPdfTextWithGemini(buf);
+                          if (geminiResult && geminiResult.length >= 20) {
+                            extractedText = geminiResult;
+                            console.info("diag:gemini:final_success", { textLen: extractedText.length });
+                          } else {
+                            extractedText = '';
+                          }
+                        } catch (geminiErr: any) {
+                          console.error("diag:gemini:final_failed", { err: geminiErr?.message });
+                          extractedText = '';
+                        }
                       }
-                    } catch (ocrErr: any) {
-                      console.error("diag:ocr:failed_after_minimal", { err: ocrErr?.message });
+                    } catch (enhancedErr: any) {
+                      console.error("diag:enhanced_pdf:failed_after_minimal", { err: enhancedErr?.message });
                       extractedText = '';
                     }
                   }
@@ -202,36 +212,47 @@ export default function atsRouter(prisma: PrismaClient): Router {
             console.error("diag:pdfparse:throw", { err: e2?.message, stack: e2?.stack });
             console.warn("diag:pdf:trying_gemini_fallback");
             
-            // Try OCR as final fallback for scanned/image PDFs
+            // Try enhanced PDF parsing as fallback
             try {
-              console.warn("diag:pdf:trying_ocr_fallback");
-              console.time("diag:ocr:extract");
+              console.warn("diag:pdf:trying_enhanced_fallback");
+              console.time("diag:enhanced_pdf:extract");
               
-              const ocrResult = await OCRService.extractTextFromPDF(buf, {
-                maxPages: 5, // Limit to first 5 pages for performance
-                quality: 2,
-                lang: 'eng'
-              });
+              const enhancedResult = await EnhancedPDFService.extractTextFromPDF(buf);
+              console.timeEnd("diag:enhanced_pdf:extract");
               
-              console.timeEnd("diag:ocr:extract");
-              
-              if (ocrResult.text && ocrResult.text.length >= 20) {
-                extractedText = ocrResult.text;
-                console.info("diag:ocr:success", { 
+              if (enhancedResult.text && enhancedResult.text.length >= 20) {
+                extractedText = enhancedResult.text;
+                console.info("diag:enhanced_pdf:success", { 
                   textLen: extractedText.length,
-                  confidence: Math.round(ocrResult.confidence),
-                  pages: ocrResult.pageCount
+                  confidence: enhancedResult.confidence,
+                  pages: enhancedResult.pageCount,
+                  method: enhancedResult.method
                 });
               } else {
-                console.warn("diag:ocr:insufficient", {
-                  textLen: ocrResult.text?.length || 0,
-                  confidence: Math.round(ocrResult.confidence)
+                console.warn("diag:enhanced_pdf:insufficient", {
+                  textLen: enhancedResult.text?.length || 0,
+                  method: enhancedResult.method
                 });
-                extractedText = '';
-                console.warn("diag:pdf:all_parsers_failed");
+                
+                // Try Gemini as absolute final fallback
+                try {
+                  console.warn("diag:pdf:trying_gemini_absolute_final");
+                  const geminiResult = await extractPdfTextWithGemini(buf);
+                  if (geminiResult && geminiResult.length >= 20) {
+                    extractedText = geminiResult;
+                    console.info("diag:gemini:absolute_final_success", { textLen: extractedText.length });
+                  } else {
+                    extractedText = '';
+                    console.warn("diag:pdf:all_parsers_failed");
+                  }
+                } catch (geminiErr: any) {
+                  console.error("diag:gemini:absolute_final_failed", { err: geminiErr?.message });
+                  extractedText = '';
+                  console.warn("diag:pdf:all_parsers_failed");
+                }
               }
-            } catch (ocrErr: any) {
-              console.error("diag:ocr:failed", { err: ocrErr?.message });
+            } catch (enhancedErr: any) {
+              console.error("diag:enhanced_pdf:failed", { err: enhancedErr?.message });
               extractedText = '';
               console.warn("diag:pdf:all_parsers_failed");
             }

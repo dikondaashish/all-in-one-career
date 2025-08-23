@@ -104,7 +104,7 @@ const ATSScanner: React.FC = () => {
       if (!response.ok) {
         let msg = "Upload failed";
                   if (result?.error === "pdf_no_extractable_text") {
-            msg = "This PDF couldn't be processed with our advanced OCR system. It may be corrupted, password-protected, or contain no readable content. Try uploading DOCX/TXT format.";
+            msg = "This PDF couldn't be processed with our advanced parsing system. It may be corrupted, password-protected, or contain no readable content. Try uploading DOCX/TXT format.";
         } else if (result?.error === "pdf_parse_unsupported") {
           msg = "We couldn't read this PDF. Try exporting it again or upload DOCX.";
         } else if (result?.error === "unsupported_type") {
@@ -114,7 +114,7 @@ const ATSScanner: React.FC = () => {
         } else if (result?.error === "no_file_uploaded") {
           msg = "No file detected. Please choose a file and try again.";
                   } else if (result?.error === "no_extractable_text") {
-            msg = "The uploaded file contains no readable text even after OCR processing. Please try a different format.";
+            msg = "The uploaded file contains no readable text even after advanced processing. Please try a different format.";
         } else if (result?.error === "empty_file") {
           msg = "Empty file received. Please try again.";
         } else if (result?.error === "method_not_allowed") {
@@ -452,7 +452,7 @@ const ATSScanner: React.FC = () => {
                       <span className="text-gray-500"> or drag and drop</span>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      PDF (with AI OCR), DOC, DOCX, TXT files only (max 10MB)
+                      PDF (with advanced parsing), DOC, DOCX, TXT files only (max 10MB)
                     </p>
                   </>
                 )}
@@ -575,7 +575,7 @@ const ATSScanner: React.FC = () => {
                       <span className="text-gray-500"> or drag and drop</span>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      PDF (with AI OCR), DOC, DOCX, TXT files only (max 10MB)
+                      PDF (with advanced parsing), DOC, DOCX, TXT files only (max 10MB)
                     </p>
                   </>
                 )}
