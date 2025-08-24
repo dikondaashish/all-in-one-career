@@ -255,7 +255,7 @@ class AdvancedContentExtractor {
     return $('title').text().trim();
   }
 
-  private static calculateQualityScore(content: string): number {
+  static calculateQualityScore(content: string): number {
     const factors = {
       has_responsibilities: /responsibilities?|duties|role|what you.?ll do/i.test(content),
       has_requirements: /requirements?|qualifications?|skills|experience|must have/i.test(content),
@@ -277,33 +277,36 @@ async function refineJobContentWithGemini(rawContent: string, genAI: GoogleGener
   
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
   
-  const prompt = `You are a job description content refiner. Your task is to extract and clean job-related content from a webpage.
+  const prompt = `You are a webpage content cleaner. Your task is to remove unwanted website elements while preserving the original job description EXACTLY as written.
 
-PRESERVE ALL job-related content:
-- Job titles, requirements, responsibilities  
-- Qualifications, skills, experience needed
-- Salary, benefits, company information
-- Location, remote status, job type
-- Application instructions and deadlines
+CRITICAL: DO NOT reformat, restructure, or reorganize the content. Keep the original text structure and wording intact.
 
-REMOVE unwanted content:
-- Website navigation text and menus
-- Promotional banners and advertisements  
-- Related job suggestions
-- Cookie notices and legal disclaimers
-- Social sharing buttons and widgets
-- Comment sections and user reviews
-- Site headers, footers, and sidebars
+ONLY REMOVE these unwanted elements:
+- Website navigation menus and links
+- Header/footer content  
+- Sidebar content
+- Advertisement banners
+- Cookie notices and privacy warnings
+- Social media sharing buttons
+- Related job suggestions or "You might also like"
+- Comments sections
+- Website branding and promotional text
+- "Apply now", "Save job", "Share" buttons
+- Page navigation elements
 
-MAINTAIN:
-- Original formatting and structure
-- All important keywords and phrases
-- Professional tone and language
-- Bullet points and lists where present
+PRESERVE EXACTLY:
+- All job description text in original order
+- Company information and about sections
+- Job title, salary, location, requirements
+- All bullet points and formatting
+- Original paragraph structure
+- All technical skills and qualifications
+- Application instructions that are part of the job posting
 
-Return ONLY the clean job description content. If this doesn't appear to be a job posting, return "NOT_JOB_CONTENT".
+If the content doesn't contain a job posting, return "NOT_JOB_CONTENT".
+Otherwise, return the cleaned job description with original formatting preserved.
 
-Raw Content:
+Content to clean:
 ${rawContent}`;
 
   try {
@@ -996,16 +999,30 @@ export default function atsRouter(prisma: PrismaClient): Router {
         title = extractionResult.title || title;
       }
 
-      // Apply AI-powered content refinement for job descriptions
-      if (content && content.length > 100) {
+      // Apply AI-powered content refinement for job descriptions (can be disabled with DISABLE_URL_AI_REFINEMENT=true)
+      if (content && content.length > 100 && process.env.GEMINI_API_KEY && process.env.DISABLE_URL_AI_REFINEMENT !== 'true') {
         try {
           const refinedContent = await refineJobContentWithGemini(content, genAI);
-          if (refinedContent && refinedContent.length > 50) {
-            console.info('diag:url:ai_refined', { 
-              originalLength: content.length, 
-              refinedLength: refinedContent.length 
+          if (refinedContent && refinedContent.length > 50 && !refinedContent.includes('NOT_JOB_CONTENT')) {
+            // Only use AI refined content if it's significantly better or similar length
+            const originalQuality = AdvancedContentExtractor.calculateQualityScore(content);
+            const refinedQuality = AdvancedContentExtractor.calculateQualityScore(refinedContent);
+            
+            console.info('diag:url:ai_comparison', { 
+              originalLength: content.length,
+              originalQuality,
+              refinedLength: refinedContent.length,
+              refinedQuality
             });
-            content = refinedContent;
+            
+            // Use AI refined content if quality is better or similar with reasonable length
+            if (refinedQuality >= originalQuality || 
+                (refinedContent.length >= content.length * 0.7 && refinedQuality >= originalQuality * 0.9)) {
+              content = refinedContent;
+              console.info('diag:url:ai_refined_used', { reason: 'quality_improvement' });
+            } else {
+              console.info('diag:url:ai_refined_skipped', { reason: 'quality_degradation' });
+            }
           }
         } catch (error) {
           console.warn('diag:url:ai_refinement_failed', { error: (error as Error).message });
@@ -1013,20 +1030,30 @@ export default function atsRouter(prisma: PrismaClient): Router {
         }
       }
 
-      // Basic cleanup as fallback
+      // Enhanced basic cleanup 
       content = content.replace(/\s+/g, ' ').trim();
       
-      // Remove common unwanted text
+      // Remove common unwanted text patterns
       const unwantedPatterns = [
-        /cookies?/gi, /privacy policy/gi, /terms of service/gi,
-        /subscribe/gi, /newsletter/gi, /follow us/gi, /social media/gi
+        /\b(cookies?|privacy policy|terms of service|accept|agree)\b/gi,
+        /\b(subscribe|newsletter|follow us|social media|share|like|tweet)\b/gi,
+        /\b(apply now|save job|view similar|related jobs|you might also like)\b/gi,
+        /\b(sign up|log in|create account|register|login)\b/gi,
+        /\b(contact us|about us|careers|help|support|faq)\b/gi,
+        /\b(home|search|browse|menu|navigation|sidebar)\b/gi
       ];
       
       unwantedPatterns.forEach(pattern => {
         content = content.replace(pattern, '');
       });
       
-      content = content.trim();
+      // Clean up multiple spaces and trim
+      content = content.replace(/\s{2,}/g, ' ').trim();
+      
+      console.info('diag:url:basic_cleanup_complete', { 
+        finalLength: content.length,
+        aiRefinementUsed: process.env.DISABLE_URL_AI_REFINEMENT !== 'true' && !!process.env.GEMINI_API_KEY
+      });
 
       console.info('diag:url:extraction_result', { 
         url: url.substring(0, 100), 
