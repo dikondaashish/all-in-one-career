@@ -5,6 +5,9 @@ import { HireProbabilityEngine } from '../lib/prediction/hire-probability';
 import { MarketIntelligenceEngine } from '../lib/market/intelligence-engine';
 import { InterviewReadinessEngine } from '../lib/prediction/interview-readiness';
 import { SalaryNegotiationEngine } from '../lib/prediction/salary-negotiation';
+import { CareerTrajectoryEngine } from '../lib/prediction/career-trajectory';
+import { CompetitiveAnalysisEngine } from '../lib/competitive/analysis-engine';
+import { CompanyIntelligenceEngine } from '../lib/company/intelligence-scraper';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 
@@ -47,6 +50,9 @@ router.post('/advanced-scan', authenticateToken, async (req: any, res) => {
     const marketEngine = new MarketIntelligenceEngine();
     const interviewEngine = new InterviewReadinessEngine();
     const salaryEngine = new SalaryNegotiationEngine();
+    const careerEngine = new CareerTrajectoryEngine();
+    const competitiveEngine = new CompetitiveAnalysisEngine();
+    const companyEngine = new CompanyIntelligenceEngine();
 
     // Step 1: Advanced Gemini Analysis
     console.log('🧠 Starting Advanced AI Analysis...');
@@ -91,7 +97,28 @@ router.post('/advanced-scan', authenticateToken, async (req: any, res) => {
       industryIntel
     );
 
-    // Step 6: Salary Negotiation Intelligence
+    // Step 6: Company Intelligence (if provided)
+    let companyProfile = null;
+    let companyOptimization = null;
+    if (companyName) {
+      console.log('🏢 Gathering Company Intelligence...');
+      companyProfile = await companyEngine.getCompanyProfile(companyName);
+      companyOptimization = await companyEngine.optimizeForCompany(
+        revolutionaryScoring,
+        companyProfile,
+        jobDescription
+      );
+    }
+
+    // Step 7: Competitive Analysis
+    console.log('🏆 Analyzing Competitive Position...');
+    const competitiveAnalysis = await competitiveEngine.analyzeMarketPosition(
+      revolutionaryScoring,
+      jobDescription,
+      industryIntel.industryDetection.primary
+    );
+
+    // Step 8: Salary Negotiation Intelligence
     console.log('💰 Calculating Salary Intelligence...');
     const salaryNegotiation = await salaryEngine.calculateNegotiationPower(
       revolutionaryScoring,
@@ -100,15 +127,30 @@ router.post('/advanced-scan', authenticateToken, async (req: any, res) => {
         skillDemand: {},
         industryTrends: {},
         locationFactors: {}
+      },
+      companyProfile
+    );
+
+    // Step 9: Career Trajectory Analysis
+    console.log('🚀 Mapping Career Trajectory...');
+    const careerTrajectory = await careerEngine.analyzeFutureGrowth(
+      revolutionaryScoring,
+      industryIntel,
+      {
+        skillDemand: {},
+        industryTrends: {},
+        locationFactors: {}
       }
     );
 
-    // Step 7: Calculate Overall Advanced Score
+    // Step 10: Calculate Overall Advanced Score
     const overallScore = calculateAdvancedOverallScore({
       revolutionaryScoring,
       hireProbability,
       marketAdjustedScore,
-      industryIntel
+      industryIntel,
+      competitiveAnalysis,
+      careerTrajectory
     });
 
     // Step 8: Save to Database
@@ -135,7 +177,12 @@ router.post('/advanced-scan', authenticateToken, async (req: any, res) => {
         interviewReadiness: JSON.parse(JSON.stringify(interviewReadiness)),
         salaryNegotiation: JSON.parse(JSON.stringify(salaryNegotiation)),
         
-        marketPosition: JSON.parse(JSON.stringify(marketAdjustedScore)),
+        marketPosition: JSON.parse(JSON.stringify({
+          ...marketAdjustedScore,
+          competitiveAnalysis,
+          careerTrajectory,
+          companyOptimization
+        })),
         skillDemand: JSON.parse(JSON.stringify(marketAdjustedScore.marketFactors)),
         
         // Original content
@@ -200,10 +247,13 @@ router.post('/advanced-scan', authenticateToken, async (req: any, res) => {
         
         industryIntel: industryIntel,
         marketPosition: marketAdjustedScore,
+        competitiveAnalysis: competitiveAnalysis,
         
         hireProbability: hireProbability,
         interviewReadiness: interviewReadiness,
-        salaryNegotiation: salaryNegotiation
+        salaryNegotiation: salaryNegotiation,
+        careerTrajectory: careerTrajectory,
+        companyOptimization: companyOptimization
       }
     });
 
@@ -283,15 +333,18 @@ function calculateAdvancedOverallScore({
   revolutionaryScoring,
   hireProbability,
   marketAdjustedScore,
-  industryIntel
+  industryIntel,
+  competitiveAnalysis,
+  careerTrajectory
 }: any): number {
   const weights = {
-    skillRelevancy: 0.25,
-    careerTrajectory: 0.20,
+    skillRelevancy: 0.20,
+    careerTrajectory: 0.15,
     hireProbability: 0.20,
     marketPosition: 0.15,
     recruiterAppeal: 0.10,
-    impactScore: 0.10
+    impactScore: 0.10,
+    competitivePosition: 0.10
   };
 
   const score = Math.round(
@@ -300,7 +353,8 @@ function calculateAdvancedOverallScore({
     (hireProbability.probability * weights.hireProbability) +
     (marketAdjustedScore.adjustedScore * weights.marketPosition) +
     (revolutionaryScoring.recruiterAppeal.firstImpressionScore * weights.recruiterAppeal) +
-    (revolutionaryScoring.impactScore.quantificationQuality * weights.impactScore)
+    (revolutionaryScoring.impactScore.quantificationQuality * weights.impactScore) +
+    (competitiveAnalysis.marketPosition.percentile * weights.competitivePosition)
   );
 
   return Math.min(100, Math.max(0, score));

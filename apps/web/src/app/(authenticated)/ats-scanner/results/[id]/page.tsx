@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
+import { AdvancedResultsDashboard } from '../../../../../components/advanced/AdvancedResultsDashboard';
 
 // Custom CSS animations
 const customStyles = `
@@ -261,17 +262,19 @@ const ScanResultsPage: React.FC = () => {
   const id = params?.id as string;
   
   const [scanData, setScanData] = useState<ScanResult | null>(null);
+  const [advancedData, setAdvancedData] = useState<any | null>(null);
+  const [isAdvancedScan, setIsAdvancedScan] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [isVisible, setIsVisible] = useState(false);
 
   // Animation trigger after data loads
   useEffect(() => {
-    if (scanData && !loading) {
+    if ((scanData || advancedData) && !loading) {
       const timer = setTimeout(() => setIsVisible(true), 100);
       return () => clearTimeout(timer);
     }
-  }, [scanData, loading]);
+  }, [scanData, advancedData, loading]);
 
   useEffect(() => {
     if (id) {
@@ -341,18 +344,20 @@ const ScanResultsPage: React.FC = () => {
       
       const data = await response.json();
       
-      // Transform advanced results to match the expected format if needed
+      // Check if this is an advanced scan result
       if (data.results) {
-        // This is an advanced scan result
-        const advancedData = data.results;
+        // This is an advanced scan result - store both advanced and transformed data
+        setIsAdvancedScan(true);
+        setAdvancedData(data.results);
         
-        // Map advanced data to the expected ScanResult format
+        // Also create transformed data for backward compatibility
+        const advancedData = data.results;
         const transformedData: ScanResult = {
           id: advancedData.id,
           overallScore: advancedData.overallScore,
           matchRate: advancedData.matchRate,
-          searchabilityScore: advancedData.searchability,
-          atsCompatibilityScore: advancedData.atsCompatibility,
+          searchability: advancedData.searchability,
+          atsCompatibility: advancedData.atsCompatibility,
           detailedAnalysis: advancedData.detailedAnalysis || {
             contactInformation: { score: 90, status: 'excellent', feedback: 'Complete contact information' },
             professionalSummary: { score: advancedData.recruiterAppeal?.storytellingQuality || 75, status: 'good', feedback: 'Strong narrative coherence' },
@@ -400,6 +405,7 @@ const ScanResultsPage: React.FC = () => {
         setScanData(transformedData);
       } else {
         // This is a regular scan result
+        setIsAdvancedScan(false);
         setScanData(data);
       }
     } catch (error) {
@@ -471,6 +477,54 @@ const ScanResultsPage: React.FC = () => {
     );
   }
 
+  if (!scanData && !advancedData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <XCircle className="mx-auto h-12 w-12 text-red-600" />
+          <p className="text-xl text-gray-600 mt-4">Scan results not found</p>
+          <button 
+            onClick={() => router.push('/ats-scanner')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Back to Scanner
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If this is an advanced scan, render the advanced dashboard
+  if (isAdvancedScan && advancedData) {
+    return (
+      <AdvancedResultsDashboard 
+        scanId={id} 
+        results={{
+          overallScore: advancedData.overallScore,
+          matchRate: advancedData.matchRate,
+          searchability: advancedData.searchability,
+          atsCompatibility: advancedData.atsCompatibility,
+          skillRelevancy: advancedData.skillRelevancy,
+          careerTrajectory: advancedData.careerTrajectory,
+          impactScore: advancedData.impactScore,
+          recruiterAppeal: advancedData.recruiterAppeal,
+          redFlags: advancedData.redFlags,
+          hireProbability: advancedData.hireProbability,
+          interviewReadiness: advancedData.interviewReadiness,
+          salaryNegotiation: advancedData.salaryNegotiation,
+          industryIntel: {
+            industryDetection: advancedData.industryDetection,
+            industrySpecificScoring: advancedData.industryScoring
+          },
+          marketPosition: advancedData.marketPosition,
+          competitiveAnalysis: advancedData.marketPosition,
+          companyOptimization: advancedData.companyOptimization
+        }}
+      />
+    );
+  }
+
+  // Ensure scanData exists for regular scan
   if (!scanData) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
