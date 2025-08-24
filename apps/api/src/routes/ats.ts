@@ -345,7 +345,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
         
         // Strategy 2: Try direct file download (for PDFs, Word docs, etc.)
         try {
-          const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+        const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
           console.info('diag:url:trying_file_download', { downloadUrl });
           
           const fileResponse = await axios.get(downloadUrl, {
@@ -465,7 +465,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
         },
         {
           name: 'mobile',
-          headers: {
+        headers: {
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -545,9 +545,6 @@ export default function atsRouter(prisma: PrismaClient): Router {
           });
         }
         
-        // Remove LinkedIn-specific unwanted elements first  
-        $('script, style, nav, header, footer, .nav, .global-nav, .msg-overlay', '.artdeco-modal', '.artdeco-toasts', '.aside', '.right-rail').remove();
-        
         // Try different LinkedIn job content selectors
         const jobSelectors = [
           '.description__text',
@@ -560,15 +557,10 @@ export default function atsRouter(prisma: PrismaClient): Router {
         ];
         
         for (const selector of jobSelectors) {
-          const element = $(selector);
-          if (element.length) {
-            // Remove nested unwanted elements
-            element.find('.show-more-less-html__button, .jobs-box__generic-cta', '[class*="cta"]').remove();
-            const jobContent = element.text().trim();
-            if (jobContent && jobContent.length > 100) {
-              content = jobContent;
-              break;
-            }
+          const jobContent = $(selector).text();
+          if (jobContent && jobContent.trim().length > 100) {
+            content = jobContent;
+            break;
           }
         }
         
@@ -613,9 +605,6 @@ export default function atsRouter(prisma: PrismaClient): Router {
           });
         }
 
-        // Remove Indeed-specific unwanted elements first
-        $('script, style, nav, header, footer, .gnav, .pn, .jobsearch-SerpJobCard', '.jobsearch-RecommendedJobs', '.jobsearch-LeftPane', '.jobsearch-RightPane', '.jobsearch-Footer').remove();
-        
         // Try multiple Indeed job content selectors
         const indeedSelectors = [
           '#jobDescriptionText',
@@ -629,15 +618,10 @@ export default function atsRouter(prisma: PrismaClient): Router {
         ];
         
         for (const selector of indeedSelectors) {
-          const element = $(selector);
-          if (element.length) {
-            // Remove nested unwanted elements
-            element.find('.jobsearch-RecommendedJobs, .jobsearch-Footer, .similar-jobs, [class*="ad"]').remove();
-            const jobContent = element.text().trim();
-            if (jobContent && jobContent.length > 100) {
-              content = jobContent;
-              break;
-            }
+          const jobContent = $(selector).text();
+          if (jobContent && jobContent.trim().length > 100) {
+            content = jobContent;
+            break;
           }
         }
         
@@ -702,159 +686,126 @@ export default function atsRouter(prisma: PrismaClient): Router {
         content = $('.job_description').text() || $('.jobDescriptionSection').text();
         title = $('h1.job_title').text() || $('h1').first().text();
       }
-      // Generic job page scraping for company career pages
+      // Generic job page scraping for company career pages and other websites
       else {
-        // Remove unwanted elements (scripts, styles, navigation, ads, etc.)
-        $('script, style, nav, header, footer, aside, .nav, .navigation, .header, .footer, .sidebar, .ads, .advertisement, .social, .share, .comments, .related, .recommended, .breadcrumb, .pagination, .menu').remove();
+        console.info('diag:url:generic_extraction', { url: processUrl.substring(0, 100) });
         
-        // Try to find job description content with prioritized selectors
-        const jobSelectors = [
-          // High priority - job-specific selectors
-          '[class*="job-description"]',
-          '[class*="job-detail"]',
-          '[class*="job-content"]',
-          '[id*="job-description"]',
-          '[id*="job-detail"]',
-          '[id*="job-content"]',
-          
-          // Medium priority - general content selectors
-          '[class*="description"]',
-          '[class*="content"]',
-          '[class*="body"]',
-          '[id*="description"]',
-          '[id*="content"]',
-          '[id*="body"]',
-          
-          // Lower priority - structural selectors
-          'main [class*="text"]',
-          'article [class*="text"]',
-          '.main-content',
-          '#main-content',
+        // Remove ONLY scripts, styles, headers, footers, and navigation
+        $('script, style, header, footer, nav, .header, .footer, .nav, .navigation').remove();
+        
+        // Also remove common non-content elements
+        $('.cookie, .cookies, .cookie-banner, .cookie-notice, .gdpr, .social-media, .social-share, .popup, .modal, .overlay').remove();
+        
+        // Try to find main content area first (most websites use these)
+        const mainContentSelectors = [
           'main',
-          'article',
-          
-          // Last resort - semantic HTML
           '[role="main"]',
-          '.container .row [class*="col"]'
+          '.main',
+          '.main-content',
+          '.content',
+          '.page-content',
+          '.post-content',
+          '.article-content',
+          '#main',
+          '#content',
+          '#main-content'
         ];
         
-        // Try each selector and find the one with the most substantial content
-        let bestContent = '';
-        let bestScore = 0;
-        
-        for (const selector of jobSelectors) {
-          try {
-            const elements = $(selector);
-            elements.each((i, element) => {
-              const elementText = $(element).text().trim();
-              
-              // Score based on length and job-related keywords
-              const jobKeywords = ['responsibilities', 'requirements', 'qualifications', 'experience', 'skills', 'job', 'role', 'position', 'duties', 'apply', 'salary', 'benefits', 'company', 'team'];
-              const keywordMatches = jobKeywords.filter(keyword => 
-                elementText.toLowerCase().includes(keyword)
-              ).length;
-              
-              // Prefer longer content with more job keywords
-              const score = elementText.length + (keywordMatches * 100);
-              
-              if (score > bestScore && elementText.length > 200) {
-                bestContent = elementText;
-                bestScore = score;
-              }
-            });
-          } catch (e) {
-            // Skip invalid selectors
-            continue;
+        let foundMainContent = false;
+        for (const selector of mainContentSelectors) {
+          const element = $(selector);
+          if (element.length && element.text().trim().length > 200) {
+            content = element.text().trim();
+            console.info('diag:url:main_content_found', { selector, contentLength: content.length });
+            foundMainContent = true;
+            break;
           }
         }
         
-        content = bestContent;
-        
-        // If no content found with smart selection, fallback to basic selectors
-        if (!content || content.length < 200) {
-          for (const selector of jobSelectors) {
+        // If no main content area found, try job-specific selectors
+        if (!foundMainContent) {
+          const jobSpecificSelectors = [
+            '[class*="job-description"]',
+            '[class*="job-detail"]',
+            '[class*="job-content"]',
+            '[id*="job-description"]',
+            '[id*="job-detail"]',
+            '[class*="description"]',
+            '[id*="description"]',
+            '.position-description',
+            '.role-description',
+            '.job-posting'
+          ];
+          
+          for (const selector of jobSpecificSelectors) {
             const element = $(selector);
-            if (element.length && element.text().trim().length > 200) {
+            if (element.length && element.text().trim().length > 100) {
               content = element.text().trim();
+              console.info('diag:url:job_specific_found', { selector, contentLength: content.length });
+              foundMainContent = true;
               break;
             }
           }
         }
         
-        // Last resort: get main content and clean it
-        if (!content || content.length < 100) {
-          // Remove more unwanted elements before taking body content
-          $('script, style, nav, header, footer, aside, .nav, .navigation, .header, .footer, .sidebar, .ads, .advertisement, .social, .share, .comments, .related, .recommended, .breadcrumb, .pagination, .menu, .banner, .popup, .modal, .overlay, form, input, button').remove();
+        // Last resort: extract body content but remove known non-content elements
+        if (!foundMainContent) {
+          // Remove additional non-content elements from body
+          $('aside, .sidebar, .ad, .ads, .advertisement, .banner, .promo, .social, .share, .comments, .comment, .breadcrumb, .breadcrumbs, .pagination, .menu, .submenu').remove();
           
-          // Try main content areas first
-          const fallbackSelectors = ['main', 'article', '[role="main"]', '.content', '.main-content', 'body'];
-          for (const selector of fallbackSelectors) {
-            const element = $(selector);
-            if (element.length) {
-              const text = element.text().trim();
-              if (text.length > 200) {
-                content = text;
-                break;
-              }
-            }
+          const bodyContent = $('body').text().trim();
+          if (bodyContent.length > 100) {
+            content = bodyContent;
+            console.info('diag:url:body_fallback_used', { contentLength: content.length });
           }
         }
         
-        // Extract title if not already set
+        // Try to extract a meaningful title if not already set
         if (!title || title.includes('404') || title.includes('Error') || title.length < 5) {
-          const titleSelectors = ['h1', 'h2', '[class*="title"]', '[class*="heading"]', '[class*="job"]'];
+          const titleSelectors = [
+            'h1',
+            '.page-title',
+            '.post-title', 
+            '.article-title',
+            '.job-title',
+            '[class*="title"]'
+          ];
+          
           for (const selector of titleSelectors) {
-            const headingText = $(selector).first().text().trim();
-            if (headingText && headingText.length > 5 && headingText.length < 150) {
-              title = headingText;
+            const titleElement = $(selector).first();
+            const titleText = titleElement.text().trim();
+            if (titleText && titleText.length > 5 && titleText.length < 200) {
+              title = titleText;
               break;
             }
           }
         }
       }
 
-      // Clean up the extracted text
+      // Clean up the extracted text while preserving structure
       if (content) {
-        // Normalize whitespace
-        content = content.replace(/\s+/g, ' ').trim();
+        // Normalize whitespace but preserve paragraph breaks
+        content = content
+          .replace(/[\r\n\t]+/g, ' ')  // Replace tabs and line breaks with spaces
+          .replace(/\s{2,}/g, ' ')     // Replace multiple spaces with single space
+          .trim();
         
-        // Remove common unwanted phrases and patterns
-        const unwantedPatterns = [
-          /cookies?\s+policy/gi,
+        // Remove common unwanted phrases but be conservative
+        const unwantedPhrases = [
+          /accept\s+cookies/gi,
+          /cookie\s+policy/gi,
           /privacy\s+policy/gi,
-          /terms\s+of\s+use/gi,
-          /terms\s+and\s+conditions/gi,
-          /copyright\s+\d{4}/gi,
-          /all\s+rights\s+reserved/gi,
-          /subscribe\s+to\s+our\s+newsletter/gi,
-          /follow\s+us\s+on/gi,
-          /share\s+this\s+job/gi,
-          /apply\s+now\s+button/gi,
-          /save\s+this\s+job/gi,
-          /email\s+this\s+job/gi,
-          /print\s+this\s+job/gi,
-          /back\s+to\s+search/gi,
-          /similar\s+jobs/gi,
-          /recommended\s+jobs/gi,
-          /related\s+jobs/gi,
-          /more\s+jobs\s+like\s+this/gi,
-          /\bads?\s+by\b/gi,
-          /sponsored\s+by/gi,
-          /powered\s+by/gi
+          /terms\s+of\s+service/gi,
+          /terms\s+and\s+conditions/gi
         ];
         
-        for (const pattern of unwantedPatterns) {
+        unwantedPhrases.forEach(pattern => {
           content = content.replace(pattern, '');
-        }
+        });
         
-        // Remove excessive repetition (same phrase repeated 3+ times)
-        content = content.replace(/(.{10,}?)\s*\1\s*\1/gi, '$1');
-        
-        // Clean up multiple spaces again
-        content = content.replace(/\s+/g, ' ').trim();
+        // Final cleanup
+        content = content.replace(/\s{2,}/g, ' ').trim();
       }
-      
-      content = content.trim();
 
       console.info('diag:url:extraction_result', { 
         url: url.substring(0, 100), 
@@ -863,10 +814,31 @@ export default function atsRouter(prisma: PrismaClient): Router {
         type
       });
 
-      if (!content || content.length < 20) {
+      // Ensure we have meaningful content
+      if (!content || content.trim().length < 50) {
+        console.warn('diag:url:insufficient_content', { 
+          contentLength: content?.length || 0,
+          url: url.substring(0, 100),
+          pageTitle: $('title').text()
+        });
+        
         return res.status(400).json({
           success: false,
-          error: `No meaningful content could be extracted from the URL. Found ${content.length} characters. Please try a different URL or copy the content manually.`
+          error: `No meaningful content could be extracted from the URL. Found ${content?.length || 0} characters.\n\nThis could be due to:\n• The page requires JavaScript to load content\n• The website blocks automated access\n• The page structure is unusual\n\nTry:\n• Copy the content manually\n• Use a different URL or job board\n• Check if the page loads properly in your browser`
+        });
+      }
+      
+      // Check for minimum quality content (not just navigation text)
+      const contentWords = content.trim().split(/\s+/).length;
+      if (contentWords < 10) {
+        console.warn('diag:url:low_quality_content', { 
+          wordCount: contentWords,
+          content: content.substring(0, 100)
+        });
+        
+        return res.status(400).json({
+          success: false,
+          error: `Content appears to be too short or fragmented (${contentWords} words). This might be navigation text or page elements rather than main content.\n\nPlease try:\n• A direct link to the full content\n• Copy the content manually\n• A different source`
         });
       }
 
@@ -908,37 +880,18 @@ export default function atsRouter(prisma: PrismaClient): Router {
   // Main analysis endpoint using Gemini AI
   router.post('/analyze', authenticateToken, async (req: any, res) => {
     try {
-      console.info('diag:analyze:start', { 
-        hasResumeText: !!req.body?.resumeText,
-        hasJobDescription: !!req.body?.jobDescription,
-        userId: req.user?.uid || req.user?.id,
-        timestamp: new Date().toISOString()
-      });
-
       const { resumeText, jobDescription, saveResume, resumeName } = req.body;
       const userId = req.user?.uid || req.user?.id;
 
       if (!userId) {
-        console.warn('diag:analyze:no_user_id', { user: req.user });
         return res.status(401).json({ error: 'User authentication required' });
       }
 
       if (!resumeText?.trim() || !jobDescription?.trim()) {
-        console.warn('diag:analyze:missing_data', { 
-          resumeTextLength: resumeText?.length || 0,
-          jobDescriptionLength: jobDescription?.length || 0
-        });
         return res.status(400).json({ 
           error: 'Resume text and job description are required' 
         });
       }
-
-      console.info('diag:analyze:data_validated', {
-        resumeTextLength: resumeText.length,
-        jobDescriptionLength: jobDescription.length,
-        saveResume,
-        resumeName
-      });
 
       // Generate analysis using Gemini AI
       const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
@@ -991,33 +944,16 @@ export default function atsRouter(prisma: PrismaClient): Router {
       5. Industry-specific best practices
       `;
 
-      console.info('diag:analyze:calling_gemini');
       const result = await model.generateContent(analysisPrompt);
       const response = result.response.text();
-      console.info('diag:analyze:gemini_response_received', { 
-        responseLength: response.length,
-        responsePreview: response.substring(0, 200)
-      });
       
       // Parse the AI response
-      const cleanedResponse = response.replace(/```json\n?|\n?```/g, '');
-      console.info('diag:analyze:parsing_json', { 
-        cleanedResponseLength: cleanedResponse.length,
-        cleanedPreview: cleanedResponse.substring(0, 200)
-      });
-      
-      const analysisData = JSON.parse(cleanedResponse);
-      console.info('diag:analyze:json_parsed_successfully', { 
-        overallScore: analysisData.overallScore,
-        matchRate: analysisData.matchRate
-      });
+      const analysisData = JSON.parse(response.replace(/```json\n?|\n?```/g, ''));
 
       // Generate unique ID for this scan
       const scanId = crypto.randomUUID();
-      console.info('diag:analyze:generated_scan_id', { scanId });
 
       // Save to database
-      console.info('diag:analyze:saving_to_database', { scanId, userId });
       const savedScan = await prisma.atsScan.create({
         data: {
           id: scanId,
@@ -1042,11 +978,9 @@ export default function atsRouter(prisma: PrismaClient): Router {
           improvementSuggestions: analysisData.keywordAnalysis?.optimizationSuggestions || []
         }
       });
-      console.info('diag:analyze:database_save_successful', { scanId });
 
       // Save resume if requested
       if (saveResume && resumeName) {
-        console.info('diag:analyze:saving_resume', { resumeName });
         await prisma.savedResume.create({
           data: {
             userId: userId,
@@ -1054,11 +988,9 @@ export default function atsRouter(prisma: PrismaClient): Router {
             resumeText: resumeText
           }
         });
-        console.info('diag:analyze:resume_save_successful');
       }
 
       // Structure the response
-      console.info('diag:analyze:preparing_response', { scanId });
       const analysisResult = {
         id: scanId,
         overallScore: analysisData.overallScore,
@@ -1098,23 +1030,11 @@ export default function atsRouter(prisma: PrismaClient): Router {
         }
       };
 
-      console.info('diag:analyze:sending_response', { 
-        responseSize: JSON.stringify(analysisResult).length,
-        scanId 
-      });
       res.status(200).json(analysisResult);
 
     } catch (error) {
-      console.error('diag:analyze:error', { 
-        error: (error as Error).message,
-        stack: (error as Error).stack,
-        timestamp: new Date().toISOString()
-      });
       logger.error('Analysis error: ' + (error as Error).message);
-      res.status(500).json({ 
-        error: 'Failed to analyze resume',
-        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
-      });
+      res.status(500).json({ error: 'Failed to analyze resume' });
     }
   });
 
