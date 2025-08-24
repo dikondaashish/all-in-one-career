@@ -18,6 +18,53 @@ import pino from 'pino';
 
 const logger = pino({ transport: { target: 'pino-pretty' } });
 
+// Job scraping monitoring utility
+class JobScrapingMonitor {
+  static logScrapingResult(url: string, result: any) {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      url: url.substring(0, 100),
+      domain: new URL(url).hostname,
+      status: result.success ? 'success' : 'failed',
+      contentLength: result.content?.length || 0,
+      title: result.title?.substring(0, 50) || '',
+      errorType: result.error ? this.categorizeError(result.error) : null,
+      reason: result.reason || null
+    };
+    
+    console.info('diag:scraping:result', logEntry);
+    
+    // Log failed scrapes separately for analysis
+    if (!result.success) {
+      console.warn('diag:scraping:failed', {
+        ...logEntry,
+        fullError: result.error
+      });
+    }
+    
+    return logEntry;
+  }
+  
+  static categorizeError(error: string): string {
+    if (error.includes('filled') || error.includes('no longer available')) return 'job_filled';
+    if (error.includes('403') || error.includes('forbidden')) return 'access_blocked';
+    if (error.includes('404') || error.includes('not found')) return 'page_not_found';
+    if (error.includes('timeout')) return 'timeout';
+    if (error.includes('Insufficient content')) return 'insufficient_content';
+    if (error.includes('LinkedIn') && error.includes('authentication')) return 'linkedin_auth_required';
+    if (error.includes('rate limit') || error.includes('429')) return 'rate_limited';
+    return 'unknown';
+  }
+  
+  static getScrapingMetrics() {
+    // This could be enhanced to track metrics in a database or cache
+    return {
+      timestamp: new Date().toISOString(),
+      note: 'Metrics tracking can be enhanced with database storage'
+    };
+  }
+}
+
 const TMP_DIR = process.env.RENDER ? "/opt/render/project/tmp" : os.tmpdir();
 
 // Ensure tmp directory exists on Render
@@ -748,87 +795,144 @@ export default function atsRouter(prisma: PrismaClient): Router {
         }
       }
 
-      // Retry mechanism for handling anti-bot protection
+            // Enhanced retry mechanism for handling anti-bot protection and job unavailability
       let response;
       let lastError;
       
-            // Try different strategies with session handling
+      // Enhanced user agent rotation with realistic headers
       const strategies = [
         {
-          name: 'standard_with_cookies',
+          name: 'chrome_windows',
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
             'Sec-Fetch-Dest': 'document',
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-User': '?1',
-            'Cookie': 'cookieconsent_status=dismiss; _ga=GA1.1.123456789; sessionid=temp123'
+            'Upgrade-Insecure-Requests': '1'
           }
         },
         {
-          name: 'referrer_google',
+          name: 'firefox_windows',
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': 'https://www.google.com/',
             'DNT': '1',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1'
           }
         },
         {
-          name: 'mobile',
+          name: 'safari_mac',
           headers: {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Safari/605.1.15',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive'
+          }
+        },
+        {
+          name: 'mobile_ios',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br'
           }
-        },
-        {
-          name: 'simple',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; JobScraper/1.0)',
-            'Accept': 'text/html'
-          }
         }
       ];
 
-      for (const strategy of strategies) {
-        try {
-          console.info('diag:url:trying_strategy', { strategy: strategy.name, url: processUrl.substring(0, 100) });
-          
-          response = await axios.get(processUrl, {
-            headers: strategy.headers,
-            timeout: 30000,
-            maxRedirects: 5,
-            validateStatus: (status) => status < 500 // Accept 4xx but retry on 5xx
-          });
+      for (let strategyIndex = 0; strategyIndex < strategies.length; strategyIndex++) {
+        const strategy = strategies[strategyIndex];
+        const maxAttemptsPerStrategy = 2; // Try each strategy up to 2 times
+        
+        for (let attempt = 1; attempt <= maxAttemptsPerStrategy; attempt++) {
+          try {
+            console.info('diag:url:trying_strategy', { 
+              strategy: strategy.name, 
+              attempt,
+              url: processUrl.substring(0, 100) 
+            });
+            
+            // Exponential backoff delay for retries
+            if (attempt > 1) {
+              const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Cap at 5 seconds
+              console.info('diag:url:retry_delay', { delay, attempt });
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+            
+            response = await axios.get(processUrl, {
+              headers: strategy.headers,
+              timeout: 30000,
+              maxRedirects: 5,
+              validateStatus: (status) => status < 500 // Accept 4xx but retry on 5xx
+            });
 
-          if (response.status === 200) {
-            console.info('diag:url:strategy_success', { strategy: strategy.name, status: response.status });
-            break;
-          } else if (response.status === 403 || response.status === 429) {
-            console.warn('diag:url:strategy_blocked', { strategy: strategy.name, status: response.status });
-            lastError = new Error(`HTTP ${response.status}: Access forbidden or rate limited`);
-            continue;
+            if (response.status === 200) {
+              console.info('diag:url:strategy_success', { 
+                strategy: strategy.name, 
+                attempt,
+                status: response.status,
+                contentLength: response.data?.length || 0
+              });
+              break; // Break out of attempt loop
+            } else if (response.status === 403 || response.status === 429) {
+              console.warn('diag:url:strategy_blocked', { 
+                strategy: strategy.name, 
+                attempt,
+                status: response.status 
+              });
+              lastError = new Error(`HTTP ${response.status}: Access forbidden or rate limited`);
+              
+              // For rate limiting, wait longer before retry
+              if (response.status === 429 && attempt < maxAttemptsPerStrategy) {
+                const retryAfter = response.headers['retry-after'];
+                const delay = retryAfter ? parseInt(retryAfter) * 1000 : 5000;
+                console.info('diag:url:rate_limited_delay', { delay, retryAfter });
+                await new Promise(resolve => setTimeout(resolve, Math.min(delay, 10000)));
+              }
+              continue; // Try this strategy again
+            }
+          } catch (error: any) {
+            console.warn('diag:url:strategy_failed', { 
+              strategy: strategy.name, 
+              attempt,
+              error: error.message,
+              code: error.code
+            });
+            lastError = error;
+            
+            // Don't retry on certain errors
+            if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+              console.info('diag:url:fatal_error_no_retry', { 
+                strategy: strategy.name, 
+                code: error.code 
+              });
+              break; // Break out of attempt loop for this strategy
+            }
           }
-        } catch (error: any) {
-          console.warn('diag:url:strategy_failed', { strategy: strategy.name, error: error.message });
-          lastError = error;
-          
-          // Wait a bit before trying next strategy
-          if (strategy !== strategies[strategies.length - 1]) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
+        }
+        
+        // If we got a successful response, break out of strategy loop
+        if (response && response.status === 200) {
+          break;
+        }
+        
+        // Wait between different strategies
+        if (strategyIndex < strategies.length - 1) {
+          const interStrategyDelay = 2000; // 2 seconds between strategies
+          console.info('diag:url:inter_strategy_delay', { delay: interStrategyDelay });
+          await new Promise(resolve => setTimeout(resolve, interStrategyDelay));
         }
       }
 
@@ -850,7 +954,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
       let content = '';
       let title = $('title').text().trim();
 
-      // Check for common "job not found" or "job filled" messages
+      // Enhanced job status detection and validation
       const pageText = $('body').text().toLowerCase();
       const jobUnavailableMessages = [
         'job you are trying to apply for has been filled',
@@ -858,10 +962,12 @@ export default function atsRouter(prisma: PrismaClient): Router {
         'job posting has expired',
         'position has been filled',
         'job not found',
-        '404',
         'page not found',
         'job no longer exists',
-        'sorry, this job is not available'
+        'sorry, this job is not available',
+        'this position is no longer accepting applications',
+        'application deadline has passed',
+        'posting has been removed'
       ];
 
       const isJobUnavailable = jobUnavailableMessages.some(msg => pageText.includes(msg));
@@ -869,37 +975,39 @@ export default function atsRouter(prisma: PrismaClient): Router {
       if (isJobUnavailable) {
         console.warn('diag:url:job_unavailable', { 
           url: processUrl.substring(0, 100),
-          pageText: pageText.substring(0, 200)
+          detectedMessage: jobUnavailableMessages.find(msg => pageText.includes(msg)),
+          pageLength: pageText.length
         });
         
-        // Try to extract job ID and suggest alternative URLs
-        let suggestions = [];
+        // Extract useful information for alternative suggestions
+        const suggestions = [];
         
-        // Extract job ID from URL for alternative sources
+        // Extract job ID from URL
         const jobIdMatches = processUrl.match(/(?:job|position|posting)[\/\-_]?(\d+)/i) || 
                            processUrl.match(/\/(\d+)(?:[\/\?]|$)/) ||
                            processUrl.match(/id[=\/](\d+)/i);
         
         if (jobIdMatches) {
           const jobId = jobIdMatches[1];
-          suggestions.push(`• Try searching for job ID "${jobId}" on other job boards`);
+          suggestions.push(`Search for job ID "${jobId}" on LinkedIn, Indeed, or Glassdoor`);
         }
         
-        // Extract company name from URL or title
-        const companyMatch = processUrl.match(/\/\/([^\.]+)\./) || title.match(/at\s+([^|]+)/i);
-        if (companyMatch) {
-          const company = companyMatch[1].replace(/www\.|jobs\.|careers\./, '');
-          suggestions.push(`• Check ${company}'s careers page directly`);
-        }
+        // Extract company name
+        const domain = new URL(processUrl).hostname.replace('www.', '').replace('jobs.', '').replace('careers.', '');
+        const companyName = domain.split('.')[0];
+        suggestions.push(`Check ${companyName}'s main careers page`);
+        suggestions.push(`Search for similar positions at ${companyName} on other job boards`);
         
-        // Try Internet Archive as a last resort
-        const archiveUrl = `https://web.archive.org/web/${processUrl}`;
-        suggestions.push(`• Try the archived version: ${archiveUrl}`);
-        
-        return res.status(400).json({
+        const errorResult = {
           success: false,
-          error: `This job posting appears to be no longer available or has been filled.\n\nPage shows: "${pageText.substring(0, 150)}..."\n\nSuggestions:\n${suggestions.join('\n')}\n• Look for the same position on LinkedIn, Indeed, or Glassdoor\n• Copy the job description manually if you have it saved\n• Contact the company directly about this position`
-        });
+          error: `This job posting is no longer available or has been filled.\n\nDetected: "${jobUnavailableMessages.find(msg => pageText.includes(msg))}"\n\nSuggestions:\n• ${suggestions.join('\n• ')}\n• Try cached versions on web.archive.org\n• Contact the company directly about similar openings`,
+          reason: 'job_unavailable'
+        };
+        
+        // Log the scraping result for monitoring
+        JobScrapingMonitor.logScrapingResult(url, errorResult);
+        
+        return res.status(400).json(errorResult);
       }
 
       // LinkedIn job scraping
@@ -1125,26 +1233,75 @@ export default function atsRouter(prisma: PrismaClient): Router {
         aiRefinementUsed: process.env.DISABLE_URL_AI_REFINEMENT !== 'true' && !!process.env.GEMINI_API_KEY
       });
 
+      // Enhanced content validation with minimum length requirements
+      const MIN_CONTENT_LENGTH = 300; // Job descriptions should be at least 300 characters
+      const IDEAL_CONTENT_LENGTH = 500; // Warn if below this threshold
+      
       console.info('diag:url:extraction_result', { 
         url: url.substring(0, 100), 
         contentLength: content.length,
         title: title?.substring(0, 50),
-        type
+        type,
+        meetsMinLength: content.length >= MIN_CONTENT_LENGTH,
+        meetsIdealLength: content.length >= IDEAL_CONTENT_LENGTH
       });
 
-      if (!content || content.length < 20) {
-        return res.status(400).json({
+      // Check for insufficient content
+      if (!content || content.length < MIN_CONTENT_LENGTH) {
+        console.warn('diag:url:insufficient_content', { 
+          contentLength: content?.length || 0,
+          url: url.substring(0, 100),
+          pageTitle: title,
+          contentPreview: content?.substring(0, 100)
+        });
+        
+        // Check if this might be a job board that requires specific handling
+        const domain = new URL(url).hostname;
+        let domainSpecificHelp = '';
+        
+        if (domain.includes('workday')) {
+          domainSpecificHelp = '\n\nWorkday sites often require specific URLs. Try accessing the job through the company\'s main careers page.';
+        } else if (domain.includes('greenhouse')) {
+          domainSpecificHelp = '\n\nGreenhouse job boards may require direct job URLs. Look for "View Job" or "Apply" links.';
+        } else if (domain.includes('lever')) {
+          domainSpecificHelp = '\n\nLever job boards work best with direct job posting URLs, not search results.';
+        } else if (domain.includes('bamboohr')) {
+          domainSpecificHelp = '\n\nBambooHR sites may have dynamic content. Try the direct job posting link.';
+        }
+        
+        const errorResult = {
           success: false,
-          error: `No meaningful content could be extracted from the URL. Found ${content.length} characters. Please try a different URL or copy the content manually.`
+          error: `Insufficient content extracted from the URL (found ${content?.length || 0} characters, need at least ${MIN_CONTENT_LENGTH}).\n\nThis could indicate:\n• The job posting has been removed or filled\n• The page requires JavaScript to load content\n• The URL is a search results page instead of a direct job posting\n• The website blocks automated access\n\nSuggestions:\n• Use the direct job posting URL (not search results)\n• Copy the job description text manually\n• Try accessing through the company's main careers page${domainSpecificHelp}`,
+          reason: 'insufficient_content',
+          contentLength: content?.length || 0
+        };
+        
+        // Log the scraping result for monitoring
+        JobScrapingMonitor.logScrapingResult(url, errorResult);
+        
+        return res.status(400).json(errorResult);
+      }
+
+      // Warn about potentially incomplete content
+      if (content.length < IDEAL_CONTENT_LENGTH) {
+        console.warn('diag:url:below_ideal_length', {
+          contentLength: content.length,
+          idealLength: IDEAL_CONTENT_LENGTH,
+          url: url.substring(0, 100)
         });
       }
 
-      res.status(200).json({
+      const successResult = {
         success: true,
         content,
         title: title.trim() || 'Web Content',
         source: 'web-scraping'
-      });
+      };
+      
+      // Log the scraping result for monitoring
+      JobScrapingMonitor.logScrapingResult(url, successResult);
+      
+      res.status(200).json(successResult);
 
     } catch (error: any) {
       console.error('diag:url:processing_error', { 
