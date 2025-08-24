@@ -504,91 +504,99 @@ const ATSScanner: React.FC = () => {
       return;
     }
 
-          if (!user) {
-        showToast({ 
-          icon: '❌', 
-          title: 'Authentication Error', 
-          message: 'Please log in again' 
-        });
-        return;
-      }
+    if (!user) {
+      showToast({ 
+        icon: '❌', 
+        title: 'Authentication Error', 
+        message: 'Please log in again' 
+      });
+      return;
+    }
 
-      setIsProcessing(true);
-      setErrors({});
+    setIsProcessing(true);
+    setErrors({});
 
-      try {
-        const authToken = await user.getIdToken();
-        const response = await fetch(`${API_BASE_URL}/api/ats/analyze`, {
+    try {
+      const authToken = await user.getIdToken();
+      
+      // Extract company name from job description if available
+      const companyName = jobData.title || null;
+      
+      showToast({ 
+        icon: '🧠', 
+        title: 'AI Analysis Started', 
+        message: 'Running advanced AI analysis with industry intelligence...' 
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/ats/advanced-scan`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          resumeText: resumeData.text,
+          jobDescription: jobData.text,
+          companyName: companyName,
+        }),
+      });
+
+      // Handle token expiration
+      if (response.status === 401) {
+        console.info("Token expired during scan, refreshing...");
+        const newToken = await user.getIdToken(true); // Force refresh
+        
+        const retryResponse = await fetch(`${API_BASE_URL}/api/ats/advanced-scan`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`,
+            'Authorization': `Bearer ${newToken}`,
           },
           body: JSON.stringify({
             resumeText: resumeData.text,
             jobDescription: jobData.text,
-            saveResume,
-            resumeName: saveResume ? resumeName : undefined,
+            companyName: companyName,
           }),
         });
-
-        // Handle token expiration
-        if (response.status === 401) {
-          console.info("Token expired during scan, refreshing...");
-          const newToken = await user.getIdToken(true); // Force refresh
-          
-          const retryResponse = await fetch(`${API_BASE_URL}/api/ats/analyze`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${newToken}`,
-            },
-            body: JSON.stringify({
-              resumeText: resumeData.text,
-              jobDescription: jobData.text,
-              saveResume,
-              resumeName: saveResume ? resumeName : undefined,
-            }),
+        
+        const retryResult = await retryResponse.json();
+        if (retryResult.scanId) {
+          showToast({ 
+            icon: '🎉', 
+            title: 'Advanced Analysis Complete', 
+            message: 'Revolutionary career intelligence analysis completed! Redirecting to results...' 
           });
-          
-          const retryResult = await retryResponse.json();
-          if (retryResult.id) {
-            showToast({ 
-              icon: '🎉', 
-              title: 'Analysis Complete', 
-              message: 'Analysis completed! Redirecting to results...' 
-            });
-            router.push(`/ats-scanner/results/${retryResult.id}`);
-            return;
-          } else {
-            throw new Error(retryResult.error || 'Analysis failed after token refresh');
-          }
+          router.push(`/ats-scanner/results/${retryResult.scanId}`);
+          return;
+        } else {
+          throw new Error(retryResult.error || 'Advanced analysis failed after token refresh');
         }
+      }
 
-        const result = await response.json();
+      const result = await response.json();
       
-      if (result.id) {
+      if (result.scanId) {
         showToast({ 
           icon: '🎉', 
-          title: 'Analysis Complete', 
-          message: 'Analysis completed! Redirecting to results...' 
+          title: 'Advanced Analysis Complete', 
+          message: 'Revolutionary career intelligence analysis completed! Redirecting to results...' 
         });
-        router.push(`/ats-scanner/results/${result.id}`);
+        router.push(`/ats-scanner/results/${result.scanId}`);
       } else {
-        throw new Error(result.error || 'Analysis failed');
+        throw new Error(result.error || 'Advanced analysis failed');
       }
     } catch (error) {
-      const errorMsg = (error as Error).message || 'Analysis failed. Please try again.';
+      const errorMsg = (error as Error).message || 'Advanced analysis failed. Please try again.';
       setErrors({ resume: errorMsg });
-              showToast({
-          icon: '❌',
-          title: 'Analysis Failed',
-          message: errorMsg 
-        });
-        console.error("Scan error:", error);
-      } finally {
-        setIsProcessing(false);
-      }
+      showToast({
+        icon: '❌',
+        title: 'Advanced Analysis Failed',
+        message: errorMsg 
+      });
+      console.error("Advanced scan error:", error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -596,9 +604,15 @@ const ATSScanner: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">ATS Scanner</h1>
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <h1 className="text-3xl font-bold text-gray-900">Advanced ATS Scanner</h1>
+            <div className="px-3 py-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-medium rounded-full flex items-center gap-1">
+              <span className="text-xs">🧠</span>
+              <span>AI Powered</span>
+            </div>
+          </div>
           <p className="text-lg text-gray-600">
-            Optimize your resume to get past Applicant Tracking Systems
+            Revolutionary career intelligence with industry insights, hire probability prediction, and salary negotiation analysis
           </p>
         </div>
 
@@ -993,7 +1007,7 @@ const ATSScanner: React.FC = () => {
             ) : (
               <>
                 <Search className="w-5 h-5" />
-                <span>Scan Resume</span>
+                <span>Advanced AI Scan</span>
               </>
             )}
           </button>

@@ -35,6 +35,7 @@ model User {
   searchHistory    SearchHistory[]
   notifications    Notification[]
   atsScans         AtsScan[]
+  atsScansAdvanced AtsScanAdvanced[]
   savedResumes     SavedResume[]
   atsPreferences   AtsUserPreference[]
   ocrJobs          OcrJob[]
@@ -215,6 +216,83 @@ model OcrJob {
   @@index([userId])
   @@index([s3Key])
   @@index([status])
+}
+
+// Advanced ATS Scanner Models
+model AtsScanAdvanced {
+  id                   String   @id @default(cuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Basic scores (existing)
+  overallScore         Int
+  matchRate           Int
+  searchability       Int
+  atsCompatibility    Int
+  
+  // NEW: Advanced Intelligence
+  skillRelevancy      Json     // RevolutionaryScoring.skillRelevancy
+  careerTrajectory    Json     // RevolutionaryScoring.careerTrajectory
+  impactScore         Json     // RevolutionaryScoring.impactScore
+  recruiterAppeal     Json     // RevolutionaryScoring.recruiterAppeal
+  redFlags            Json     // RevolutionaryScoring.redFlags
+  
+  // NEW: Industry Intelligence
+  industryDetection   Json     // IndustryIntelligence.industryDetection
+  industryScoring     Json     // IndustryIntelligence.industrySpecificScoring
+  
+  // NEW: Predictions
+  hireProbability     Json     // HireProbabilityResult
+  interviewReadiness  Json     // Interview prediction data
+  salaryNegotiation   Json     // Salary insights
+  
+  // NEW: Market Intelligence
+  marketPosition      Json     // Competitive analysis
+  skillDemand         Json     // Current market demand for skills
+  
+  // Existing fields
+  detailedAnalysis    Json?
+  hardSkillsFound     Json?
+  hardSkillsMissing   Json?
+  recruiterTips       Json?
+  keywordAnalysis     Json?
+  improvementSuggestions Json?
+  
+  // Original content for reference
+  resumeText          String
+  jobDescription      String
+  companyName         String?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@map("ats_scans_advanced")
+}
+
+model MarketIntelligence {
+  id              String   @id @default(cuid())
+  industry        String
+  skillDemand     Json     // Current demand levels for skills
+  salaryTrends    Json     // Salary trend data
+  hiringTrends    Json     // Hiring volume and patterns
+  lastUpdated     DateTime @default(now())
+  
+  @@map("market_intelligence")
+}
+
+model CompanyProfiles {
+  id              String   @id @default(cuid())
+  companyName     String   @unique
+  domain          String?
+  industry        String
+  size            String
+  cultureKeywords Json     // Company culture indicators
+  techStack       Json     // Preferred technologies
+  hiringPatterns  Json     // Historical hiring data
+  averageTenure   Float?
+  lastUpdated     DateTime @default(now())
+  
+  @@map("company_profiles")
 }
 
 

@@ -294,21 +294,42 @@ const ScanResultsPage: React.FC = () => {
         throw new Error('No user authentication available');
       }
 
-      let response = await fetch(`${API_BASE_URL}/api/ats/scan-results/${id}`, {
+      // Try advanced results first, then fall back to regular results
+      let response = await fetch(`${API_BASE_URL}/api/ats/advanced-results/${id}`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
         },
       });
       
+      // If advanced results not found, try regular results
+      if (response.status === 404) {
+        response = await fetch(`${API_BASE_URL}/api/ats/scan-results/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+          },
+        });
+      }
+      
       // If unauthorized, refresh token once and retry
       if (response.status === 401 && user) {
         try {
           const freshToken = await user.getIdToken(true);
-          response = await fetch(`${API_BASE_URL}/api/ats/scan-results/${id}`, {
+          
+          // Try advanced results first with fresh token
+          response = await fetch(`${API_BASE_URL}/api/ats/advanced-results/${id}`, {
             headers: {
               'Authorization': `Bearer ${freshToken}`,
             },
           });
+          
+          // If advanced results not found, try regular results
+          if (response.status === 404) {
+            response = await fetch(`${API_BASE_URL}/api/ats/scan-results/${id}`, {
+              headers: {
+                'Authorization': `Bearer ${freshToken}`,
+              },
+            });
+          }
         } catch (refreshErr) {
           console.error('Failed to refresh token:', refreshErr);
         }
@@ -319,7 +340,68 @@ const ScanResultsPage: React.FC = () => {
       }
       
       const data = await response.json();
-      setScanData(data);
+      
+      // Transform advanced results to match the expected format if needed
+      if (data.results) {
+        // This is an advanced scan result
+        const advancedData = data.results;
+        
+        // Map advanced data to the expected ScanResult format
+        const transformedData: ScanResult = {
+          id: advancedData.id,
+          overallScore: advancedData.overallScore,
+          matchRate: advancedData.matchRate,
+          searchabilityScore: advancedData.searchability,
+          atsCompatibilityScore: advancedData.atsCompatibility,
+          detailedAnalysis: advancedData.detailedAnalysis || {
+            contactInformation: { score: 90, status: 'excellent', feedback: 'Complete contact information' },
+            professionalSummary: { score: advancedData.recruiterAppeal?.storytellingQuality || 75, status: 'good', feedback: 'Strong narrative coherence' },
+            technicalSkills: { score: advancedData.skillRelevancy?.score || 80, status: 'excellent', feedback: 'Well-aligned skills' },
+            qualifiedAchievements: { score: advancedData.impactScore?.quantificationQuality || 70, status: 'good', feedback: 'Good quantification of achievements' },
+            educationCertifications: { score: 80, status: 'good', feedback: 'Relevant background' },
+            atsFormat: { score: advancedData.recruiterAppeal?.firstImpressionScore || 85, status: 'excellent', feedback: 'ATS-friendly format' }
+          },
+          hardSkills: {
+            found: advancedData.hardSkillsFound || [],
+            missing: advancedData.hardSkillsMissing || [],
+            matchPercentage: advancedData.skillRelevancy?.score || 0
+          },
+          recruiterTips: advancedData.recruiterTips || [],
+          keywordOptimization: {
+            score: advancedData.keywordAnalysis?.score || 75,
+            totalKeywords: advancedData.keywordAnalysis?.totalJobKeywords || 0,
+            foundKeywords: advancedData.keywordAnalysis?.foundKeywords || [],
+            missingKeywords: advancedData.keywordAnalysis?.missingKeywords || [],
+            suggestions: advancedData.improvementSuggestions || []
+          },
+          competitiveAnalysis: {
+            score: advancedData.hireProbability?.probability || 75,
+            comparison: [
+              {
+                metric: 'Hire Probability',
+                userScore: advancedData.hireProbability?.probability || 0,
+                marketAverage: 65
+              },
+              {
+                metric: 'Technical Skills',
+                userScore: advancedData.skillRelevancy?.score || 0,
+                marketAverage: 70
+              },
+              {
+                metric: 'Experience Level',
+                userScore: advancedData.careerTrajectory?.score || 0,
+                marketAverage: 75
+              }
+            ]
+          },
+          createdAt: advancedData.createdAt || new Date().toISOString()
+        };
+        
+        setScanData(transformedData);
+      } else {
+        // This is a regular scan result
+        setScanData(data);
+      }
     } catch (error) {
       console.error('Failed to fetch scan results:', error);
       showToast({ 
