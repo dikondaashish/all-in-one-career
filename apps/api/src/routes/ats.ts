@@ -752,10 +752,10 @@ export default function atsRouter(prisma: PrismaClient): Router {
       let response;
       let lastError;
       
-      // Try different strategies
+            // Try different strategies with session handling
       const strategies = [
         {
-          name: 'standard',
+          name: 'standard_with_cookies',
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -763,12 +763,30 @@ export default function atsRouter(prisma: PrismaClient): Router {
             'Accept-Encoding': 'gzip, deflate, br',
             'DNT': '1',
             'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cookie': 'cookieconsent_status=dismiss; _ga=GA1.1.123456789; sessionid=temp123'
+          }
+        },
+        {
+          name: 'referrer_google',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Referer': 'https://www.google.com/',
+            'DNT': '1',
+            'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1'
           }
         },
         {
           name: 'mobile',
-        headers: {
+          headers: {
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -831,6 +849,58 @@ export default function atsRouter(prisma: PrismaClient): Router {
       
       let content = '';
       let title = $('title').text().trim();
+
+      // Check for common "job not found" or "job filled" messages
+      const pageText = $('body').text().toLowerCase();
+      const jobUnavailableMessages = [
+        'job you are trying to apply for has been filled',
+        'this job is no longer available',
+        'job posting has expired',
+        'position has been filled',
+        'job not found',
+        '404',
+        'page not found',
+        'job no longer exists',
+        'sorry, this job is not available'
+      ];
+
+      const isJobUnavailable = jobUnavailableMessages.some(msg => pageText.includes(msg));
+      
+      if (isJobUnavailable) {
+        console.warn('diag:url:job_unavailable', { 
+          url: processUrl.substring(0, 100),
+          pageText: pageText.substring(0, 200)
+        });
+        
+        // Try to extract job ID and suggest alternative URLs
+        let suggestions = [];
+        
+        // Extract job ID from URL for alternative sources
+        const jobIdMatches = processUrl.match(/(?:job|position|posting)[\/\-_]?(\d+)/i) || 
+                           processUrl.match(/\/(\d+)(?:[\/\?]|$)/) ||
+                           processUrl.match(/id[=\/](\d+)/i);
+        
+        if (jobIdMatches) {
+          const jobId = jobIdMatches[1];
+          suggestions.push(`• Try searching for job ID "${jobId}" on other job boards`);
+        }
+        
+        // Extract company name from URL or title
+        const companyMatch = processUrl.match(/\/\/([^\.]+)\./) || title.match(/at\s+([^|]+)/i);
+        if (companyMatch) {
+          const company = companyMatch[1].replace(/www\.|jobs\.|careers\./, '');
+          suggestions.push(`• Check ${company}'s careers page directly`);
+        }
+        
+        // Try Internet Archive as a last resort
+        const archiveUrl = `https://web.archive.org/web/${processUrl}`;
+        suggestions.push(`• Try the archived version: ${archiveUrl}`);
+        
+        return res.status(400).json({
+          success: false,
+          error: `This job posting appears to be no longer available or has been filled.\n\nPage shows: "${pageText.substring(0, 150)}..."\n\nSuggestions:\n${suggestions.join('\n')}\n• Look for the same position on LinkedIn, Indeed, or Glassdoor\n• Copy the job description manually if you have it saved\n• Contact the company directly about this position`
+        });
+      }
 
       // LinkedIn job scraping
       if (url.includes('linkedin.com/jobs')) {

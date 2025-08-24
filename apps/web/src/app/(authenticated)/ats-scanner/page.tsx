@@ -953,7 +953,8 @@ const ATSScanner: React.FC = () => {
                       <div>✅ Indeed, Glassdoor, Monster, ZipRecruiter</div>
                       <div>✅ Company career pages & job boards</div>
                       <div>❌ LinkedIn (requires authentication)</div>
-                      <div className="text-gray-300 mt-1">For LinkedIn: Copy job description manually</div>
+                      <div>⚠️ Expired/filled job postings</div>
+                      <div className="text-gray-300 mt-1">Note: URLs must point to active job postings</div>
                     </div>
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
                   </div>
