@@ -29,6 +29,306 @@ async function ensureTmpDir() {
   }
 }
 
+// Advanced content extraction strategies
+class AdvancedContentExtractor {
+  private static EXTRACTION_STRATEGIES = [
+    'main_content_extraction',
+    'job_specific_extraction', 
+    'article_extraction',
+    'paragraph_consolidation',
+    'body_fallback'
+  ];
+
+  static async applyAdvancedExtraction($: cheerio.CheerioAPI, url: string): Promise<{content: string, title: string, quality: number}> {
+    console.info('diag:extraction:start', { url: url.substring(0, 100) });
+
+    // Remove unwanted elements first
+    this.removeUnwantedElements($);
+
+    let bestContent = '';
+    let bestTitle = '';
+    let bestQuality = 0;
+    let bestStrategy = '';
+
+    // Try each extraction strategy
+    for (const strategy of this.EXTRACTION_STRATEGIES) {
+      try {
+        const result = await this.executeStrategy($, strategy, url);
+        const quality = this.calculateQualityScore(result.content);
+        
+        console.info('diag:extraction:strategy_result', {
+          strategy,
+          contentLength: result.content.length,
+          quality,
+          title: result.title?.substring(0, 50)
+        });
+
+        if (quality > bestQuality && result.content.length > 100) {
+          bestContent = result.content;
+          bestTitle = result.title || bestTitle;
+          bestQuality = quality;
+          bestStrategy = strategy;
+        }
+      } catch (error) {
+        console.warn('diag:extraction:strategy_failed', { strategy, error: (error as Error).message });
+      }
+    }
+
+    console.info('diag:extraction:best_result', {
+      strategy: bestStrategy,
+      quality: bestQuality,
+      contentLength: bestContent.length
+    });
+
+    return {
+      content: bestContent,
+      title: bestTitle,
+      quality: bestQuality
+    };
+  }
+
+  private static removeUnwantedElements($: cheerio.CheerioAPI): void {
+    // Remove elements we don't want according to the extraction prompt
+    $('script, style, noscript').remove(); // Technical elements
+    $('header, .header, [role="banner"]').remove(); // Website headers  
+    $('footer, .footer, [role="contentinfo"]').remove(); // Website footers
+    $('nav, .nav, .navigation, .navbar, .menu').remove(); // Navigation
+    $('aside, .sidebar, .side-panel').remove(); // Sidebars
+    $('.cookie, .cookies, .cookie-banner, .cookie-notice, .gdpr').remove(); // Cookie notices
+    $('.social-media, .social-share, .social, .share-buttons').remove(); // Social media widgets
+    $('.ad, .ads, .advertisement, .banner, .promo').remove(); // Ads
+    $('.comments, .comment, .comment-section').remove(); // Comments
+    $('.breadcrumb, .breadcrumbs, .pagination').remove(); // Navigation aids
+    $('.popup, .modal, .overlay, .lightbox').remove(); // Popups
+  }
+
+  private static async executeStrategy($: cheerio.CheerioAPI, strategy: string, url: string): Promise<{content: string, title: string}> {
+    switch (strategy) {
+      case 'main_content_extraction':
+        return this.extractMainContent($);
+      case 'job_specific_extraction':
+        return this.extractJobSpecificContent($);
+      case 'article_extraction':
+        return this.extractArticleContent($);
+      case 'paragraph_consolidation':
+        return this.extractParagraphContent($);
+      case 'body_fallback':
+        return this.extractBodyFallback($);
+      default:
+        throw new Error(`Unknown strategy: ${strategy}`);
+    }
+  }
+
+  private static extractMainContent($: cheerio.CheerioAPI): {content: string, title: string} {
+    const mainSelectors = [
+      'main', '[role="main"]', '.main', '.main-content',
+      '.content', '.page-content', '.post-content', '.article-content',
+      '#main', '#content', '#main-content'
+    ];
+
+    for (const selector of mainSelectors) {
+      const element = $(selector);
+      if (element.length) {
+        const content = element.text().trim();
+        if (content.length > 200) {
+          return {
+            content,
+            title: this.extractTitle($, element)
+          };
+        }
+      }
+    }
+
+    throw new Error('No main content found');
+  }
+
+  private static extractJobSpecificContent($: cheerio.CheerioAPI): {content: string, title: string} {
+    const jobSelectors = [
+      '[class*="job-description"]', '[class*="job-detail"]', '[class*="job-content"]',
+      '[id*="job-description"]', '[id*="job-detail"]', '[class*="description"]',
+      '.position-description', '.role-description', '.job-posting', '.job-info'
+    ];
+
+    for (const selector of jobSelectors) {
+      const element = $(selector);
+      if (element.length) {
+        const content = element.text().trim();
+        if (content.length > 200) {
+          return {
+            content,
+            title: this.extractTitle($, element)
+          };
+        }
+      }
+    }
+
+    throw new Error('No job-specific content found');
+  }
+
+  private static extractArticleContent($: cheerio.CheerioAPI): {content: string, title: string} {
+    const articleSelectors = [
+      'article', '.article', '.post', '.entry', '.post-body',
+      '.entry-content', '.article-body', '.content-body'
+    ];
+
+    for (const selector of articleSelectors) {
+      const element = $(selector);
+      if (element.length) {
+        const content = element.text().trim();
+        if (content.length > 200) {
+          return {
+            content,
+            title: this.extractTitle($, element)
+          };
+        }
+      }
+    }
+
+    throw new Error('No article content found');
+  }
+
+  private static extractParagraphContent($: cheerio.CheerioAPI): {content: string, title: string} {
+    const paragraphs = $('p');
+    let content = '';
+    
+    paragraphs.each(function() {
+      const pText = $(this).text().trim();
+      if (pText.length > 50) {
+        content += pText + '\n\n';
+      }
+    });
+
+    if (content.length > 200) {
+      return {
+        content: content.trim(),
+        title: this.extractTitle($)
+      };
+    }
+
+    throw new Error('Insufficient paragraph content');
+  }
+
+  private static extractBodyFallback($: cheerio.CheerioAPI): {content: string, title: string} {
+    const bodyText = $('body').text().trim();
+    
+    if (bodyText.length > 200) {
+      return {
+        content: bodyText,
+        title: this.extractTitle($)
+      };
+    }
+
+    throw new Error('Insufficient body content');
+  }
+
+  private static extractTitle($: cheerio.CheerioAPI, context?: cheerio.Cheerio<any>): string {
+    const titleSelectors = [
+      'h1', '.page-title', '.post-title', '.article-title',
+      '.job-title', '.title', '[class*="title"]'
+    ];
+
+    // If context is provided, search within it first
+    if (context) {
+      for (const selector of titleSelectors) {
+        const titleElement = context.find(selector).first();
+        if (titleElement.length) {
+          const title = titleElement.text().trim();
+          if (title && title.length > 5 && title.length < 200) {
+            return title;
+          }
+        }
+      }
+    }
+
+    // Search in the full document
+    for (const selector of titleSelectors) {
+      const titleElement = $(selector).first();
+      if (titleElement.length) {
+        const title = titleElement.text().trim();
+        if (title && title.length > 5 && title.length < 200) {
+          return title;
+        }
+      }
+    }
+
+    // Fallback to page title
+    return $('title').text().trim();
+  }
+
+  private static calculateQualityScore(content: string): number {
+    const factors = {
+      has_responsibilities: /responsibilities?|duties|role|what you.?ll do/i.test(content),
+      has_requirements: /requirements?|qualifications?|skills|experience|must have/i.test(content),
+      has_company_info: /company|organization|about us|who we are/i.test(content),
+      sufficient_length: content.split(/\s+/).length > 100,
+      has_job_keywords: /position|role|job|career|opportunity|hiring/i.test(content),
+      good_structure: content.includes('\n') || content.includes('.') 
+    };
+
+    const score = Object.values(factors).filter(Boolean).length / Object.keys(factors).length;
+    console.info('diag:quality:score', { score, factors });
+    return score;
+  }
+}
+
+// AI-powered job content refinement
+async function refineJobContentWithGemini(rawContent: string, genAI: GoogleGenerativeAI): Promise<string> {
+  console.info('diag:ai:refinement_start', { contentLength: rawContent.length });
+  
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  
+  const prompt = `You are a job description content refiner. Your task is to extract and clean job-related content from a webpage.
+
+PRESERVE ALL job-related content:
+- Job titles, requirements, responsibilities  
+- Qualifications, skills, experience needed
+- Salary, benefits, company information
+- Location, remote status, job type
+- Application instructions and deadlines
+
+REMOVE unwanted content:
+- Website navigation text and menus
+- Promotional banners and advertisements  
+- Related job suggestions
+- Cookie notices and legal disclaimers
+- Social sharing buttons and widgets
+- Comment sections and user reviews
+- Site headers, footers, and sidebars
+
+MAINTAIN:
+- Original formatting and structure
+- All important keywords and phrases
+- Professional tone and language
+- Bullet points and lists where present
+
+Return ONLY the clean job description content. If this doesn't appear to be a job posting, return "NOT_JOB_CONTENT".
+
+Raw Content:
+${rawContent}`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const refinedText = response.text().trim();
+    
+    console.info('diag:ai:refinement_result', { 
+      originalLength: rawContent.length,
+      refinedLength: refinedText.length,
+      isJobContent: !refinedText.includes('NOT_JOB_CONTENT')
+    });
+    
+    // Return empty string if AI determined it's not job content
+    if (refinedText.includes('NOT_JOB_CONTENT')) {
+      return '';
+    }
+    
+    return refinedText;
+  } catch (error) {
+    console.error('diag:ai:refinement_error', { error: (error as Error).message });
+    throw error;
+  }
+}
+
 export default function atsRouter(prisma: PrismaClient): Router {
   const router = Router();
 
@@ -686,253 +986,59 @@ export default function atsRouter(prisma: PrismaClient): Router {
         content = $('.job_description').text() || $('.jobDescriptionSection').text();
         title = $('h1.job_title').text() || $('h1').first().text();
       }
-      // Generic web page scraping for any website content
+      // Generic job page scraping for company career pages
       else {
         console.info('diag:url:generic_extraction', { url: processUrl.substring(0, 100) });
         
-        // Remove elements we don't want according to the extraction prompt
-        $('script, style').remove(); // Technical elements
-        $('header, .header, [role="banner"]').remove(); // Website headers
-        $('footer, .footer, [role="contentinfo"]').remove(); // Website footers
-        $('.cookie, .cookies, .cookie-banner, .cookie-notice, .gdpr').remove(); // Cookie notices
-        $('.social-media, .social-share, .social, .share-buttons').remove(); // Social media widgets
-        
-        // Try to find main content area first (most websites use these)
-        const mainContentSelectors = [
-          'main',
-          '[role="main"]',
-          '.main',
-          '.main-content',
-          '.content',
-          '.page-content',
-          '.post-content',
-          '.article-content',
-          '.article',
-          '#main',
-          '#content',
-          '#main-content',
-          '.container .content',
-          '.wrapper .content',
-          '.container',
-          '.wrapper',
-          '.page',
-          '.site-content',
-          '.entry-content',
-          '.post-body'
-        ];
-        
-        let foundMainContent = false;
-        let bestContent = '';
-        let bestSelector = '';
-        
-        // Find the selector with the most content
-        for (const selector of mainContentSelectors) {
-          const element = $(selector);
-          if (element.length) {
-            const elementText = element.text().trim();
-            if (elementText.length > bestContent.length && elementText.length > 100) {
-              bestContent = elementText;
-              bestSelector = selector;
-            }
-          }
-        }
-        
-        if (bestContent.length > 100) {
-          content = bestContent;
-          console.info('diag:url:main_content_found', { selector: bestSelector, contentLength: content.length });
-          foundMainContent = true;
-        }
-        
-        // If no main content area found, try job-specific selectors
-        if (!foundMainContent) {
-          const jobSpecificSelectors = [
-            '[class*="job-description"]',
-            '[class*="job-detail"]',
-            '[class*="job-content"]',
-            '[id*="job-description"]',
-            '[id*="job-detail"]',
-            '[class*="description"]',
-            '[id*="description"]',
-            '.position-description',
-            '.role-description',
-            '.job-posting',
-            '.job-info',
-            '[class*="job"]',
-            '[id*="job"]'
-          ];
-          
-          let bestJobContent = '';
-          let bestJobSelector = '';
-          
-          for (const selector of jobSpecificSelectors) {
-            const element = $(selector);
-            if (element.length) {
-              const elementText = element.text().trim();
-              if (elementText.length > bestJobContent.length && elementText.length > 100) {
-                bestJobContent = elementText;
-                bestJobSelector = selector;
-              }
-            }
-          }
-          
-          if (bestJobContent.length > 100) {
-            content = bestJobContent;
-            console.info('diag:url:job_specific_found', { selector: bestJobSelector, contentLength: content.length });
-            foundMainContent = true;
-          }
-        }
-        
-        // If still no content, extract entire body but remove known non-content elements
-        if (!foundMainContent) {
-          console.info('diag:url:using_body_fallback', { url: processUrl.substring(0, 100) });
-          
-          // Remove additional elements that are not main content, but be more selective
-          $('nav, .nav, .navigation, .navbar, .menu, .submenu').remove(); // Navigation
-          $('aside, .sidebar, .side-panel').remove(); // Sidebars
-          $('.ad, .ads, .advertisement, .banner, .promo').remove(); // Ads
-          $('.comments, .comment, .comment-section').remove(); // Comments
-          $('.breadcrumb, .breadcrumbs, .pagination').remove(); // Navigation aids
-          $('.popup, .modal, .overlay, .lightbox').remove(); // Popups
-          
-          // Try different body extraction strategies
-          const bodyStrategies = [
-            () => $('body').find('*').not('header, footer, nav, aside, .header, .footer, .nav, .sidebar').text(),
-            () => $('body').children().not('header, footer, nav, aside, .header, .footer, .nav, .sidebar').text(),
-            () => $('body').text()
-          ];
-          
-          let bestBodyContent = '';
-          let bestStrategy = '';
-          
-          bodyStrategies.forEach((strategy, index) => {
-            try {
-              const strategyContent = strategy().trim();
-              if (strategyContent.length > bestBodyContent.length) {
-                bestBodyContent = strategyContent;
-                bestStrategy = `strategy_${index + 1}`;
-              }
-            } catch (e) {
-              console.warn(`diag:url:body_strategy_${index + 1}_failed`, { error: (e as Error).message });
-            }
-          });
-          
-          if (bestBodyContent.length > 50) {
-            content = bestBodyContent;
-            console.info('diag:url:body_fallback_used', { 
-              contentLength: content.length, 
-              strategy: bestStrategy,
-              originalLength: $('body').text().length 
+        // Apply advanced extraction strategies
+        const extractionResult = await AdvancedContentExtractor.applyAdvancedExtraction($, processUrl);
+        content = extractionResult.content;
+        title = extractionResult.title || title;
+      }
+
+      // Apply AI-powered content refinement for job descriptions
+      if (content && content.length > 100) {
+        try {
+          const refinedContent = await refineJobContentWithGemini(content, genAI);
+          if (refinedContent && refinedContent.length > 50) {
+            console.info('diag:url:ai_refined', { 
+              originalLength: content.length, 
+              refinedLength: refinedContent.length 
             });
-          } else {
-            // Last resort: try to get content from all divs
-            console.info('diag:url:trying_div_fallback');
-            const allDivs = $('div');
-            let largestDivContent = '';
-            
-            allDivs.each(function() {
-              const divText = $(this).text().trim();
-              if (divText.length > largestDivContent.length && divText.length > 100) {
-                largestDivContent = divText;
-              }
-            });
-            
-            if (largestDivContent.length > 50) {
-              content = largestDivContent;
-              console.info('diag:url:div_fallback_used', { contentLength: content.length });
-            }
+            content = refinedContent;
           }
-        }
-        
-        // Try to extract a meaningful title
-        if (!title || title.includes('404') || title.includes('Error') || title.length < 5) {
-          const titleSelectors = [
-            'h1',
-            '.page-title',
-            '.post-title', 
-            '.article-title',
-            '.job-title',
-            '.title',
-            '[class*="title"]:first'
-          ];
-          
-          for (const selector of titleSelectors) {
-            const titleElement = $(selector).first();
-            const titleText = titleElement.text().trim();
-            if (titleText && titleText.length > 5 && titleText.length < 200) {
-              title = titleText;
-              break;
-            }
-          }
+        } catch (error) {
+          console.warn('diag:url:ai_refinement_failed', { error: (error as Error).message });
+          // Continue with basic cleaning if AI refinement fails
         }
       }
 
-      // Clean up the extracted text while preserving structure
-      if (content) {
-        // Normalize whitespace but preserve paragraph breaks
-        content = content
-          .replace(/[\r\n\t]+/g, ' ')  // Replace tabs and line breaks with spaces
-          .replace(/\s{2,}/g, ' ')     // Replace multiple spaces with single space
-          .trim();
-        
-        // Remove unwanted phrases as specified in the extraction prompt
-        const unwantedPhrases = [
-          /accept\s+cookies?/gi,
-          /cookie\s+policy/gi,
-          /privacy\s+policy/gi,
-          /terms\s+of\s+service/gi,
-          /terms\s+and\s+conditions/gi,
-          /subscribe\s+to/gi,
-          /newsletter/gi,
-          /follow\s+us/gi,
-          /social\s+media/gi,
-          /share\s+this/gi,
-          /sign\s+up/gi,
-          /log\s+in/gi,
-          /register/gi
-        ];
-        
-        unwantedPhrases.forEach(pattern => {
-          content = content.replace(pattern, '');
-        });
-        
-        // Final cleanup
-        content = content.replace(/\s{2,}/g, ' ').trim();
-      }
+      // Basic cleanup as fallback
+      content = content.replace(/\s+/g, ' ').trim();
+      
+      // Remove common unwanted text
+      const unwantedPatterns = [
+        /cookies?/gi, /privacy policy/gi, /terms of service/gi,
+        /subscribe/gi, /newsletter/gi, /follow us/gi, /social media/gi
+      ];
+      
+      unwantedPatterns.forEach(pattern => {
+        content = content.replace(pattern, '');
+      });
+      
+      content = content.trim();
 
       console.info('diag:url:extraction_result', { 
         url: url.substring(0, 100), 
         contentLength: content.length,
         title: title?.substring(0, 50),
-        type,
-        contentPreview: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
-        htmlLength: response.data.length
+        type
       });
 
-      // Ensure we have meaningful content
-      if (!content || content.trim().length < 50) {
-        console.warn('diag:url:insufficient_content', { 
-          contentLength: content?.length || 0,
-          url: url.substring(0, 100),
-          pageTitle: $('title').text()
-        });
-        
+      if (!content || content.length < 20) {
         return res.status(400).json({
           success: false,
-          error: `No meaningful content could be extracted from the URL. Found ${content?.length || 0} characters.\n\nThis could be due to:\n• The page requires JavaScript to load content\n• The website blocks automated access\n• The page structure is unusual\n\nTry:\n• Copy the content manually\n• Use a different URL\n• Check if the page loads properly in your browser`
-        });
-      }
-      
-      // Check for minimum quality content (not just navigation text)
-      const contentWords = content.trim().split(/\s+/).length;
-      if (contentWords < 10) {
-        console.warn('diag:url:low_quality_content', { 
-          wordCount: contentWords,
-          content: content.substring(0, 100)
-        });
-        
-        return res.status(400).json({
-          success: false,
-          error: `Content appears to be too short or fragmented (${contentWords} words). This might be navigation text or page elements rather than main content.\n\nPlease try:\n• A direct link to the full content\n• Copy the content manually\n• A different source`
+          error: `No meaningful content could be extracted from the URL. Found ${content.length} characters. Please try a different URL or copy the content manually.`
         });
       }
 
