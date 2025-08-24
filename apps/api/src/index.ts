@@ -232,9 +232,9 @@ IMPORTANT:
       const referrals = await prisma.referralRequest.findMany({
         where: {
           OR: [
-            { company: { contains: extractedKeywords, mode: 'insensitive' } },
-            { role: { contains: extractedKeywords, mode: 'insensitive' } },
-            { notes: { contains: extractedKeywords, mode: 'insensitive' } }
+            { company: { contains: extractedKeywords } },
+            { role: { contains: extractedKeywords } },
+            { notes: { contains: extractedKeywords } }
           ]
         },
         take: 10,
@@ -263,8 +263,8 @@ IMPORTANT:
       const portfolios = await prisma.portfolioSite.findMany({
         where: {
           OR: [
-            { slug: { contains: extractedKeywords, mode: 'insensitive' } },
-            { theme: { contains: extractedKeywords, mode: 'insensitive' } }
+            { slug: { contains: extractedKeywords } },
+            { theme: { contains: extractedKeywords } }
           ]
         },
         take: 10,
@@ -293,9 +293,9 @@ IMPORTANT:
       const jobDescriptions = await prisma.jobDescription.findMany({
         where: {
           OR: [
-            { title: { contains: extractedKeywords, mode: 'insensitive' } },
-            { company: { contains: extractedKeywords, mode: 'insensitive' } },
-            { content: { contains: extractedKeywords, mode: 'insensitive' } }
+            { title: { contains: extractedKeywords } },
+            { company: { contains: extractedKeywords } },
+            { content: { contains: extractedKeywords } }
           ]
         },
         take: 10,
@@ -330,10 +330,10 @@ IMPORTANT:
       const fallbackApplications = await prisma.application.findMany({
         where: {
           OR: [
-            { company: { contains: query, mode: 'insensitive' } },
-            { role: { contains: query, mode: 'insensitive' } },
-            { notes: { contains: query, mode: 'insensitive' } },
-            { user: { email: { contains: query, mode: 'insensitive' } } }
+            { company: { contains: query } },
+            { role: { contains: query } },
+            { notes: { contains: query } },
+            { user: { email: { contains: query } } }
           ]
         },
         take: 5,

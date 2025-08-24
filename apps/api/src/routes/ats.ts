@@ -498,12 +498,12 @@ export default function atsRouter(prisma: PrismaClient): Router {
         },
         database: {
           connected: false,
-          error: null
+          error: null as string | null
         },
         gemini: {
           configured: false,
-          error: null,
-          testResult: null
+          error: null as string | null,
+          testResult: null as string | null
         }
       };
 
@@ -1000,6 +1000,8 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
       for (let strategyIndex = 0; strategyIndex < strategies.length; strategyIndex++) {
         const strategy = strategies[strategyIndex];
+        if (!strategy) continue; // Skip if strategy is undefined
+        
         const maxAttemptsPerStrategy = 2; // Try each strategy up to 2 times
         
         for (let attempt = 1; attempt <= maxAttemptsPerStrategy; attempt++) {

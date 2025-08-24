@@ -153,9 +153,9 @@ Analyze the question and respond appropriately. If the question asks for specifi
             where: {
               userId: req.user?.uid || 'guest',
               OR: [
-                { company: { contains: searchKeywords, mode: 'insensitive' } },
-                { role: { contains: searchKeywords, mode: 'insensitive' } },
-                { notes: { contains: searchKeywords, mode: 'insensitive' } }
+                { company: { contains: searchKeywords } },
+                { role: { contains: searchKeywords } },
+                { notes: { contains: searchKeywords } }
               ]
             },
             take: 3,
@@ -167,7 +167,7 @@ Analyze the question and respond appropriately. If the question asks for specifi
             searchResults.push({
               type: 'Application',
               title: `${app.role} at ${app.company}`,
-              subInfo: `Status: ${app.status} • ${app.user.email}`,
+              subInfo: `Status: ${app.status} • ${app.user?.email || 'Unknown'}`,
               id: app.id,
               link: `/applications/${app.id}`
             });
@@ -178,8 +178,8 @@ Analyze the question and respond appropriately. If the question asks for specifi
             where: {
               userId: req.user?.uid || 'guest',
               OR: [
-                { slug: { contains: searchKeywords, mode: 'insensitive' } },
-                { theme: { contains: searchKeywords, mode: 'insensitive' } }
+                { slug: { contains: searchKeywords } },
+                { theme: { contains: searchKeywords } }
               ]
             },
             take: 3,
@@ -191,7 +191,7 @@ Analyze the question and respond appropriately. If the question asks for specifi
             searchResults.push({
               type: 'Portfolio',
               title: `Portfolio: ${portfolio.slug}`,
-              subInfo: `Theme: ${portfolio.theme} • ${portfolio.user.email}`,
+              subInfo: `Theme: ${portfolio.theme} • ${portfolio.user?.email || 'Unknown'}`,
               id: portfolio.id,
               link: `/portfolio/${portfolio.slug}`
             });
@@ -202,8 +202,8 @@ Analyze the question and respond appropriately. If the question asks for specifi
             where: {
               fromUserId: req.user?.uid || 'guest',
               OR: [
-                { company: { contains: searchKeywords, mode: 'insensitive' } },
-                { role: { contains: searchKeywords, mode: 'insensitive' } }
+                { company: { contains: searchKeywords } },
+                { role: { contains: searchKeywords } }
               ]
             },
             take: 3,
@@ -215,7 +215,7 @@ Analyze the question and respond appropriately. If the question asks for specifi
             searchResults.push({
               type: 'Referral',
               title: `${ref.role} at ${ref.company}`,
-              subInfo: `Status: ${ref.status} • ${ref.user.email}`,
+              subInfo: `Status: ${ref.status} • ${ref.user?.email || 'Unknown'}`,
               id: ref.id,
               link: `/referrals/${ref.id}`
             });

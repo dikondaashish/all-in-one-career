@@ -162,9 +162,9 @@ export default function searchRouter(prisma: PrismaClient, logger: pino.Logger):
         const referrals = await prisma.referralRequest.findMany({
           where: {
             OR: [
-              { company: { contains: extractedKeywords, mode: 'insensitive' } },
-              { role: { contains: extractedKeywords, mode: 'insensitive' } },
-              { notes: { contains: extractedKeywords, mode: 'insensitive' } }
+              { company: { contains: extractedKeywords } },
+              { role: { contains: extractedKeywords } },
+              { notes: { contains: extractedKeywords } }
             ]
           },
           take: 10,
@@ -200,8 +200,8 @@ export default function searchRouter(prisma: PrismaClient, logger: pino.Logger):
         const portfolios = await prisma.portfolioSite.findMany({
           where: {
             OR: [
-              { slug: { contains: extractedKeywords, mode: 'insensitive' } },
-              { theme: { contains: extractedKeywords, mode: 'insensitive' } }
+              { slug: { contains: extractedKeywords } },
+              { theme: { contains: extractedKeywords } }
             ]
           },
           take: 10,
@@ -237,9 +237,9 @@ export default function searchRouter(prisma: PrismaClient, logger: pino.Logger):
         const jobDescriptions = await prisma.jobDescription.findMany({
           where: {
             OR: [
-              { title: { contains: extractedKeywords, mode: 'insensitive' } },
-              { company: { contains: extractedKeywords, mode: 'insensitive' } },
-              { content: { contains: extractedKeywords, mode: 'insensitive' } }
+              { title: { contains: extractedKeywords } },
+              { company: { contains: extractedKeywords } },
+              { content: { contains: extractedKeywords } }
             ]
           },
           take: 10,
