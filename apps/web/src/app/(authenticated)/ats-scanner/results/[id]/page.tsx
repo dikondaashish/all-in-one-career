@@ -15,17 +15,30 @@ import {
   FileText,
   Lightbulb,
   Loader2,
-  Trophy,
-  Zap,
   Star,
-  BarChart3,
-  Brain,
-  Shield,
-  Sparkles,
-  ChevronRight,
-  Award,
+  Medal,
+  Trophy,
   Eye,
-  Bookmark
+  Brain,
+  Zap,
+  Shield,
+  BarChart3,
+  ChevronRight,
+  Sparkles,
+  Award,
+  Bookmark,
+  Calendar,
+  Clock,
+  ThumbsUp,
+  TrendingDown,
+  AlertCircle,
+  Info,
+  Rocket,
+  Crown,
+  GraduationCap,
+  Briefcase,
+  Phone,
+  Mail
 } from 'lucide-react';
 import { useToast } from '../../../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -74,6 +87,134 @@ interface ScanResult {
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://all-in-one-career.onrender.com';
+
+// Helper function to get score color and styling
+const getScoreColor = (score: number) => {
+  if (score >= 85) return { 
+    bg: 'from-emerald-500 to-green-600', 
+    text: 'text-emerald-600',
+    icon: Trophy,
+    badge: 'bg-emerald-100 text-emerald-800',
+    ring: 'ring-emerald-500/20',
+    glow: 'shadow-emerald-500/25'
+  };
+  if (score >= 70) return { 
+    bg: 'from-blue-500 to-indigo-600', 
+    text: 'text-blue-600',
+    icon: Medal,
+    badge: 'bg-blue-100 text-blue-800',
+    ring: 'ring-blue-500/20',
+    glow: 'shadow-blue-500/25'
+  };
+  if (score >= 50) return { 
+    bg: 'from-amber-500 to-orange-600', 
+    text: 'text-amber-600',
+    icon: Star,
+    badge: 'bg-amber-100 text-amber-800',
+    ring: 'ring-amber-500/20',
+    glow: 'shadow-amber-500/25'
+  };
+  return { 
+    bg: 'from-red-500 to-rose-600', 
+    text: 'text-red-600',
+    icon: AlertTriangle,
+    badge: 'bg-red-100 text-red-800',
+    ring: 'ring-red-500/20',
+    glow: 'shadow-red-500/25'
+  };
+};
+
+// Helper function to get status styling
+const getStatusStyle = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'excellent':
+      return { 
+        bg: 'bg-emerald-50', 
+        text: 'text-emerald-700', 
+        border: 'border-emerald-200',
+        icon: CheckCircle,
+        iconColor: 'text-emerald-500'
+      };
+    case 'good':
+      return { 
+        bg: 'bg-blue-50', 
+        text: 'text-blue-700', 
+        border: 'border-blue-200',
+        icon: ThumbsUp,
+        iconColor: 'text-blue-500'
+      };
+    case 'needs_improvement':
+      return { 
+        bg: 'bg-amber-50', 
+        text: 'text-amber-700', 
+        border: 'border-amber-200',
+        icon: AlertTriangle,
+        iconColor: 'text-amber-500'
+      };
+    default:
+      return { 
+        bg: 'bg-gray-50', 
+        text: 'text-gray-700', 
+        border: 'border-gray-200',
+        icon: Info,
+        iconColor: 'text-gray-500'
+      };
+  }
+};
+
+// Animated progress circle component
+const ProgressCircle = ({ score, size = 120, strokeWidth = 8, showIcon = true }: { 
+  score: number; 
+  size?: number; 
+  strokeWidth?: number; 
+  showIcon?: boolean;
+}) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (score / 100) * circumference;
+  const scoreData = getScoreColor(score);
+  const IconComponent = scoreData.icon;
+
+  return (
+    <div className="relative inline-flex items-center justify-center">
+      <svg width={size} height={size} className="transform -rotate-90">
+        {/* Background circle */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          className="text-gray-200"
+        />
+        {/* Progress circle */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="url(#gradient)"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          className="transition-all duration-1000 ease-out"
+        />
+        <defs>
+          <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" className="text-primary" stopColor="currentColor" />
+            <stop offset="100%" className={scoreData.text} stopColor="currentColor" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        {showIcon && <IconComponent className={`w-6 h-6 ${scoreData.text} mb-1`} />}
+        <span className="text-2xl font-bold text-gray-900">{score}%</span>
+      </div>
+    </div>
+  );
+};
 
 const ScanResultsPage: React.FC = () => {
   const router = useRouter();
@@ -193,21 +334,10 @@ const ScanResultsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="relative">
-            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center animate-pulse">
-              <Loader2 className="h-8 w-8 text-white animate-spin" />
-            </div>
-            <div className="absolute inset-0 w-20 h-20 mx-auto bg-gradient-to-r from-blue-500 to-purple-600 rounded-full opacity-20 animate-ping"></div>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Analyzing Your Resume</h2>
-          <p className="text-lg text-gray-600 mb-4">AI is processing your data...</p>
-          <div className="flex justify-center space-x-1">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
-            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
-            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
-          </div>
+          <Loader2 className="mx-auto h-12 w-12 text-blue-600 animate-spin" />
+          <p className="mt-4 text-gray-600">Analyzing your resume...</p>
         </div>
       </div>
     );
@@ -215,52 +345,52 @@ const ScanResultsPage: React.FC = () => {
 
   if (!scanData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 via-pink-50 to-rose-100 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl">
-            <XCircle className="mx-auto h-16 w-16 text-red-500 mb-4" />
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Oops! Results Not Found</h2>
-            <p className="text-gray-600 mb-6">We couldn't find the scan results you're looking for. It might have been removed or expired.</p>
-            <button 
-              onClick={() => router.push('/ats-scanner')}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 font-medium shadow-lg"
-            >
-              <ArrowLeft className="w-4 h-4 inline mr-2" />
-              Back to Scanner
-            </button>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <XCircle className="mx-auto h-12 w-12 text-red-600" />
+          <p className="text-xl text-gray-600 mt-4">Scan results not found</p>
+          <button 
+            onClick={() => router.push('/ats-scanner')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Back to Scanner
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50">
-      {/* Modern Header with Glassmorphism */}
-      <div className="bg-white/80 backdrop-blur-lg shadow-lg border-b border-white/20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
+      {/* Animated Header */}
+      <div className="bg-white/80 backdrop-blur-lg shadow-lg border-b border-white/20 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
               <button
                 onClick={() => router.push('/ats-scanner')}
-                className="flex items-center space-x-3 text-gray-600 hover:text-blue-600 transition-colors duration-200 group"
+                className="group flex items-center space-x-3 text-gray-600 hover:text-primary transition-all duration-300 hover:scale-105"
               >
-                <div className="p-2 rounded-lg bg-gray-100 group-hover:bg-blue-100 transition-colors duration-200">
+                <div className="p-2 rounded-full bg-gray-100 group-hover:bg-primary/10 transition-colors">
                   <ArrowLeft className="w-5 h-5" />
                 </div>
                 <span className="font-medium">Back to Scanner</span>
               </button>
               <div className="border-l border-gray-200 pl-6">
                 <div className="flex items-center space-x-3">
-                  <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl">
+                  <div className="p-3 rounded-full bg-gradient-to-r from-primary to-primary/80 shadow-lg">
                     <BarChart3 className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-2xl font-bold text-gray-900">ATS Scan Report</h1>
-                    <p className="text-sm text-gray-500 flex items-center">
-                      <Sparkles className="w-4 h-4 mr-1" />
-                      Generated {new Date(scanData.createdAt).toLocaleDateString()}
-                    </p>
+                    <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                      ATS Scan Report
+                    </h1>
+                    <div className="flex items-center space-x-2 text-sm text-gray-500">
+                      <Calendar className="w-4 h-4" />
+                      <span>Generated {new Date(scanData.createdAt).toLocaleDateString()}</span>
+                      <Clock className="w-4 h-4 ml-2" />
+                      <span>{new Date(scanData.createdAt).toLocaleTimeString()}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -268,282 +398,230 @@ const ScanResultsPage: React.FC = () => {
             <div className="flex items-center space-x-3">
               <button 
                 onClick={handleDownload}
-                className="flex items-center space-x-2 px-5 py-3 bg-white/80 border border-gray-200 rounded-xl hover:bg-white hover:shadow-lg transition-all duration-200 font-medium text-gray-700 hover:text-gray-900"
+                className="group flex items-center space-x-2 px-5 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-300 hover:scale-105 hover:shadow-md"
               >
-                <Download className="w-4 h-4" />
-                <span>Download</span>
+                <Download className="w-4 h-4 text-gray-600 group-hover:text-gray-800" />
+                <span className="font-medium text-gray-700 group-hover:text-gray-900">Download PDF</span>
               </button>
               <button 
                 onClick={handleShare}
-                className="flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:to-purple-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                className="group flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-primary to-primary/90 text-white rounded-xl hover:from-primary/90 hover:to-primary transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
               >
                 <Share2 className="w-4 h-4" />
-                <span>Share</span>
+                <span className="font-medium">Share Report</span>
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Hero Section with Overall Score */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-12">
-          <div className="relative inline-block">
-            <div className="w-32 h-32 mx-auto mb-6 relative">
-              {/* Animated Progress Circle */}
-              <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  fill="transparent"
-                  className="text-gray-200"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  stroke="url(#gradient)"
-                  strokeWidth="8"
-                  fill="transparent"
-                  strokeLinecap="round"
-                  className="transition-all duration-1000 ease-out"
-                  style={{
-                    strokeDasharray: '251.2',
-                    strokeDashoffset: `${251.2 - (scanData.overallScore / 100) * 251.2}`
-                  }}
-                />
-                <defs>
-                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#3B82F6" />
-                    <stop offset="100%" stopColor="#8B5CF6" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <span className="text-3xl font-bold text-gray-900">{scanData.overallScore}%</span>
-                  <div className="text-xs text-gray-500 font-medium">SCORE</div>
-                </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        
+        {/* Hero Score Section */}
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-blue-50 to-emerald-50 rounded-3xl"></div>
+          <div className="relative bg-white/70 backdrop-blur-sm rounded-3xl border border-white/20 shadow-xl p-8 md:p-12">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center space-x-2 px-4 py-2 bg-primary/10 rounded-full mb-6">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <span className="text-primary font-semibold">Your ATS Score</span>
               </div>
-            </div>
-            <div className="absolute -top-2 -right-2">
-              {scanData.overallScore >= 80 ? (
-                <div className="bg-gradient-to-r from-emerald-400 to-green-500 rounded-full p-2 shadow-lg">
-                  <Trophy className="w-5 h-5 text-white" />
-                </div>
-              ) : scanData.overallScore >= 60 ? (
-                <div className="bg-gradient-to-r from-blue-400 to-blue-500 rounded-full p-2 shadow-lg">
-                  <Star className="w-5 h-5 text-white" />
-                </div>
-              ) : (
-                <div className="bg-gradient-to-r from-amber-400 to-orange-500 rounded-full p-2 shadow-lg">
-                  <Zap className="w-5 h-5 text-white" />
-                </div>
-              )}
-            </div>
-          </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            {scanData.overallScore >= 80 ? 'Excellent Resume!' : 
-             scanData.overallScore >= 60 ? 'Good Resume' : 
-             'Room for Improvement'}
-          </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Your resume has been analyzed against modern ATS standards and recruitment best practices.
-          </p>
-        </div>
-
-        {/* Score Breakdown */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          {/* Match Rate */}
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-white/20 group">
-            <div className="flex items-center justify-between mb-6">
-              <div className="p-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl group-hover:scale-110 transition-transform duration-200">
-                <Target className="w-6 h-6 text-white" />
+              <div className="flex justify-center mb-6">
+                <ProgressCircle score={scanData.overallScore} size={180} strokeWidth={12} />
               </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-gray-900">{scanData.matchRate}%</div>
-                <div className="text-sm text-gray-500 font-medium">Match Rate</div>
-              </div>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                {scanData.overallScore >= 85 ? 'Excellent Resume!' : 
+                 scanData.overallScore >= 70 ? 'Great Progress!' :
+                 scanData.overallScore >= 50 ? 'Good Foundation!' : 'Room for Improvement'}
+              </h2>
+              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                {scanData.overallScore >= 85 ? 'Your resume is highly optimized for ATS systems and likely to get noticed by recruiters.' : 
+                 scanData.overallScore >= 70 ? 'Your resume is well-structured with room for minor improvements.' :
+                 scanData.overallScore >= 50 ? 'Your resume has potential - follow our recommendations to boost your score.' : 
+                 'Your resume needs significant optimization to perform well in ATS systems.'}
+              </p>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-              <div 
-                className="bg-gradient-to-r from-blue-500 to-cyan-500 h-3 rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${scanData.matchRate}%` }}
-              ></div>
-            </div>
-            <p className="text-sm text-gray-600">Keyword matching and format analysis</p>
-          </div>
-
-          {/* Searchability */}
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-white/20 group">
-            <div className="flex items-center justify-between mb-6">
-              <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl group-hover:scale-110 transition-transform duration-200">
-                <Eye className="w-6 h-6 text-white" />
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-gray-900">{scanData.searchability}%</div>
-                <div className="text-sm text-gray-500 font-medium">Searchability</div>
-              </div>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-              <div 
-                className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${scanData.searchability}%` }}
-              ></div>
-            </div>
-            <p className="text-sm text-gray-600">How easily recruiters can find your profile</p>
-          </div>
-
-          {/* ATS Compatibility */}
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-white/20 group">
-            <div className="flex items-center justify-between mb-6">
-              <div className="p-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl group-hover:scale-110 transition-transform duration-200">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-gray-900">{scanData.atsCompatibility}%</div>
-                <div className="text-sm text-gray-500 font-medium">ATS Compatible</div>
-              </div>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-              <div 
-                className="bg-gradient-to-r from-emerald-500 to-teal-500 h-3 rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${scanData.atsCompatibility}%` }}
-              ></div>
-            </div>
-            <p className="text-sm text-gray-600">How well ATS systems can read your resume</p>
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Detailed Analysis */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Resume Sections Analysis */}
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20">
-              <div className="px-8 py-6 border-b border-gray-100/50">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg">
-                    <Brain className="w-5 h-5 text-white" />
+        {/* Key Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[
+            { 
+              score: scanData.matchRate, 
+              title: 'Match Rate', 
+              description: 'Keyword alignment with job requirements',
+              icon: Target,
+              color: 'blue'
+            },
+            { 
+              score: scanData.searchability, 
+              title: 'Searchability', 
+              description: 'How easily recruiters can discover you',
+              icon: Eye,
+              color: 'purple'
+            },
+            { 
+              score: scanData.atsCompatibility, 
+              title: 'ATS Compatibility', 
+              description: 'System readability and parsing success',
+              icon: Shield,
+              color: 'green'
+            }
+          ].map((metric, index) => {
+            const scoreData = getScoreColor(metric.score);
+            return (
+              <div key={index} className="group relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-white to-gray-50 rounded-2xl transform group-hover:scale-105 transition-transform duration-300"></div>
+                <div className="relative bg-white rounded-2xl border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`p-3 rounded-xl bg-gradient-to-r ${scoreData.bg} shadow-lg`}>
+                      <metric.icon className="w-6 h-6 text-white" />
+                    </div>
+                    <div className={`px-3 py-1 ${scoreData.badge} rounded-full text-sm font-semibold`}>
+                      {metric.score}%
+                    </div>
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900">Resume Analysis</h2>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">{metric.title}</h3>
+                  <p className="text-gray-600 text-sm">{metric.description}</p>
+                  <div className="mt-4 bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className={`h-full bg-gradient-to-r ${scoreData.bg} transition-all duration-1000 ease-out`}
+                      style={{ width: `${metric.score}%` }}
+                    ></div>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600 mt-2">Detailed breakdown of each resume section</p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Detailed Analysis Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Main Analysis Section */}
+          <div className="lg:col-span-8 space-y-8">
+            
+            {/* Resume Sections Analysis */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-8 py-6 border-b border-gray-200">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <FileText className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Resume Section Analysis</h2>
+                    <p className="text-gray-600">Detailed breakdown of each section's performance</p>
+                  </div>
+                </div>
               </div>
               <div className="p-8 space-y-6">
-                {Object.entries(scanData.detailedAnalysis).map(([key, analysis]) => (
-                  <div key={key} className="group relative overflow-hidden">
-                    <div className="flex items-start space-x-4 p-6 rounded-xl bg-gradient-to-r from-white/80 to-white/40 border border-gray-100/50 hover:shadow-lg transition-all duration-300">
-                      <div className="flex-shrink-0">
-                        {getStatusIcon(analysis.status)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-lg font-semibold text-gray-900 capitalize">
-                            {key.replace(/([A-Z])/g, ' $1').trim()}
-                          </h4>
-                          <div className="flex items-center space-x-3">
-                            <div className="w-20 bg-gray-200 rounded-full h-2">
-                              <div 
-                                className={`h-2 rounded-full transition-all duration-1000 ease-out ${
-                                  analysis.score >= 80 ? 'bg-gradient-to-r from-emerald-500 to-green-500' :
-                                  analysis.score >= 60 ? 'bg-gradient-to-r from-blue-500 to-indigo-500' :
-                                  'bg-gradient-to-r from-amber-500 to-orange-500'
-                                }`}
-                                style={{ width: `${analysis.score}%` }}
-                              ></div>
+                {Object.entries(scanData.detailedAnalysis).map(([key, analysis]) => {
+                  const statusStyle = getStatusStyle(analysis.status);
+                  const IconComponent = statusStyle.icon;
+                  
+                  return (
+                    <div key={key} className={`group relative overflow-hidden rounded-xl border-2 ${statusStyle.border} ${statusStyle.bg} p-6 transition-all duration-300 hover:shadow-lg`}>
+                      <div className="flex items-start space-x-4">
+                        <div className={`p-3 rounded-xl ${statusStyle.bg} border ${statusStyle.border}`}>
+                          <IconComponent className={`w-6 h-6 ${statusStyle.iconColor}`} />
+                        </div>
+                        <div className="flex-1 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-lg font-semibold text-gray-900 capitalize">
+                              {key.replace(/([A-Z])/g, ' $1').trim()}
+                            </h4>
+                            <div className="flex items-center space-x-2">
+                              <div className={`px-3 py-1 text-sm font-bold rounded-full ${getScoreColor(analysis.score).badge}`}>
+                                {analysis.score}%
+                              </div>
+                              <div className={`px-3 py-1 text-xs font-medium rounded-full ${statusStyle.bg} ${statusStyle.text} border ${statusStyle.border}`}>
+                                {analysis.status.replace('_', ' ').toUpperCase()}
+                              </div>
                             </div>
-                            <span className={`px-3 py-1 text-sm font-bold rounded-lg ${
-                              analysis.score >= 80 ? 'bg-emerald-100 text-emerald-800' :
-                              analysis.score >= 60 ? 'bg-blue-100 text-blue-800' :
-                              'bg-amber-100 text-amber-800'
-                            }`}>
-                              {analysis.score}
-                            </span>
+                          </div>
+                          
+                          <p className={`${statusStyle.text} font-medium`}>
+                            {analysis.feedback}
+                          </p>
+                          
+                          <div className="mt-3 bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                            <div 
+                              className={`h-full bg-gradient-to-r ${getScoreColor(analysis.score).bg} transition-all duration-1000 ease-out`}
+                              style={{ width: `${analysis.score}%` }}
+                            ></div>
                           </div>
                         </div>
-                        <p className="text-gray-600 leading-relaxed">{analysis.feedback}</p>
                       </div>
                     </div>
-                    {/* Subtle gradient overlay on hover */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl pointer-events-none"></div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
             {/* Hard Skills Analysis */}
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20">
-              <div className="px-8 py-6 border-b border-gray-100/50">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 px-8 py-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg">
-                      <Zap className="w-5 h-5 text-white" />
+                    <div className="p-2 bg-emerald-500/10 rounded-lg">
+                      <Brain className="w-6 h-6 text-emerald-600" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900">Technical Skills</h2>
-                      <p className="text-sm text-gray-600">
-                        Match rate: {scanData.hardSkills.matchPercentage}% ({scanData.hardSkills.found.length} found)
-                      </p>
+                      <h2 className="text-xl font-bold text-gray-900">Technical Skills Analysis</h2>
+                      <p className="text-gray-600">Skills alignment with job requirements</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-gray-900">{scanData.hardSkills.matchPercentage}%</div>
-                    <div className="text-xs text-gray-500 font-medium">SKILLS MATCH</div>
+                    <div className="text-2xl font-bold text-emerald-600">
+                      {scanData.hardSkills.matchPercentage}%
+                    </div>
+                    <div className="text-sm text-gray-600">match rate</div>
                   </div>
                 </div>
               </div>
               <div className="p-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* Found Skills */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="p-1 bg-emerald-100 rounded-full">
-                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    <div className="flex items-center space-x-2 mb-4">
+                      <div className="p-2 bg-emerald-100 rounded-lg">
+                        <CheckCircle className="w-5 h-5 text-emerald-600" />
                       </div>
-                      <h4 className="font-semibold text-emerald-700">Found Skills ({scanData.hardSkills.found.length})</h4>
+                      <h4 className="text-lg font-semibold text-emerald-700">Skills Found ({scanData.hardSkills.found.length})</h4>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-3">
                       {scanData.hardSkills.found.length > 0 ? scanData.hardSkills.found.map((skill, index) => (
-                        <span 
-                          key={index} 
-                          className="px-4 py-2 bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-800 rounded-xl text-sm font-medium border border-emerald-200 hover:shadow-md transition-all duration-200 transform hover:scale-105"
-                        >
-                          {skill}
-                        </span>
-                      )) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <Target className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">No matching skills found</p>
+                        <div key={index} className="group relative">
+                          <div className="px-4 py-2 bg-gradient-to-r from-emerald-100 to-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-medium hover:from-emerald-200 hover:to-emerald-100 transition-all duration-200 cursor-default">
+                            <div className="flex items-center space-x-2">
+                              <CheckCircle className="w-4 h-4 text-emerald-600" />
+                              <span>{skill}</span>
+                            </div>
+                          </div>
                         </div>
+                      )) : (
+                        <p className="text-sm text-gray-500">No skills found</p>
                       )}
                     </div>
                   </div>
-
-                  {/* Missing Skills */}
                   <div className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="p-1 bg-amber-100 rounded-full">
-                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <div className="flex items-center space-x-2 mb-4">
+                      <div className="p-2 bg-red-100 rounded-lg">
+                        <XCircle className="w-5 h-5 text-red-600" />
                       </div>
-                      <h4 className="font-semibold text-amber-700">Skills to Add ({scanData.hardSkills.missing.length})</h4>
+                      <h4 className="text-lg font-semibold text-red-700">Missing Skills ({scanData.hardSkills.missing.length})</h4>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-3">
                       {scanData.hardSkills.missing.length > 0 ? scanData.hardSkills.missing.map((skill, index) => (
-                        <span 
-                          key={index} 
-                          className="px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 rounded-xl text-sm font-medium border border-amber-200 hover:shadow-md transition-all duration-200 transform hover:scale-105"
-                        >
-                          {skill}
-                        </span>
-                      )) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">Great! No critical skills missing</p>
+                        <div key={index} className="group relative">
+                          <div className="px-4 py-2 bg-gradient-to-r from-red-100 to-red-50 border border-red-200 text-red-800 rounded-xl text-sm font-medium hover:from-red-200 hover:to-red-100 transition-all duration-200 cursor-default">
+                            <div className="flex items-center space-x-2">
+                              <XCircle className="w-4 h-4 text-red-600" />
+                              <span>{skill}</span>
+                            </div>
+                          </div>
                         </div>
+                      )) : (
+                        <p className="text-sm text-gray-500">No missing skills identified</p>
                       )}
                     </div>
                   </div>
@@ -552,62 +630,45 @@ const ScanResultsPage: React.FC = () => {
             </div>
 
             {/* Competitive Analysis */}
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20">
-              <div className="px-8 py-6 border-b border-gray-100/50">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-8 py-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg">
-                      <TrendingUp className="w-5 h-5 text-white" />
+                    <div className="p-2 bg-blue-500/10 rounded-lg">
+                      <TrendingUp className="w-6 h-6 text-blue-600" />
                     </div>
                     <div>
                       <h2 className="text-xl font-bold text-gray-900">Competitive Analysis</h2>
-                      <p className="text-sm text-gray-600">Compare against market standards</p>
+                      <p className="text-gray-600">How you compare against market standards</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-gray-900">{scanData.competitiveAnalysis.score}%</div>
-                    <div className="text-xs text-gray-500 font-medium">VS MARKET</div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {scanData.competitiveAnalysis.score}%
+                    </div>
+                    <div className="text-sm text-gray-600">vs market</div>
                   </div>
                 </div>
               </div>
-              <div className="p-8 space-y-6">
+              <div className="p-6 space-y-4">
                 {scanData.competitiveAnalysis.comparison.map((metric, index) => (
-                  <div key={index} className="group p-6 rounded-xl bg-gradient-to-r from-gray-50/80 to-white/60 border border-gray-100/50 hover:shadow-lg transition-all duration-300">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-semibold text-gray-900">{metric.metric}</h4>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-600">You: <span className="font-bold">{metric.userScore}%</span></span>
-                        <span className="text-xs text-gray-400">vs</span>
-                        <span className="text-sm text-gray-600">Market: <span className="font-bold">{metric.marketAverage}%</span></span>
-                      </div>
+                  <div key={index} className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-gray-700">{metric.metric}</span>
+                      <span className="text-gray-600">{metric.userScore}% vs {metric.marketAverage}% avg</span>
                     </div>
                     <div className="relative">
-                      <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
-                          className={`h-3 rounded-full transition-all duration-1000 ease-out ${
-                            metric.userScore >= metric.marketAverage 
-                              ? 'bg-gradient-to-r from-emerald-500 to-green-500'
-                              : 'bg-gradient-to-r from-amber-500 to-orange-500'
-                          }`}
-                          style={{ width: `${metric.userScore}%` }}
+                          className="bg-blue-600 h-2 rounded-full"
+                          style={{ width: `${(metric.userScore / 100) * 100}%` }}
                         ></div>
                       </div>
-                      {/* Market average indicator */}
                       <div 
-                        className="absolute -top-1 w-1 h-5 bg-gray-600 rounded-full shadow-sm"
+                        className="absolute top-0 h-2 w-0.5 bg-gray-500"
                         style={{ left: `${metric.marketAverage}%` }}
-                      >
-                        <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-gray-600 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                          Market Avg
-                        </div>
-                      </div>
+                      ></div>
                     </div>
-                    {metric.userScore >= metric.marketAverage && (
-                      <div className="mt-3 flex items-center text-emerald-600">
-                        <Trophy className="w-4 h-4 mr-1" />
-                        <span className="text-sm font-medium">Above market average!</span>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -615,166 +676,132 @@ const ScanResultsPage: React.FC = () => {
           </div>
 
           {/* Right Column - Tips and Optimization */}
-          <div className="space-y-8">
-            {/* Recruiter Tips */}
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20">
-              <div className="px-6 py-6 border-b border-gray-100/50">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-r from-amber-500 to-orange-600 rounded-lg">
-                    <Lightbulb className="w-5 h-5 text-white" />
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-900">Expert Tips</h2>
+          <div className="lg:col-span-4 space-y-8">
+            
+            {/* Quick Stats Card */}
+            <div className="bg-gradient-to-br from-primary to-primary/80 rounded-2xl p-6 text-white shadow-xl">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Award className="w-6 h-6" />
                 </div>
-                <p className="text-sm text-gray-600 mt-2">Insights from hiring professionals</p>
+                <h3 className="text-xl font-bold">Quick Stats</h3>
               </div>
-              <div className="p-6 space-y-4">
-                {scanData.recruiterTips.length > 0 ? scanData.recruiterTips.map((tip, index) => (
-                  <div 
-                    key={index} 
-                    className="group relative p-4 rounded-xl bg-gradient-to-r from-white/80 to-white/40 border border-gray-100/50 hover:shadow-lg transition-all duration-300"
-                  >
-                    <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${
-                      tip.priority === 'high' ? 'bg-gradient-to-b from-red-500 to-pink-500' :
-                      tip.priority === 'medium' ? 'bg-gradient-to-b from-amber-500 to-orange-500' :
-                      'bg-gradient-to-b from-emerald-500 to-green-500'
-                    }`}></div>
-                    <div className="ml-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-semibold text-gray-900 group-hover:text-gray-700">{tip.title}</h4>
-                        <span className={`px-2 py-1 text-xs font-bold rounded-lg flex-shrink-0 ${
-                          tip.priority === 'high' ? 'bg-red-100 text-red-700' :
-                          tip.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
-                          'bg-emerald-100 text-emerald-700'
-                        }`}>
-                          {tip.priority.toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 leading-relaxed">{tip.description}</p>
-                    </div>
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl pointer-events-none"></div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/80">Scan ID</span>
+                  <span className="font-mono text-sm bg-white/20 px-2 py-1 rounded">
+                    {scanData.id.slice(0, 8)}...
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/80">Keywords Found</span>
+                  <span className="font-bold text-lg">{scanData.keywordOptimization.foundKeywords.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/80">Scan Date</span>
+                  <span className="text-sm">{new Date(scanData.createdAt).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Recruiter Tips */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-amber-500/10 rounded-lg">
+                    <Lightbulb className="w-6 h-6 text-amber-600" />
                   </div>
-                )) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Lightbulb className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">No specific tips available</p>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">Expert Tips</h2>
+                    <p className="text-sm text-gray-600">Recruiter insights for improvement</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-5">
+                {scanData.recruiterTips.length > 0 ? scanData.recruiterTips.map((tip, index) => {
+                  const priorityStyles = {
+                    high: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', badge: 'bg-red-100 text-red-800', icon: AlertTriangle },
+                    medium: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800', icon: AlertCircle },
+                    low: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800', icon: Info }
+                  };
+                  const style = priorityStyles[tip.priority as keyof typeof priorityStyles];
+                  const IconComponent = style.icon;
+                  
+                  return (
+                    <div key={index} className={`${style.bg} border-2 ${style.border} rounded-xl p-4 transition-all duration-300 hover:shadow-md`}>
+                      <div className="flex items-start space-x-3">
+                        <div className={`p-2 ${style.badge} rounded-lg`}>
+                          <IconComponent className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className={`font-semibold ${style.text}`}>{tip.title}</h4>
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${style.badge}`}>
+                              {tip.priority.toUpperCase()}
+                            </span>
+                          </div>
+                          <p className={`text-sm ${style.text}/80`}>{tip.description}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <div className="text-center py-8">
+                    <Lightbulb className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">No specific tips available</p>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Keyword Optimization */}
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20">
-              <div className="px-6 py-6 border-b border-gray-100/50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg">
-                      <Target className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-gray-900">Keyword Optimization</h2>
-                      <p className="text-sm text-gray-600">Boost your ATS visibility</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-gray-900">{scanData.keywordOptimization.score}%</div>
-                    <div className="text-xs text-gray-500 font-medium">OPTIMIZED</div>
-                  </div>
-                </div>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">Keyword Optimization</h2>
+                <p className="text-sm text-gray-600">Score: {scanData.keywordOptimization.score}%</p>
               </div>
-              <div className="p-6 space-y-6">
+              <div className="p-6 space-y-4">
                 <div>
-                  <div className="flex items-center space-x-2 mb-4">
-                    <div className="p-1 bg-amber-100 rounded-full">
-                      <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    </div>
-                    <h4 className="font-semibold text-amber-700">Missing Keywords ({scanData.keywordOptimization.missingKeywords.length})</h4>
-                  </div>
+                  <h4 className="font-medium text-gray-700 mb-2">Missing Keywords</h4>
                   <div className="flex flex-wrap gap-2">
                     {scanData.keywordOptimization.missingKeywords.slice(0, 10).map((keyword, index) => (
-                      <span 
-                        key={index} 
-                        className="px-3 py-2 bg-gradient-to-r from-orange-50 to-amber-50 text-orange-800 rounded-lg text-sm font-medium border border-orange-200 hover:shadow-md transition-all duration-200 transform hover:scale-105"
-                      >
+                      <span key={index} className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-sm">
                         {keyword}
                       </span>
                     ))}
                   </div>
                 </div>
-
                 <div>
-                  <div className="flex items-center space-x-2 mb-4">
-                    <div className="p-1 bg-blue-100 rounded-full">
-                      <Lightbulb className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <h4 className="font-semibold text-blue-700">Optimization Tips</h4>
-                  </div>
-                  <div className="space-y-3">
+                  <h4 className="font-medium text-gray-700 mb-2">Suggestions</h4>
+                  <ul className="space-y-1 text-sm text-gray-600">
                     {scanData.keywordOptimization.suggestions.slice(0, 5).map((suggestion, index) => (
-                      <div key={index} className="flex items-start space-x-3 p-3 rounded-lg bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border border-blue-100/50">
-                        <div className="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                        <p className="text-sm text-gray-700 leading-relaxed">{suggestion}</p>
-                      </div>
+                      <li key={index} className="flex items-start">
+                        <span className="text-blue-500 mr-2">•</span>
+                        {suggestion}
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
               </div>
             </div>
 
-            {/* Scan Summary */}
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20">
-              <div className="px-6 py-6 border-b border-gray-100/50">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-r from-gray-600 to-gray-700 rounded-lg">
-                    <FileText className="w-5 h-5 text-white" />
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-900">Scan Summary</h2>
-                </div>
+            {/* Resume Info */}
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">Scan Info</h2>
               </div>
-              <div className="p-6 space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-gray-50/80 to-white/60 border border-gray-100/50">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Bookmark className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <span className="text-gray-700 font-medium">Scan ID</span>
-                  </div>
-                  <span className="font-mono text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-lg">
-                    {scanData.id.slice(0, 8)}...
-                  </span>
+              <div className="p-6 space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Scan ID:</span>
+                  <span className="font-medium">{scanData.id.slice(0, 8)}...</span>
                 </div>
-
-                <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-gray-50/80 to-white/60 border border-gray-100/50">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-emerald-100 rounded-lg">
-                      <Target className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <span className="text-gray-700 font-medium">Keywords Found</span>
-                  </div>
-                  <span className="font-bold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-lg">
-                    {scanData.keywordOptimization.foundKeywords.length}
-                  </span>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Keywords Found:</span>
+                  <span className="font-medium">{scanData.keywordOptimization.foundKeywords.length}</span>
                 </div>
-
-                <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-gray-50/80 to-white/60 border border-gray-100/50">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <Sparkles className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <span className="text-gray-700 font-medium">Analysis Date</span>
-                  </div>
-                  <span className="text-gray-600 font-medium">
-                    {new Date(scanData.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-
-                <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Award className="w-5 h-5 text-blue-600" />
-                    <span className="font-semibold text-blue-900">Next Steps</span>
-                  </div>
-                  <p className="text-sm text-blue-800 leading-relaxed">
-                    Focus on adding the missing keywords naturally throughout your resume, especially in the skills and experience sections.
-                  </p>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Scan Date:</span>
+                  <span className="font-medium">{new Date(scanData.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
