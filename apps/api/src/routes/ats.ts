@@ -4,6 +4,7 @@ import formidable from 'formidable';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import crypto from 'crypto';
 import mammoth from 'mammoth';
 import { extractPdfText } from '../lib/pdf-parser';
 import { extractPdfTextWithGemini } from '../lib/gemini';
@@ -1334,20 +1335,43 @@ export default function atsRouter(prisma: PrismaClient): Router {
   // Main analysis endpoint using Gemini AI
   router.post('/analyze', authenticateToken, async (req: any, res) => {
     try {
+      console.info('diag:analyze:start', { userId: req.user?.uid || req.user?.id });
+      
       const { resumeText, jobDescription, saveResume, resumeName } = req.body;
       const userId = req.user?.uid || req.user?.id;
 
       if (!userId) {
+        console.warn('diag:analyze:no_user');
         return res.status(401).json({ error: 'User authentication required' });
       }
 
+      console.info('diag:analyze:input_validation', {
+        hasResumeText: !!resumeText?.trim(),
+        resumeLength: resumeText?.length || 0,
+        hasJobDescription: !!jobDescription?.trim(),
+        jobDescriptionLength: jobDescription?.length || 0,
+        saveResume,
+        resumeName: resumeName?.substring(0, 50)
+      });
+
       if (!resumeText?.trim() || !jobDescription?.trim()) {
+        console.warn('diag:analyze:missing_content', {
+          resumeText: resumeText?.length || 0,
+          jobDescription: jobDescription?.length || 0
+        });
         return res.status(400).json({ 
           error: 'Resume text and job description are required' 
         });
       }
 
+      // Check Gemini API availability
+      if (!process.env.GEMINI_API_KEY) {
+        console.error('diag:analyze:no_gemini_key');
+        return res.status(500).json({ error: 'AI analysis service not configured' });
+      }
+
       // Generate analysis using Gemini AI
+      console.info('diag:analyze:gemini_start');
       const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
       
       const analysisPrompt = `
@@ -1359,35 +1383,35 @@ export default function atsRouter(prisma: PrismaClient): Router {
       JOB DESCRIPTION:
       ${jobDescription}
 
-      Provide your analysis in the following JSON format:
+      Provide your analysis in the following JSON format (RETURN ONLY VALID JSON, NO MARKDOWN):
       {
-        "overallScore": [0-100],
-        "matchRate": [0-100],
-        "searchability": [0-100], 
-        "atsCompatibility": [0-100],
-        "contactInformation": {"score": [0-100], "status": "excellent|good|needs_improvement", "feedback": "detailed feedback"},
-        "professionalSummary": {"score": [0-100], "status": "excellent|good|needs_improvement", "feedback": "detailed feedback"},
-        "technicalSkills": {"score": [0-100], "status": "excellent|good|needs_improvement", "feedback": "detailed feedback"},
-        "qualifiedAchievements": {"score": [0-100], "status": "excellent|good|needs_improvement", "feedback": "detailed feedback"},
-        "educationCertifications": {"score": [0-100], "status": "excellent|good|needs_improvement", "feedback": "detailed feedback"},
-        "atsFormat": {"score": [0-100], "status": "excellent|good|needs_improvement", "feedback": "detailed feedback"},
-        "hardSkillsFound": ["skill1", "skill2"],
-        "hardSkillsMissing": ["missing_skill1", "missing_skill2"],
+        "overallScore": 75,
+        "matchRate": 80,
+        "searchability": 70, 
+        "atsCompatibility": 85,
+        "contactInformation": {"score": 90, "status": "excellent", "feedback": "Contact information is complete and professional"},
+        "professionalSummary": {"score": 75, "status": "good", "feedback": "Summary effectively highlights key qualifications"},
+        "technicalSkills": {"score": 80, "status": "good", "feedback": "Strong technical skill alignment with job requirements"},
+        "qualifiedAchievements": {"score": 70, "status": "good", "feedback": "Achievements demonstrate impact and results"},
+        "educationCertifications": {"score": 85, "status": "excellent", "feedback": "Education matches job requirements well"},
+        "atsFormat": {"score": 80, "status": "good", "feedback": "Format is ATS-friendly with clear sections"},
+        "hardSkillsFound": ["JavaScript", "React", "Node.js"],
+        "hardSkillsMissing": ["Python", "AWS"],
         "recruiterTips": [
           {
             "category": "Technical Foundation",
             "title": "Strong Technical Foundation", 
-            "description": "Detailed tip description",
+            "description": "Candidate shows solid technical skills",
             "priority": "high"
           }
         ],
         "keywordAnalysis": {
-          "totalJobKeywords": [number],
-          "foundKeywords": ["keyword1", "keyword2"],
-          "missingKeywords": ["missing1", "missing2"],
-          "optimizationSuggestions": ["suggestion1", "suggestion2"]
+          "totalJobKeywords": 20,
+          "foundKeywords": ["JavaScript", "React", "Node.js"],
+          "missingKeywords": ["Python", "AWS"],
+          "optimizationSuggestions": ["Add Python experience", "Include AWS certifications"]
         },
-        "improvementSuggestions": ["suggestion1", "suggestion2"]
+        "improvementSuggestions": ["Add quantified achievements", "Include relevant certifications"]
       }
 
       Focus on:
@@ -1398,40 +1422,82 @@ export default function atsRouter(prisma: PrismaClient): Router {
       5. Industry-specific best practices
       `;
 
-      const result = await model.generateContent(analysisPrompt);
-      const response = result.response.text();
+      let result, response, analysisData;
       
-      // Parse the AI response
-      const analysisData = JSON.parse(response.replace(/```json\n?|\n?```/g, ''));
+      try {
+        result = await model.generateContent(analysisPrompt);
+        response = result.response.text();
+        console.info('diag:analyze:gemini_response', { 
+          responseLength: response.length,
+          hasJsonMarkers: response.includes('```')
+        });
+      } catch (geminiError: any) {
+        console.error('diag:analyze:gemini_error', { 
+          error: geminiError.message,
+          stack: geminiError.stack
+        });
+        return res.status(500).json({ 
+          error: 'AI analysis failed. Please try again.' 
+        });
+      }
+      
+      // Parse the AI response with better error handling
+      try {
+        const cleanedResponse = response.replace(/```json\n?|\n?```/g, '').trim();
+        analysisData = JSON.parse(cleanedResponse);
+        console.info('diag:analyze:json_parsed', { success: true });
+      } catch (parseError: any) {
+        console.error('diag:analyze:json_parse_error', { 
+          error: parseError.message,
+          responsePreview: response.substring(0, 200)
+        });
+        return res.status(500).json({ 
+          error: 'Failed to process AI analysis results. Please try again.' 
+        });
+      }
 
       // Generate unique ID for this scan
       const scanId = crypto.randomUUID();
 
-      // Save to database
-      const savedScan = await prisma.atsScan.create({
-        data: {
-          id: scanId,
-          userId: userId,
-          resumeText: resumeText,
-          jobDescription: jobDescription,
-          overallScore: analysisData.overallScore,
-          matchRate: analysisData.matchRate,
-          searchabilityScore: analysisData.searchability,
-          atsCompatibilityScore: analysisData.atsCompatibility,
-          detailedAnalysis: {
-            contactInformation: analysisData.contactInformation,
-            professionalSummary: analysisData.professionalSummary,
-            technicalSkills: analysisData.technicalSkills,
-            qualifiedAchievements: analysisData.qualifiedAchievements,
-            educationCertifications: analysisData.educationCertifications,
-            atsFormat: analysisData.atsFormat,
-          },
-          foundKeywords: JSON.stringify(analysisData.hardSkillsFound || []),
-          missingKeywords: JSON.stringify(analysisData.hardSkillsMissing || []),
-          recruiterTips: analysisData.recruiterTips || [],
-          improvementSuggestions: analysisData.keywordAnalysis?.optimizationSuggestions || []
-        }
-      });
+      // Save to database with error handling
+      let savedScan;
+      try {
+        console.info('diag:analyze:db_save_start', { scanId });
+        savedScan = await prisma.atsScan.create({
+          data: {
+            id: scanId,
+            userId: userId,
+            resumeText: resumeText,
+            jobDescription: jobDescription,
+            overallScore: analysisData.overallScore || 0,
+            matchRate: analysisData.matchRate || 0,
+            searchabilityScore: analysisData.searchability || 0,
+            atsCompatibilityScore: analysisData.atsCompatibility || 0,
+            detailedAnalysis: {
+              contactInformation: analysisData.contactInformation || {},
+              professionalSummary: analysisData.professionalSummary || {},
+              technicalSkills: analysisData.technicalSkills || {},
+              qualifiedAchievements: analysisData.qualifiedAchievements || {},
+              educationCertifications: analysisData.educationCertifications || {},
+              atsFormat: analysisData.atsFormat || {},
+            },
+            foundKeywords: JSON.stringify(analysisData.hardSkillsFound || []),
+            missingKeywords: JSON.stringify(analysisData.hardSkillsMissing || []),
+            recruiterTips: analysisData.recruiterTips || [],
+            improvementSuggestions: analysisData.keywordAnalysis?.optimizationSuggestions || []
+          }
+        });
+        console.info('diag:analyze:db_save_success', { scanId });
+      } catch (dbError: any) {
+        console.error('diag:analyze:db_save_error', { 
+          error: dbError.message,
+          code: dbError.code,
+          stack: dbError.stack
+        });
+        return res.status(500).json({ 
+          error: 'Failed to save analysis results. Please try again.' 
+        });
+      }
 
       // Save resume if requested
       if (saveResume && resumeName) {
@@ -1486,9 +1552,28 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
       res.status(200).json(analysisResult);
 
-    } catch (error) {
-      logger.error('Analysis error: ' + (error as Error).message);
-      res.status(500).json({ error: 'Failed to analyze resume' });
+    } catch (error: any) {
+      console.error('diag:analyze:unexpected_error', { 
+        error: error.message,
+        stack: error.stack,
+        code: error.code,
+        name: error.name
+      });
+      logger.error('Analysis error: ' + error.message);
+      
+      // Provide more specific error messages based on error type
+      let errorMessage = 'Failed to analyze resume';
+      if (error.message?.includes('GEMINI_API_KEY')) {
+        errorMessage = 'AI analysis service not configured. Please contact support.';
+      } else if (error.message?.includes('quota')) {
+        errorMessage = 'AI analysis service temporarily unavailable. Please try again later.';
+      } else if (error.message?.includes('database') || error.code?.startsWith('P')) {
+        errorMessage = 'Database error. Please try again.';
+      } else if (error.message?.includes('timeout')) {
+        errorMessage = 'Analysis took too long. Please try again with shorter content.';
+      }
+      
+      res.status(500).json({ error: errorMessage });
     }
   });
 
