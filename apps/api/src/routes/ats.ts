@@ -908,18 +908,37 @@ export default function atsRouter(prisma: PrismaClient): Router {
   // Main analysis endpoint using Gemini AI
   router.post('/analyze', authenticateToken, async (req: any, res) => {
     try {
+      console.info('diag:analyze:start', { 
+        hasResumeText: !!req.body?.resumeText,
+        hasJobDescription: !!req.body?.jobDescription,
+        userId: req.user?.uid || req.user?.id,
+        timestamp: new Date().toISOString()
+      });
+
       const { resumeText, jobDescription, saveResume, resumeName } = req.body;
       const userId = req.user?.uid || req.user?.id;
 
       if (!userId) {
+        console.warn('diag:analyze:no_user_id', { user: req.user });
         return res.status(401).json({ error: 'User authentication required' });
       }
 
       if (!resumeText?.trim() || !jobDescription?.trim()) {
+        console.warn('diag:analyze:missing_data', { 
+          resumeTextLength: resumeText?.length || 0,
+          jobDescriptionLength: jobDescription?.length || 0
+        });
         return res.status(400).json({ 
           error: 'Resume text and job description are required' 
         });
       }
+
+      console.info('diag:analyze:data_validated', {
+        resumeTextLength: resumeText.length,
+        jobDescriptionLength: jobDescription.length,
+        saveResume,
+        resumeName
+      });
 
       // Generate analysis using Gemini AI
       const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
@@ -972,16 +991,33 @@ export default function atsRouter(prisma: PrismaClient): Router {
       5. Industry-specific best practices
       `;
 
+      console.info('diag:analyze:calling_gemini');
       const result = await model.generateContent(analysisPrompt);
       const response = result.response.text();
+      console.info('diag:analyze:gemini_response_received', { 
+        responseLength: response.length,
+        responsePreview: response.substring(0, 200)
+      });
       
       // Parse the AI response
-      const analysisData = JSON.parse(response.replace(/```json\n?|\n?```/g, ''));
+      const cleanedResponse = response.replace(/```json\n?|\n?```/g, '');
+      console.info('diag:analyze:parsing_json', { 
+        cleanedResponseLength: cleanedResponse.length,
+        cleanedPreview: cleanedResponse.substring(0, 200)
+      });
+      
+      const analysisData = JSON.parse(cleanedResponse);
+      console.info('diag:analyze:json_parsed_successfully', { 
+        overallScore: analysisData.overallScore,
+        matchRate: analysisData.matchRate
+      });
 
       // Generate unique ID for this scan
       const scanId = crypto.randomUUID();
+      console.info('diag:analyze:generated_scan_id', { scanId });
 
       // Save to database
+      console.info('diag:analyze:saving_to_database', { scanId, userId });
       const savedScan = await prisma.atsScan.create({
         data: {
           id: scanId,
@@ -1006,9 +1042,11 @@ export default function atsRouter(prisma: PrismaClient): Router {
           improvementSuggestions: analysisData.keywordAnalysis?.optimizationSuggestions || []
         }
       });
+      console.info('diag:analyze:database_save_successful', { scanId });
 
       // Save resume if requested
       if (saveResume && resumeName) {
+        console.info('diag:analyze:saving_resume', { resumeName });
         await prisma.savedResume.create({
           data: {
             userId: userId,
@@ -1016,9 +1054,11 @@ export default function atsRouter(prisma: PrismaClient): Router {
             resumeText: resumeText
           }
         });
+        console.info('diag:analyze:resume_save_successful');
       }
 
       // Structure the response
+      console.info('diag:analyze:preparing_response', { scanId });
       const analysisResult = {
         id: scanId,
         overallScore: analysisData.overallScore,
@@ -1058,11 +1098,23 @@ export default function atsRouter(prisma: PrismaClient): Router {
         }
       };
 
+      console.info('diag:analyze:sending_response', { 
+        responseSize: JSON.stringify(analysisResult).length,
+        scanId 
+      });
       res.status(200).json(analysisResult);
 
     } catch (error) {
+      console.error('diag:analyze:error', { 
+        error: (error as Error).message,
+        stack: (error as Error).stack,
+        timestamp: new Date().toISOString()
+      });
       logger.error('Analysis error: ' + (error as Error).message);
-      res.status(500).json({ error: 'Failed to analyze resume' });
+      res.status(500).json({ 
+        error: 'Failed to analyze resume',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      });
     }
   });
 
