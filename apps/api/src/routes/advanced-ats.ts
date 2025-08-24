@@ -98,7 +98,7 @@ router.post('/advanced-scan', authenticateToken, async (req: any, res) => {
     );
 
     // Step 6: Company Intelligence (if provided)
-    let companyProfile = null;
+    let companyProfile: any = undefined;
     let companyOptimization = null;
     if (companyName) {
       console.log('🏢 Gathering Company Intelligence...');
@@ -252,7 +252,7 @@ router.post('/advanced-scan', authenticateToken, async (req: any, res) => {
         hireProbability: hireProbability,
         interviewReadiness: interviewReadiness,
         salaryNegotiation: salaryNegotiation,
-        careerTrajectory: careerTrajectory,
+        careerTrajectoryAnalysis: careerTrajectory,
         companyOptimization: companyOptimization
       }
     });

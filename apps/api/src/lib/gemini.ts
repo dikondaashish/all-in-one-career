@@ -35,7 +35,7 @@ export async function extractPdfTextWithGemini(buffer: Buffer): Promise<string> 
     }
     
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash", // Use flash model for better performance
+      model: "gemini-2.0-flash-exp", // Use latest Gemini 2.0 model for better performance
       systemInstruction: `Extract ALL text from this PDF. Return only the text content, no analysis.`
     });
 

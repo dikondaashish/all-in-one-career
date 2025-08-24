@@ -79,7 +79,7 @@ export class AdvancedGeminiAnalyzer {
   }
   
   async performAdvancedAnalysis(request: AdvancedAnalysisRequest): Promise<RevolutionaryScoring> {
-    const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
     
     const prompt = this.buildAdvancedPrompt(request);
     

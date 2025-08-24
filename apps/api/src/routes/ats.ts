@@ -418,7 +418,7 @@ function generateFallbackAnalysis(resumeText: string, jobDescription: string): s
 async function refineJobContentWithGemini(rawContent: string, genAI: GoogleGenerativeAI): Promise<string> {
   console.info('diag:ai:refinement_start', { contentLength: rawContent.length });
   
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
   
   const prompt = `You are a webpage content cleaner. Your task is to remove unwanted website elements while preserving the original job description EXACTLY as written.
 
