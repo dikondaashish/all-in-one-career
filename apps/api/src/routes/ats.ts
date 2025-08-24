@@ -712,18 +712,35 @@ export default function atsRouter(prisma: PrismaClient): Router {
           '#content',
           '#main-content',
           '.container .content',
-          '.wrapper .content'
+          '.wrapper .content',
+          '.container',
+          '.wrapper',
+          '.page',
+          '.site-content',
+          '.entry-content',
+          '.post-body'
         ];
         
         let foundMainContent = false;
+        let bestContent = '';
+        let bestSelector = '';
+        
+        // Find the selector with the most content
         for (const selector of mainContentSelectors) {
           const element = $(selector);
-          if (element.length && element.text().trim().length > 100) {
-            content = element.text().trim();
-            console.info('diag:url:main_content_found', { selector, contentLength: content.length });
-            foundMainContent = true;
-            break;
+          if (element.length) {
+            const elementText = element.text().trim();
+            if (elementText.length > bestContent.length && elementText.length > 100) {
+              bestContent = elementText;
+              bestSelector = selector;
+            }
           }
+        }
+        
+        if (bestContent.length > 100) {
+          content = bestContent;
+          console.info('diag:url:main_content_found', { selector: bestSelector, contentLength: content.length });
+          foundMainContent = true;
         }
         
         // If no main content area found, try job-specific selectors
@@ -739,23 +756,37 @@ export default function atsRouter(prisma: PrismaClient): Router {
             '.position-description',
             '.role-description',
             '.job-posting',
-            '.job-info'
+            '.job-info',
+            '[class*="job"]',
+            '[id*="job"]'
           ];
+          
+          let bestJobContent = '';
+          let bestJobSelector = '';
           
           for (const selector of jobSpecificSelectors) {
             const element = $(selector);
-            if (element.length && element.text().trim().length > 100) {
-              content = element.text().trim();
-              console.info('diag:url:job_specific_found', { selector, contentLength: content.length });
-              foundMainContent = true;
-              break;
+            if (element.length) {
+              const elementText = element.text().trim();
+              if (elementText.length > bestJobContent.length && elementText.length > 100) {
+                bestJobContent = elementText;
+                bestJobSelector = selector;
+              }
             }
+          }
+          
+          if (bestJobContent.length > 100) {
+            content = bestJobContent;
+            console.info('diag:url:job_specific_found', { selector: bestJobSelector, contentLength: content.length });
+            foundMainContent = true;
           }
         }
         
         // If still no content, extract entire body but remove known non-content elements
         if (!foundMainContent) {
-          // Remove additional elements that are not main content
+          console.info('diag:url:using_body_fallback', { url: processUrl.substring(0, 100) });
+          
+          // Remove additional elements that are not main content, but be more selective
           $('nav, .nav, .navigation, .navbar, .menu, .submenu').remove(); // Navigation
           $('aside, .sidebar, .side-panel').remove(); // Sidebars
           $('.ad, .ads, .advertisement, .banner, .promo').remove(); // Ads
@@ -763,10 +794,52 @@ export default function atsRouter(prisma: PrismaClient): Router {
           $('.breadcrumb, .breadcrumbs, .pagination').remove(); // Navigation aids
           $('.popup, .modal, .overlay, .lightbox').remove(); // Popups
           
-          const bodyContent = $('body').text().trim();
-          if (bodyContent.length > 50) {
-            content = bodyContent;
-            console.info('diag:url:body_fallback_used', { contentLength: content.length });
+          // Try different body extraction strategies
+          const bodyStrategies = [
+            () => $('body').find('*').not('header, footer, nav, aside, .header, .footer, .nav, .sidebar').text(),
+            () => $('body').children().not('header, footer, nav, aside, .header, .footer, .nav, .sidebar').text(),
+            () => $('body').text()
+          ];
+          
+          let bestBodyContent = '';
+          let bestStrategy = '';
+          
+          bodyStrategies.forEach((strategy, index) => {
+            try {
+              const strategyContent = strategy().trim();
+              if (strategyContent.length > bestBodyContent.length) {
+                bestBodyContent = strategyContent;
+                bestStrategy = `strategy_${index + 1}`;
+              }
+            } catch (e) {
+              console.warn(`diag:url:body_strategy_${index + 1}_failed`, { error: (e as Error).message });
+            }
+          });
+          
+          if (bestBodyContent.length > 50) {
+            content = bestBodyContent;
+            console.info('diag:url:body_fallback_used', { 
+              contentLength: content.length, 
+              strategy: bestStrategy,
+              originalLength: $('body').text().length 
+            });
+          } else {
+            // Last resort: try to get content from all divs
+            console.info('diag:url:trying_div_fallback');
+            const allDivs = $('div');
+            let largestDivContent = '';
+            
+            allDivs.each(function() {
+              const divText = $(this).text().trim();
+              if (divText.length > largestDivContent.length && divText.length > 100) {
+                largestDivContent = divText;
+              }
+            });
+            
+            if (largestDivContent.length > 50) {
+              content = largestDivContent;
+              console.info('diag:url:div_fallback_used', { contentLength: content.length });
+            }
           }
         }
         
@@ -830,7 +903,9 @@ export default function atsRouter(prisma: PrismaClient): Router {
         url: url.substring(0, 100), 
         contentLength: content.length,
         title: title?.substring(0, 50),
-        type
+        type,
+        contentPreview: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
+        htmlLength: response.data.length
       });
 
       // Ensure we have meaningful content
