@@ -686,15 +686,16 @@ export default function atsRouter(prisma: PrismaClient): Router {
         content = $('.job_description').text() || $('.jobDescriptionSection').text();
         title = $('h1.job_title').text() || $('h1').first().text();
       }
-      // Generic job page scraping for company career pages and other websites
+      // Generic web page scraping for any website content
       else {
         console.info('diag:url:generic_extraction', { url: processUrl.substring(0, 100) });
         
-        // Remove ONLY scripts, styles, headers, footers, and navigation
-        $('script, style, header, footer, nav, .header, .footer, .nav, .navigation').remove();
-        
-        // Also remove common non-content elements
-        $('.cookie, .cookies, .cookie-banner, .cookie-notice, .gdpr, .social-media, .social-share, .popup, .modal, .overlay').remove();
+        // Remove elements we don't want according to the extraction prompt
+        $('script, style').remove(); // Technical elements
+        $('header, .header, [role="banner"]').remove(); // Website headers
+        $('footer, .footer, [role="contentinfo"]').remove(); // Website footers
+        $('.cookie, .cookies, .cookie-banner, .cookie-notice, .gdpr').remove(); // Cookie notices
+        $('.social-media, .social-share, .social, .share-buttons').remove(); // Social media widgets
         
         // Try to find main content area first (most websites use these)
         const mainContentSelectors = [
@@ -706,15 +707,18 @@ export default function atsRouter(prisma: PrismaClient): Router {
           '.page-content',
           '.post-content',
           '.article-content',
+          '.article',
           '#main',
           '#content',
-          '#main-content'
+          '#main-content',
+          '.container .content',
+          '.wrapper .content'
         ];
         
         let foundMainContent = false;
         for (const selector of mainContentSelectors) {
           const element = $(selector);
-          if (element.length && element.text().trim().length > 200) {
+          if (element.length && element.text().trim().length > 100) {
             content = element.text().trim();
             console.info('diag:url:main_content_found', { selector, contentLength: content.length });
             foundMainContent = true;
@@ -734,7 +738,8 @@ export default function atsRouter(prisma: PrismaClient): Router {
             '[id*="description"]',
             '.position-description',
             '.role-description',
-            '.job-posting'
+            '.job-posting',
+            '.job-info'
           ];
           
           for (const selector of jobSpecificSelectors) {
@@ -748,19 +753,24 @@ export default function atsRouter(prisma: PrismaClient): Router {
           }
         }
         
-        // Last resort: extract body content but remove known non-content elements
+        // If still no content, extract entire body but remove known non-content elements
         if (!foundMainContent) {
-          // Remove additional non-content elements from body
-          $('aside, .sidebar, .ad, .ads, .advertisement, .banner, .promo, .social, .share, .comments, .comment, .breadcrumb, .breadcrumbs, .pagination, .menu, .submenu').remove();
+          // Remove additional elements that are not main content
+          $('nav, .nav, .navigation, .navbar, .menu, .submenu').remove(); // Navigation
+          $('aside, .sidebar, .side-panel').remove(); // Sidebars
+          $('.ad, .ads, .advertisement, .banner, .promo').remove(); // Ads
+          $('.comments, .comment, .comment-section').remove(); // Comments
+          $('.breadcrumb, .breadcrumbs, .pagination').remove(); // Navigation aids
+          $('.popup, .modal, .overlay, .lightbox').remove(); // Popups
           
           const bodyContent = $('body').text().trim();
-          if (bodyContent.length > 100) {
+          if (bodyContent.length > 50) {
             content = bodyContent;
             console.info('diag:url:body_fallback_used', { contentLength: content.length });
           }
         }
         
-        // Try to extract a meaningful title if not already set
+        // Try to extract a meaningful title
         if (!title || title.includes('404') || title.includes('Error') || title.length < 5) {
           const titleSelectors = [
             'h1',
@@ -768,7 +778,8 @@ export default function atsRouter(prisma: PrismaClient): Router {
             '.post-title', 
             '.article-title',
             '.job-title',
-            '[class*="title"]'
+            '.title',
+            '[class*="title"]:first'
           ];
           
           for (const selector of titleSelectors) {
@@ -790,13 +801,21 @@ export default function atsRouter(prisma: PrismaClient): Router {
           .replace(/\s{2,}/g, ' ')     // Replace multiple spaces with single space
           .trim();
         
-        // Remove common unwanted phrases but be conservative
+        // Remove unwanted phrases as specified in the extraction prompt
         const unwantedPhrases = [
-          /accept\s+cookies/gi,
+          /accept\s+cookies?/gi,
           /cookie\s+policy/gi,
           /privacy\s+policy/gi,
           /terms\s+of\s+service/gi,
-          /terms\s+and\s+conditions/gi
+          /terms\s+and\s+conditions/gi,
+          /subscribe\s+to/gi,
+          /newsletter/gi,
+          /follow\s+us/gi,
+          /social\s+media/gi,
+          /share\s+this/gi,
+          /sign\s+up/gi,
+          /log\s+in/gi,
+          /register/gi
         ];
         
         unwantedPhrases.forEach(pattern => {
@@ -824,7 +843,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
         
         return res.status(400).json({
           success: false,
-          error: `No meaningful content could be extracted from the URL. Found ${content?.length || 0} characters.\n\nThis could be due to:\n• The page requires JavaScript to load content\n• The website blocks automated access\n• The page structure is unusual\n\nTry:\n• Copy the content manually\n• Use a different URL or job board\n• Check if the page loads properly in your browser`
+          error: `No meaningful content could be extracted from the URL. Found ${content?.length || 0} characters.\n\nThis could be due to:\n• The page requires JavaScript to load content\n• The website blocks automated access\n• The page structure is unusual\n\nTry:\n• Copy the content manually\n• Use a different URL\n• Check if the page loads properly in your browser`
         });
       }
       
