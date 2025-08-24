@@ -504,44 +504,25 @@ const ATSScanner: React.FC = () => {
       return;
     }
 
-    if (!user) {
-      showToast({ 
-        icon: '❌', 
-        title: 'Authentication Error', 
-        message: 'Please log in again' 
-      });
-      return;
-    }
+          if (!user) {
+        showToast({ 
+          icon: '❌', 
+          title: 'Authentication Error', 
+          message: 'Please log in again' 
+        });
+        return;
+      }
 
-    setIsProcessing(true);
-    setErrors({});
+      setIsProcessing(true);
+      setErrors({});
 
-    try {
-      const authToken = await user.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/ats/analyze`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          resumeText: resumeData.text,
-          jobDescription: jobData.text,
-          saveResume,
-          resumeName: saveResume ? resumeName : undefined,
-        }),
-      });
-
-      // Handle token expiration
-      if (response.status === 401) {
-        console.info("Token expired during scan, refreshing...");
-        const newToken = await user.getIdToken(true); // Force refresh
-        
-        const retryResponse = await fetch(`${API_BASE_URL}/api/ats/analyze`, {
+      try {
+        const authToken = await user.getIdToken();
+        const response = await fetch(`${API_BASE_URL}/api/ats/analyze`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${newToken}`,
+            'Authorization': `Bearer ${authToken}`,
           },
           body: JSON.stringify({
             resumeText: resumeData.text,
@@ -550,22 +531,41 @@ const ATSScanner: React.FC = () => {
             resumeName: saveResume ? resumeName : undefined,
           }),
         });
-        
-        const retryResult = await retryResponse.json();
-        if (retryResult.id) {
-          showToast({ 
-            icon: '🎉', 
-            title: 'Analysis Complete', 
-            message: 'Analysis completed! Redirecting to results...' 
-          });
-          router.push(`/ats-scanner/results/${retryResult.id}`);
-          return;
-        } else {
-          throw new Error(retryResult.error || 'Analysis failed after token refresh');
-        }
-      }
 
-      const result = await response.json();
+        // Handle token expiration
+        if (response.status === 401) {
+          console.info("Token expired during scan, refreshing...");
+          const newToken = await user.getIdToken(true); // Force refresh
+          
+          const retryResponse = await fetch(`${API_BASE_URL}/api/ats/analyze`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${newToken}`,
+            },
+            body: JSON.stringify({
+              resumeText: resumeData.text,
+              jobDescription: jobData.text,
+              saveResume,
+              resumeName: saveResume ? resumeName : undefined,
+            }),
+          });
+          
+          const retryResult = await retryResponse.json();
+          if (retryResult.id) {
+            showToast({ 
+              icon: '🎉', 
+              title: 'Analysis Complete', 
+              message: 'Analysis completed! Redirecting to results...' 
+            });
+            router.push(`/ats-scanner/results/${retryResult.id}`);
+            return;
+          } else {
+            throw new Error(retryResult.error || 'Analysis failed after token refresh');
+          }
+        }
+
+        const result = await response.json();
       
       if (result.id) {
         showToast({ 
@@ -580,15 +580,15 @@ const ATSScanner: React.FC = () => {
     } catch (error) {
       const errorMsg = (error as Error).message || 'Analysis failed. Please try again.';
       setErrors({ resume: errorMsg });
-      showToast({ 
-        icon: '❌', 
-        title: 'Analysis Failed', 
-        message: errorMsg 
-      });
-      console.error("Scan error:", error);
-    } finally {
-      setIsProcessing(false);
-    }
+              showToast({
+          icon: '❌',
+          title: 'Analysis Failed',
+          message: errorMsg 
+        });
+        console.error("Scan error:", error);
+      } finally {
+        setIsProcessing(false);
+      }
   };
 
   return (
