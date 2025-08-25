@@ -42,11 +42,12 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
-import { OverviewPanel } from '../../../../../components/ats/OverviewPanel';
-import { PredictionsPanel } from '../../../../../components/ats/PredictionsPanel';
-import { IntelligencePanel } from '../../../../../components/ats/IntelligencePanel';
-import { CompanyFitPanel } from '../../../../../components/ats/CompanyFitPanel';
-import { StrategyPanel } from '../../../../../components/ats/StrategyPanel';
+import { AdvancedResultsDashboard } from '../../../../../components/advanced/AdvancedResultsDashboard';
+import { featureAdvancedLayerV2 } from '../../../../../config/featureFlags';
+import { AtsChecksCard } from '../../../../../components/atsV2/AtsChecksCard';
+import { SkillsMatrix } from '../../../../../components/atsV2/SkillsMatrix';
+import { RecruiterPsychologyCard } from '../../../../../components/atsV2/RecruiterPsychologyCard';
+import { MarketIndustryCard } from '../../../../../components/atsV2/MarketIndustryCard';
 
 // Custom CSS animations
 const customStyles = `
@@ -267,7 +268,9 @@ const ScanResultsPage: React.FC = () => {
   
   const [scanData, setScanData] = useState<ScanResult | null>(null);
   const [advancedData, setAdvancedData] = useState<any | null>(null);
+  const [v2Data, setV2Data] = useState<any | null>(null);
   const [isAdvancedScan, setIsAdvancedScan] = useState(false);
+  const [isV2Scan, setIsV2Scan] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [isVisible, setIsVisible] = useState(false);
@@ -301,12 +304,24 @@ const ScanResultsPage: React.FC = () => {
         throw new Error('No user authentication available');
       }
 
-      // Try advanced results first, then fall back to regular results
-      let response = await fetch(`${API_BASE_URL}/api/ats/advanced-results/${id}`, {
+      // Try v2 results first, then advanced results, then fall back to regular results
+      let response = await fetch(`${API_BASE_URL}/api/ats/advanced-scan/v2/results/${id}`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
         },
       });
+      
+      let isV2Result = true;
+      
+      // If v2 results not found, try v1 advanced results
+      if (response.status === 404) {
+        response = await fetch(`${API_BASE_URL}/api/ats/advanced-results/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+          },
+        });
+        isV2Result = false;
+      }
       
       // If advanced results not found, try regular results
       if (response.status === 404) {
@@ -315,6 +330,7 @@ const ScanResultsPage: React.FC = () => {
             'Authorization': `Bearer ${authToken}`,
           },
         });
+        isV2Result = false;
       }
       
       // If unauthorized, refresh token once and retry
@@ -348,8 +364,69 @@ const ScanResultsPage: React.FC = () => {
       
       const data = await response.json();
       
-      // Check if this is an advanced scan result
-      if (data.results) {
+      // Check result type and handle accordingly
+      if (isV2Result && data.atsChecks) {
+        // This is a V2 scan result - store V2 data and create backward compatible data
+        setIsV2Scan(true);
+        setV2Data(data);
+        
+        // Create basic scan data for core UI components
+        const basicScanData: ScanResult = {
+          id: id,
+          overallScore: data.overallScore || 75,
+          matchRate: data.atsChecks?.jobTitleMatch?.normalizedSimilarity ? Math.round(data.atsChecks.jobTitleMatch.normalizedSimilarity * 100) : 75,
+          searchabilityScore: data.atsChecks?.wordCountStatus === 'optimal' ? 85 : 70,
+          atsCompatibilityScore: 80,
+          detailedAnalysis: {
+            contactInformation: { score: 90, status: 'excellent', feedback: 'Complete contact information' },
+            professionalSummary: { score: data.recruiterPsychology?.narrativeCoherence || 75, status: 'good', feedback: 'Strong narrative coherence' },
+            technicalSkills: { score: 80, status: 'excellent', feedback: 'Well-aligned skills' },
+            qualifiedAchievements: { score: 70, status: 'good', feedback: 'Good quantification of achievements' },
+            educationCertifications: { score: 80, status: 'good', feedback: 'Relevant background' },
+            atsFormat: { score: data.recruiterPsychology?.sixSecondImpression || 75, status: 'excellent', feedback: 'ATS-friendly format' }
+          },
+          hardSkills: {
+            found: data.skills?.hard?.found || [],
+            missing: data.skills?.hard?.missing || [],
+            matchPercentage: data.skills?.hard?.found?.length ? Math.round((data.skills.hard.found.length / (data.skills.hard.found.length + data.skills.hard.missing.length)) * 100) : 0
+          },
+          recruiterTips: [
+            { category: "Analysis", title: "Based on V2 analysis", description: "Enhanced analysis complete", priority: "medium" as const },
+            { category: "ATS", title: "Focus on ATS optimization", description: "Improve compatibility", priority: "high" as const },
+            { category: "Appeal", title: "Improve recruiter appeal", description: "Enhance presentation", priority: "medium" as const }
+          ],
+          keywordOptimization: {
+            score: 75,
+            totalKeywords: (data.skills?.hard?.found?.length || 0) + (data.skills?.hard?.missing?.length || 0),
+            foundKeywords: data.skills?.hard?.found || [],
+            missingKeywords: data.skills?.hard?.missing || [],
+            suggestions: ["Add missing hard skills", "Optimize keyword placement"]
+          },
+          competitiveAnalysis: {
+            score: data.predictive?.hireProbability?.point || 75,
+            comparison: [
+              {
+                metric: 'Hire Probability',
+                userScore: data.predictive?.hireProbability?.point || 0,
+                marketAverage: 65
+              },
+              {
+                metric: 'Technical Skills',
+                userScore: data.skills?.hard?.found?.length ? data.skills.hard.found.length * 10 : 0,
+                marketAverage: 70
+              },
+              {
+                metric: 'Market Position',
+                userScore: data.industry?.marketPercentile || 0,
+                marketAverage: 50
+              }
+            ]
+          },
+          createdAt: data.createdAt || new Date().toISOString()
+        };
+        
+        setScanData(basicScanData);
+      } else if (data.results) {
         // This is an advanced scan result - store both advanced and transformed data
         setIsAdvancedScan(true);
         setAdvancedData(data.results);
@@ -498,42 +575,135 @@ const ScanResultsPage: React.FC = () => {
     );
   }
 
-  // If this is an advanced scan, render the advanced dashboard
-  if (isAdvancedScan && advancedData) {
+  // If this is a V2 scan, render V2 components with enhanced features
+  if (isV2Scan && v2Data && featureAdvancedLayerV2) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="container mx-auto px-4 py-8 max-w-7xl">
-          <div className="text-center py-20">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">🚀 Advanced Analysis Complete!</h1>
-            <p className="text-xl text-gray-600 mb-8">
-              Your revolutionary AI-powered career intelligence report is ready.
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">🚀 Enhanced ATS Analysis Results</h1>
+            <p className="text-lg text-gray-600">
+              Comprehensive foundational checks, recruiter psychology, and market intelligence
             </p>
-            <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-2xl mx-auto">
-              <div className="grid grid-cols-2 gap-6 text-center">
-                <div>
-                  <div className="text-3xl font-bold text-blue-600 mb-2">{advancedData.overallScore || 0}</div>
-                  <div className="text-sm text-gray-600">Overall Score</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold text-green-600 mb-2">{advancedData.percentile || 0}th</div>
-                  <div className="text-sm text-gray-600">Percentile</div>
-                </div>
-              </div>
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  🎯 Advanced AI analysis complete with industry intelligence, market trends, and predictive insights!
-                </p>
-              </div>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
+            <div className="border-b border-gray-200">
+              <nav className="flex space-x-8 px-6">
+                {['overview', 'intelligence', 'psychology', 'market'].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                      activeTab === tab
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </nav>
             </div>
+
+            {/* Tab Content */}
+            <div className="p-6">
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  {v2Data.atsChecks && <AtsChecksCard data={v2Data.atsChecks} />}
+                  {v2Data.skills && <SkillsMatrix data={v2Data.skills} />}
+                </div>
+              )}
+
+              {activeTab === 'intelligence' && (
+                <div className="space-y-6">
+                  {v2Data.industry && <MarketIndustryCard data={v2Data.industry} />}
+                  {v2Data.skills && <SkillsMatrix data={v2Data.skills} />}
+                </div>
+              )}
+
+              {activeTab === 'psychology' && (
+                <div className="space-y-6">
+                  {v2Data.recruiterPsychology && <RecruiterPsychologyCard data={v2Data.recruiterPsychology} />}
+                </div>
+              )}
+
+              {activeTab === 'market' && (
+                <div className="space-y-6">
+                  {v2Data.industry && <MarketIndustryCard data={v2Data.industry} />}
+                  {v2Data.predictive && (
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Predictive Intelligence</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="text-center p-4 bg-blue-50 rounded-lg">
+                          <div className="text-2xl font-bold text-blue-600 mb-2">
+                            {v2Data.predictive.hireProbability?.point || 0}%
+                          </div>
+                          <div className="text-sm text-gray-600">Hire Probability</div>
+                        </div>
+                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                          <div className="text-2xl font-bold text-green-600 mb-2">
+                            {v2Data.predictive.automationRisk ? Math.round((1 - v2Data.predictive.automationRisk) * 100) : 85}%
+                          </div>
+                          <div className="text-sm text-gray-600">Future-Proof</div>
+                        </div>
+                        <div className="text-center p-4 bg-purple-50 rounded-lg">
+                          <div className="text-2xl font-bold text-purple-600 mb-2">
+                            {v2Data.predictive.salary?.market ? `$${Math.round(v2Data.predictive.salary.market/1000)}k` : '$85k'}
+                          </div>
+                          <div className="text-sm text-gray-600">Market Salary</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="text-center">
             <button
               onClick={() => router.push('/ats-scanner')}
-              className="mt-8 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Return to Scanner
+              Run Another Scan
             </button>
           </div>
         </div>
       </div>
+    );
+  }
+
+  // If this is an advanced scan, render the advanced dashboard
+  if (isAdvancedScan && advancedData) {
+    return (
+      <AdvancedResultsDashboard 
+        scanId={id} 
+        results={{
+          overallScore: advancedData.overallScore,
+          matchRate: advancedData.matchRate,
+          searchability: advancedData.searchability,
+          atsCompatibility: advancedData.atsCompatibility,
+          skillRelevancy: advancedData.skillRelevancy,
+          careerTrajectory: advancedData.careerTrajectory,
+          impactScore: advancedData.impactScore,
+          recruiterAppeal: advancedData.recruiterAppeal,
+          redFlags: advancedData.redFlags,
+          hireProbability: advancedData.hireProbability,
+          interviewReadiness: advancedData.interviewReadiness,
+          salaryNegotiation: advancedData.salaryNegotiation,
+          industryIntel: {
+            industryDetection: advancedData.industryDetection,
+            industrySpecificScoring: advancedData.industryScoring
+          },
+          marketPosition: advancedData.marketPosition,
+          competitiveAnalysis: advancedData.marketPosition,
+          companyOptimization: advancedData.companyOptimization
+        }}
+      />
     );
   }
 

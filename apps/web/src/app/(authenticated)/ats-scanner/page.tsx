@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Upload, Link, Zap, Search, AlertCircle, FileText, Loader2 } from 'lucide-react';
 import { useToast } from '../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAdvancedScan } from '../../../hooks/useAdvancedScan';
+import { featureAdvancedLayerV2 } from '../../../config/featureFlags';
 
 interface ResumeData {
   text: string;
@@ -21,14 +21,10 @@ interface JobData {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://all-in-one-career.onrender.com';
 
-// Feature flag for advanced AI scanner
-const ADVANCED_AI_SCAN = process.env.NEXT_PUBLIC_ADVANCED_AI_SCAN === 'true' || true; // Enable by default
-
 const ATSScanner: React.FC = () => {
   const router = useRouter();
   const { showToast } = useToast();
   const { user } = useAuth();
-  const { startScan: startAdvancedScan, isLoading: isAdvancedLoading, progress: advancedProgress } = useAdvancedScan();
   const [resumeData, setResumeData] = useState<ResumeData>({ text: '', source: 'text' });
   const [jobData, setJobData] = useState<JobData>({ text: '', source: 'text' });
   const [isProcessing, setIsProcessing] = useState(false);
@@ -518,74 +514,56 @@ const ATSScanner: React.FC = () => {
       return;
     }
 
-    setErrors({});
-
-    // Use advanced scan if feature flag is enabled
-    if (ADVANCED_AI_SCAN) {
-      try {
-        const scanId = await startAdvancedScan({
-          resumeText: resumeData.text,
-          jobDescription: jobData.text,
-          jobUrl: urlInputs.job || undefined,
-          fileMeta: resumeData.filename ? {
-            name: resumeData.filename,
-            type: resumeData.filename.endsWith('.pdf') ? 'application/pdf' : 
-                  resumeData.filename.endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 
-                  'text/plain'
-          } : undefined,
-        });
-
-        if (scanId) {
-          showToast({ 
-            icon: '🎉', 
-            title: 'Advanced Analysis Complete', 
-            message: 'Revolutionary AI analysis completed! Redirecting to results...' 
-          });
-          router.push(`/ats-scanner/results/${scanId}`);
-        }
-      } catch (error) {
-        const errorMsg = (error as Error).message || 'Advanced analysis failed. Please try again.';
-        setErrors({ resume: errorMsg });
-        showToast({
-          icon: '❌',
-          title: 'Advanced Analysis Failed',
-          message: errorMsg
-        });
-      }
-      return;
-    }
-
-    // Fallback to legacy scan logic
     setIsProcessing(true);
+    setErrors({});
 
     try {
       const authToken = await user.getIdToken();
       
+      // Extract company name from job description if available
+      const companyName = jobData.title || null;
+      
       showToast({ 
         icon: '🧠', 
         title: 'AI Analysis Started', 
-        message: 'Running AI analysis...' 
+        message: 'Running advanced AI analysis with industry intelligence...' 
       });
 
-      const response = await fetch(`${API_BASE_URL}/api/ats/analyze`, {
+      // Choose endpoint based on feature flag
+      const endpoint = featureAdvancedLayerV2 ? 
+        `${API_BASE_URL}/api/ats/advanced-scan/v2` : 
+        `${API_BASE_URL}/api/ats/advanced-scan`;
+      
+      const requestBody = featureAdvancedLayerV2 ? {
+        resumeText: resumeData.text,
+        resumeFileMeta: { 
+          filename: resumeData.filename || 'resume.txt', 
+          mime: resumeData.filename?.endsWith('.pdf') ? 'application/pdf' : 'text/plain' 
+        },
+        jobDescription: jobData.text,
+        jobUrl: jobData.source === 'url' ? jobData.title : null, // Use title as URL if source is URL
+        companyHint: companyName
+      } : {
+        resumeText: resumeData.text,
+        jobDescription: jobData.text,
+        companyName: companyName,
+      };
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`,
         },
-        body: JSON.stringify({
-          resumeText: resumeData.text,
-          jobDescription: jobData.text,
-          companyName: jobData.title || null,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      // Handle token expiration for legacy endpoint
+      // Handle token expiration
       if (response.status === 401) {
         console.info("Token expired during scan, refreshing...");
-        const newToken = await user.getIdToken(true);
+        const newToken = await user.getIdToken(true); // Force refresh
         
-        const retryResponse = await fetch(`${API_BASE_URL}/api/ats/analyze`, {
+        const retryResponse = await fetch(`${API_BASE_URL}/api/ats/advanced-scan`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -594,21 +572,21 @@ const ATSScanner: React.FC = () => {
           body: JSON.stringify({
             resumeText: resumeData.text,
             jobDescription: jobData.text,
-            companyName: jobData.title || null,
+            companyName: companyName,
           }),
         });
         
         const retryResult = await retryResponse.json();
-        if (retryResult.id) {
+        if (retryResult.scanId) {
           showToast({ 
             icon: '🎉', 
-            title: 'Analysis Complete', 
-            message: 'Analysis completed! Redirecting to results...' 
+            title: 'Advanced Analysis Complete', 
+            message: 'Revolutionary career intelligence analysis completed! Redirecting to results...' 
           });
-          router.push(`/ats-scanner/results/${retryResult.id}`);
+          router.push(`/ats-scanner/results/${retryResult.scanId}`);
           return;
         } else {
-          throw new Error(retryResult.error || 'Analysis failed after token refresh');
+          throw new Error(retryResult.error || 'Advanced analysis failed after token refresh');
         }
       }
 
@@ -1036,51 +1014,21 @@ const ATSScanner: React.FC = () => {
           <button
             className="px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={handleScan}
-            disabled={isProcessing || isUploading || isUrlProcessing || isAdvancedLoading}
+            disabled={isProcessing || isUploading || isUrlProcessing}
           >
-            {(isProcessing || isAdvancedLoading) ? (
+            {isProcessing ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>{ADVANCED_AI_SCAN ? advancedProgress.message || 'Analyzing...' : 'Analyzing...'}</span>
+                <span>Analyzing...</span>
               </>
             ) : (
               <>
                 <Search className="w-5 h-5" />
-                <span>{ADVANCED_AI_SCAN ? 'Advanced AI Scan' : 'Scan Resume'}</span>
+                <span>Advanced AI Scan</span>
               </>
             )}
           </button>
         </div>
-
-        {/* Advanced Scan Progress */}
-        {ADVANCED_AI_SCAN && isAdvancedLoading && (
-          <div className="mt-6 bg-white border border-blue-200 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Advanced AI Analysis in Progress</h3>
-              <div className="text-sm text-blue-600 font-medium">
-                Step {advancedProgress.step + 1} of 8
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex items-center text-sm text-gray-700">
-                <div className="w-2 h-2 bg-blue-600 rounded-full mr-3 animate-pulse"></div>
-                {advancedProgress.message}
-              </div>
-              
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${((advancedProgress.step + 1) / 8) * 100}%` }}
-                />
-              </div>
-              
-              <div className="text-xs text-gray-500">
-                Our AI is analyzing your resume with industry intelligence, market trends, and predictive insights...
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Best Results Tips */}
         <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">

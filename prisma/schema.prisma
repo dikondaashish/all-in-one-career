@@ -36,7 +36,7 @@ model User {
   notifications    Notification[]
   atsScans         AtsScan[]
   atsScansAdvanced AtsScanAdvanced[]
-  atsScansAdvancedNew ATSScanAdvanced[]
+  atsScansV2       AtsScanV2[]
   savedResumes     SavedResume[]
   atsPreferences   AtsUserPreference[]
   ocrJobs          OcrJob[]
@@ -174,6 +174,7 @@ model AtsScan {
 
   user User @relation(fields: [userId], references: [id])
   ocrJobs OcrJob[]
+  atsScansV2 AtsScanV2[] // v2 scans that reference this v1 scan
 }
 
 model SavedResume {
@@ -219,32 +220,7 @@ model OcrJob {
   @@index([status])
 }
 
-// Enhanced Advanced ATS Scanner Models (New Specification)
-model ATSScanAdvanced {
-  id                 String   @id @default(cuid())
-  userId             String
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  resumeObjectKey    String?  // S3 key for raw resume (optional)
-  jdUrl              String?  // optional job URL
-  overallScore       Int
-  percentile         Int      // market percentile
-  atsCompatibility   Json     // detailed ATS checks
-  jobTitleMatch      Json     // { exactFound: bool, normalizedMatch: number }
-  skills             Json     // { hardFound: string[], hardMissing: string[], softFound: string[], softMissing: string[], impactWeights: Record<string,int> }
-  recruiterPsych     Json     // first6s, authorityLanguage, narrative, redFlags: string[]
-  marketIntel        Json     // trends, hot/declining, benchmarks
-  industryIntel      Json     // detection, confidence, career paths
-  companyFit         Json?    // cultureMatch, techStackMatch, rewriteSuggestions[]
-  predictions        Json     // hireProbability {prob, ci}, interviewReadiness, salaryPlaybook, xFactor, automationRisk
-  strategy           Json     // nextRoles[], skillGaps[], timeline, actions[]
-  wordStats          Json     // { wordCount: number, recommendedRange: [min,max] }
-  webPresence        Json     // { linkedin: string?, portfolio: string?, github: string? }
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  @@map("ats_scans_advanced_new")
-}
-
-// Legacy Advanced ATS Scanner Models (Existing)
+// Advanced ATS Scanner Models
 model AtsScanAdvanced {
   id                   String   @id @default(cuid())
   userId               String
@@ -321,12 +297,37 @@ model CompanyProfiles {
   @@map("company_profiles")
 }
 
-model MarketCache {
-  id          String   @id @default(cuid())
-  industry    String
-  payload     Json
-  updatedAt   DateTime @default(now())
-  @@map("market_cache")
+// ATS Scanner V2 - Enhanced Foundational Features (Additive)
+model AtsScanV2 {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scanV1Id        String?  // optional link to existing v1 scan
+  scanV1          AtsScan? @relation(fields: [scanV1Id], references: [id], onDelete: SetNull)
+  
+  // Core ATS foundational checks
+  atsChecks       Json     // fileType, fileName, contact, sections, dates, wordCount, jobTitleMatch
+  
+  // Enhanced skills analysis
+  skillsSplit     Json     // hard/soft/transferable skills with impact weights
+  
+  // Recruiter psychology insights
+  recruiterPsych  Json     // 6-second impression, authority language, narrative coherence, red flags, badges
+  
+  // Industry and market intelligence  
+  industryJson    Json     // detected industry, trending/declining skills, career paths, market percentile
+  marketJson      Json     // skill demand heatmap, market positioning data
+  
+  // Company-specific optimization (nullable if no company data)
+  companyOpt      Json?    // culture alignment, tech stack match, background fit, optimization recommendations
+  
+  // Enhanced predictions with bands and X-factor
+  predictiveV2    Json     // hire probability bands, X-factor, automation risk, enhanced interview readiness, salary bands
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("ats_scans_v2")
 }
 
 

@@ -741,7 +741,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
           
           // Always offer OCR for now - we'll upload to S3 when OCR is requested
           return res.status(422).json({
-            success: false,
+        success: false, 
             error: "pdf_no_extractable_text",
             can_ocr: true,
             s3Key: s3Url || null,
@@ -806,8 +806,8 @@ export default function atsRouter(prisma: PrismaClient): Router {
       if (url.includes('drive.google.com')) {
         const fileId = extractGoogleDriveFileId(url);
         if (!fileId) {
-          return res.status(400).json({
-            success: false,
+        return res.status(400).json({
+          success: false,
             error: 'Invalid Google Drive URL. Please ensure the link is publicly accessible.'
           });
         }
@@ -820,11 +820,11 @@ export default function atsRouter(prisma: PrismaClient): Router {
           console.info('diag:url:trying_doc_export', { textExportUrl });
           
           const docResponse = await axios.get(textExportUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            timeout: 30000
-          });
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        timeout: 30000
+      });
           
           if (docResponse.data && docResponse.data.trim().length > 10) {
             console.info('diag:url:doc_export_success', { textLength: docResponse.data.trim().length });
@@ -1358,7 +1358,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
       // Enhanced basic cleanup 
       content = content.replace(/\s+/g, ' ').trim();
-      
+
       // Remove common unwanted text patterns
       const unwantedPatterns = [
         /\b(cookies?|privacy policy|terms of service|accept|agree)\b/gi,
@@ -1634,16 +1634,16 @@ export default function atsRouter(prisma: PrismaClient): Router {
       try {
         console.info('diag:analyze:db_save_start', { scanId });
         savedScan = await prisma.atsScan.create({
-          data: {
-            id: scanId,
-            userId: userId,
-            resumeText: resumeText,
-            jobDescription: jobDescription,
+        data: {
+          id: scanId,
+          userId: userId,
+          resumeText: resumeText,
+          jobDescription: jobDescription,
             overallScore: analysisData.overallScore || 0,
             matchRate: analysisData.matchRate || 0,
             searchabilityScore: analysisData.searchability || 0,
             atsCompatibilityScore: analysisData.atsCompatibility || 0,
-            detailedAnalysis: {
+          detailedAnalysis: {
               contactInformation: analysisData.contactInformation || {},
               professionalSummary: analysisData.professionalSummary || {},
               technicalSkills: analysisData.technicalSkills || {},
@@ -1653,10 +1653,10 @@ export default function atsRouter(prisma: PrismaClient): Router {
             },
             foundKeywords: JSON.stringify(analysisData.hardSkillsFound || []),
             missingKeywords: JSON.stringify(analysisData.hardSkillsMissing || []),
-            recruiterTips: analysisData.recruiterTips || [],
-            improvementSuggestions: analysisData.keywordAnalysis?.optimizationSuggestions || []
-          }
-        });
+          recruiterTips: analysisData.recruiterTips || [],
+          improvementSuggestions: analysisData.keywordAnalysis?.optimizationSuggestions || []
+        }
+      });
         console.info('diag:analyze:db_save_success', { scanId });
       } catch (dbError: any) {
         console.error('diag:analyze:db_save_error', { 
