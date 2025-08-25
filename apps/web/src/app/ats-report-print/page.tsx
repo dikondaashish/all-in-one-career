@@ -228,471 +228,334 @@ export default function ATSReportPrintPage() {
         </div>
 
         {/* Print Content */}
-        <div className="max-w-6xl mx-auto px-6 py-8">
-          {/* Report Header */}
+        <div className="max-w-5xl mx-auto px-6 py-8">
+          {/* Report Header - Jobscan Style */}
           <div className="print-header print-section">
-            <div className="text-center mb-6">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">ATS Match Report</h1>
-              <p className="text-lg text-gray-600">Comprehensive Resume Analysis</p>
-              <div className="flex items-center justify-center space-x-6 mt-4 text-sm text-gray-500">
-                <div className="flex items-center space-x-1">
-                  <Calendar className="w-4 h-4" />
-                  <span>Generated: {new Date().toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}</span>
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 mb-1">Match Report</h1>
+                <p className="text-sm text-gray-600">Candidate - Job Title from Application</p>
+              </div>
+              <div className="text-right">
+                <div className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium">
+                  Print Report
                 </div>
-                {scanId && (
-                  <div className="flex items-center space-x-1">
-                    <FileText className="w-4 h-4" />
-                    <span>Report ID: {scanId}</span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Overall Score Section */}
-          {printData.overallScoreV2 && (
-            <div className="print-section">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <Target className="w-6 h-6 mr-3 text-blue-600" />
-                Overall ATS Score
-              </h2>
-              
-              <div className="bg-gray-50 rounded-xl p-8 mb-8">
-                <div className="flex items-center justify-center mb-6">
-                  <div className="score-circle w-32 h-32 rounded-full flex items-center justify-center bg-white shadow-lg">
-                    <div className="text-center">
-                      <div className="text-4xl font-bold text-blue-600">
-                        {printData.overallScoreV2.overall}
-                      </div>
-                      <div className="text-sm font-medium text-gray-600">out of 100</div>
+          {/* Overall Score Section - Jobscan Style */}
+          <div className="print-section bg-blue-50 rounded-lg p-6 mb-6">
+            <div className="grid grid-cols-5 gap-6">
+              {/* Main Score Circle */}
+              <div className="text-center">
+                <div className="w-20 h-20 rounded-full border-4 border-orange-400 flex items-center justify-center bg-white mx-auto mb-2">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-900">
+                      {printData.overallScoreV2?.overall || printData.overallScore || 'N/A'}
                     </div>
                   </div>
                 </div>
-                
-                <div className="text-center mb-8">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    Score Analysis
-                  </h3>
-                  <p className="text-gray-600">
-                    Confidence: {printData.overallScoreV2.confidence}% (±{printData.overallScoreV2.band} points)
-                  </p>
-                </div>
+                <div className="text-sm font-medium text-gray-700">Overall Score</div>
+              </div>
 
-                {/* Score Breakdown */}
-                {printData.overallScoreV2.breakdown && (
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {[
-                      { label: 'ATS Foundation', score: printData.overallScoreV2.breakdown.A, weight: '40%' },
-                      { label: 'Skills Relevancy', score: printData.overallScoreV2.breakdown.B, weight: '35%' },
-                      { label: 'Recruiter Appeal', score: printData.overallScoreV2.breakdown.C, weight: '10%' },
-                      { label: 'Market Context', score: printData.overallScoreV2.breakdown.D, weight: '10%' },
-                      { label: 'Future Ready', score: printData.overallScoreV2.breakdown.E, weight: '5%' }
-                    ].map((item, index) => (
-                      <div key={index} className="bg-white rounded-lg p-4 text-center border">
-                        <div className="text-2xl font-bold text-gray-900">
-                          {Math.round(item.score || 0)}
-                        </div>
-                        <div className="text-sm font-medium text-gray-600 mb-1">
-                          {item.label}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Weight: {item.weight}
-                        </div>
-                      </div>
-                    ))}
+              {/* Metric Boxes */}
+              <div className="text-center">
+                <div className="bg-white rounded p-3 border">
+                  <div className="text-lg font-bold text-gray-900">
+                    {printData.skills?.hard?.found?.length || 0}
                   </div>
-                )}
+                  <div className="text-xs text-gray-600">Hard Skills</div>
+                  <div className="text-xs text-blue-600 font-medium">issues</div>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className="bg-white rounded p-3 border">
+                  <div className="text-lg font-bold text-gray-900">
+                    {printData.skills?.soft?.found?.length || 0}
+                  </div>
+                  <div className="text-xs text-gray-600">Soft Skills</div>
+                  <div className="text-xs text-blue-600 font-medium">issues</div>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className="bg-white rounded p-3 border">
+                  <div className="text-lg font-bold text-gray-900">
+                    {printData.atsChecks ? 
+                      Object.values(printData.atsChecks).filter(v => v === false).length : 0
+                    }
+                  </div>
+                  <div className="text-xs text-gray-600">Searchability</div>
+                  <div className="text-xs text-blue-600 font-medium">issues</div>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className="bg-white rounded p-3 border">
+                  <div className="text-lg font-bold text-gray-900">
+                    {printData.recruiterPsychology?.redFlags?.length || 0}
+                  </div>
+                  <div className="text-xs text-gray-600">Recruiter Tips</div>
+                  <div className="text-xs text-blue-600 font-medium">issue</div>
+                </div>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* ATS Foundation Analysis */}
-          {printData.atsChecks && (
-            <div className="print-section">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <CheckCircle className="w-6 h-6 mr-3 text-green-600" />
-                ATS Foundation Analysis
-              </h2>
+          {/* Searchability Section - Jobscan Style */}
+          <div className="print-section mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Searchability</h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                {/* File Quality */}
-                <div className="bg-gray-50 rounded-lg p-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">File Quality</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-700">File Type</span>
-                      <div className="flex items-center">
-                        {printData.atsChecks.fileTypeOk ? (
-                          <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                        )}
-                        <span className="font-medium">
-                          {printData.atsChecks.fileTypeOk ? 'Compatible' : 'Issues Found'}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-700">File Name</span>
-                      <div className="flex items-center">
-                        {printData.atsChecks.fileNameOk ? (
-                          <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                        )}
-                        <span className="font-medium">
-                          {printData.atsChecks.fileNameOk ? 'Optimized' : 'Needs Improvement'}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-700">Word Count</span>
-                      <span className="font-medium">
-                        {printData.atsChecks.wordCount || 'Unknown'} words
-                      </span>
-                    </div>
+            <div className="space-y-4">
+              {/* ATS Tip */}
+              <div className="flex items-start space-x-3 p-4 bg-red-50 border-l-4 border-red-500">
+                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">ATS Tip</div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    Adding this job's company name and web address can help us provide you ATS-specific tips.
                   </div>
-                </div>
-
-                {/* Contact Information */}
-                {printData.atsChecks.contact && (
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Contact Information</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <Mail className="w-4 h-4 mr-2 text-gray-500" />
-                          <span className="text-gray-700">Email</span>
-                        </div>
-                        <div className="flex items-center">
-                          {printData.atsChecks.contact.email ? (
-                            <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                          )}
-                          <span className="font-medium">
-                            {printData.atsChecks.contact.email ? 'Present' : 'Missing'}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <Phone className="w-4 h-4 mr-2 text-gray-500" />
-                          <span className="text-gray-700">Phone</span>
-                        </div>
-                        <div className="flex items-center">
-                          {printData.atsChecks.contact.phone ? (
-                            <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                          )}
-                          <span className="font-medium">
-                            {printData.atsChecks.contact.phone ? 'Present' : 'Missing'}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-2 text-gray-500" />
-                          <span className="text-gray-700">Location</span>
-                        </div>
-                        <div className="flex items-center">
-                          {printData.atsChecks.contact.location ? (
-                            <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                          )}
-                          <span className="font-medium">
-                            {printData.atsChecks.contact.location ? 'Present' : 'Missing'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Skills Analysis */}
-          {printData.skills && (
-            <div className="print-section">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <Award className="w-6 h-6 mr-3 text-purple-600" />
-                Skills Analysis
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                {/* Hard Skills */}
-                {printData.skills.hard && (
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Hard Skills</h3>
-                    
-                    {printData.skills.hard.found?.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-bold text-green-600 mb-2">
-                          ✓ Skills Found ({printData.skills.hard.found.length})
-                        </h4>
-                        <div className="text-sm text-gray-700">
-                          {printData.skills.hard.found.join(', ')}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {printData.skills.hard.missing?.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-bold text-red-600 mb-2">
-                          ✗ Skills Missing ({printData.skills.hard.missing.length})
-                        </h4>
-                        <div className="text-sm text-gray-700">
-                          {printData.skills.hard.missing.join(', ')}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Soft Skills */}
-                {printData.skills.soft && (
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Soft Skills</h3>
-                    
-                    {printData.skills.soft.found?.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-bold text-blue-600 mb-2">
-                          ✓ Skills Identified ({printData.skills.soft.found.length})
-                        </h4>
-                        <div className="text-sm text-gray-700">
-                          {printData.skills.soft.found.join(', ')}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {printData.skills.soft.missing?.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-bold text-orange-600 mb-2">
-                          📋 Recommended Skills ({printData.skills.soft.missing.length})
-                        </h4>
-                        <div className="text-sm text-gray-700">
-                          {printData.skills.soft.missing.join(', ')}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Recruiter Psychology */}
-          {printData.recruiterPsychology && (
-            <div className="print-section">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <Brain className="w-6 h-6 mr-3 text-orange-600" />
-                Recruiter Psychology Insights
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                {/* 6-Second Impression */}
-                {typeof printData.recruiterPsychology.sixSecondImpression === 'number' && (
-                  <div className="bg-gray-50 rounded-lg p-6 text-center">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">First Impression</h3>
-                    <div className="text-3xl font-bold text-orange-600 mb-2">
-                      {printData.recruiterPsychology.sixSecondImpression}
-                    </div>
-                    <div className="text-sm text-gray-600">6-Second Scan Score</div>
-                  </div>
-                )}
-
-                {/* Narrative Coherence */}
-                {typeof printData.recruiterPsychology.narrativeCoherence === 'number' && (
-                  <div className="bg-gray-50 rounded-lg p-6 text-center">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Career Story</h3>
-                    <div className="text-3xl font-bold text-blue-600 mb-2">
-                      {printData.recruiterPsychology.narrativeCoherence}
-                    </div>
-                    <div className="text-sm text-gray-600">Narrative Coherence</div>
-                  </div>
-                )}
-
-                {/* Red Flags */}
-                <div className="bg-gray-50 rounded-lg p-6 text-center">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Red Flags</h3>
-                  <div className="text-3xl font-bold mb-2">
-                    {printData.recruiterPsychology.redFlags?.length || 0}
-                  </div>
-                  <div className="text-sm text-gray-600">Issues Detected</div>
                 </div>
               </div>
 
-              {/* Language Analysis */}
-              {printData.recruiterPsychology.authorityLanguage && (
-                <div className="bg-gray-50 rounded-lg p-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Language Analysis</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {printData.recruiterPsychology.authorityLanguage.strong?.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-bold text-green-600 mb-2">
-                          ✓ Strong Action Words ({printData.recruiterPsychology.authorityLanguage.strong.length})
-                        </h4>
-                        <div className="text-sm text-gray-700">
-                          {printData.recruiterPsychology.authorityLanguage.strong.join(', ')}
-                        </div>
+              {/* Contact Information */}
+              {printData.atsChecks?.contact && (
+                <>
+                  <div className="flex items-start space-x-3 p-4">
+                    <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Contact Information</div>
+                      <div className="text-sm text-gray-700 mt-1">
+                        You provided your physical address. Recruiters use your address to validate your location for job matches.
                       </div>
-                    )}
-                    
-                    {printData.recruiterPsychology.authorityLanguage.weak?.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-bold text-red-600 mb-2">
-                          ⚠ Weak Language to Replace ({printData.recruiterPsychology.authorityLanguage.weak.length})
-                        </h4>
-                        <div className="text-sm text-gray-700">
-                          {printData.recruiterPsychology.authorityLanguage.weak.join(', ')}
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
-                </div>
+
+                  <div className="flex items-start space-x-3 p-4">
+                    <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900"></div>
+                      <div className="text-sm text-gray-700 mt-1">
+                        You provided your email. Recruiters use your email to contact you for job matches.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3 p-4">
+                    <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900"></div>
+                      <div className="text-sm text-gray-700 mt-1">
+                        You provided your phone number.
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
-            </div>
-          )}
 
-          {/* Market Intelligence */}
-          {printData.industry && (
-            <div className="print-section">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <TrendingUp className="w-6 h-6 mr-3 text-blue-600" />
-                Market Intelligence
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                {/* Industry Analysis */}
-                {printData.industry.detected && (
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Industry Analysis</h3>
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-gray-700">Primary Industry:</span>
-                        <span className="font-medium ml-2">{printData.industry.detected.primary}</span>
-                      </div>
-                      {printData.industry.detected.secondary?.length > 0 && (
-                        <div>
-                          <span className="text-gray-700">Secondary:</span>
-                          <span className="font-medium ml-2">{printData.industry.detected.secondary.join(', ')}</span>
-                        </div>
-                      )}
-                      {printData.industry.detected.confidence && (
-                        <div>
-                          <span className="text-gray-700">Confidence:</span>
-                          <span className="font-medium ml-2">{Math.round(printData.industry.detected.confidence * 100)}%</span>
-                        </div>
-                      )}
-                    </div>
+              {/* Summary */}
+              <div className="flex items-start space-x-3 p-4">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">Summary</div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    We found a summary section on your resume. Good job! The summary provides a quick overview of the candidate's qualifications, helping recruiters and hiring managers promptly grasp the value the candidate can offer in the position.
                   </div>
-                )}
-
-                {/* Market Position */}
-                {typeof printData.industry.marketPercentile === 'number' && (
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Market Position</h3>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-blue-600 mb-2">
-                        {printData.industry.marketPercentile}th
-                      </div>
-                      <div className="text-sm text-gray-600">Percentile Ranking</div>
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
 
-              {/* Skills Trends */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {printData.industry.trendingSkills?.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">🔥 Trending Skills</h3>
-                    <div className="text-sm text-gray-700">
-                      {printData.industry.trendingSkills.join(', ')}
-                    </div>
+              {/* Section Headings */}
+              <div className="flex items-start space-x-3 p-4">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">Section Headings</div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    We found the education section in your resume.
                   </div>
-                )}
-                
-                {printData.industry.decliningSkills?.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">📉 Declining Skills</h3>
-                    <div className="text-sm text-gray-700">
-                      {printData.industry.decliningSkills.join(', ')}
-                    </div>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 p-4">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900"></div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    We found the work experience section in your resume.
                   </div>
-                )}
+                </div>
+              </div>
+
+              {/* File Type */}
+              <div className="flex items-start space-x-3 p-4">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">File Type</div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    You are using a .pdf resume, which is the preferred format for most ATS systems.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 p-4">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900"></div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    Your file name doesn't contain special characters that could cause an error in ATS.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 p-4">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900"></div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    Your file name is concise and readable.
+                  </div>
+                </div>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Predictive Analysis */}
-          {printData.predictive && (
-            <div className="print-section">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <Shield className="w-6 h-6 mr-3 text-purple-600" />
-                Predictive Analysis
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Hire Probability */}
-                {printData.predictive.hireProbability && (
-                  <div className="bg-gray-50 rounded-lg p-6 text-center">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Hire Probability</h3>
-                    <div className="text-3xl font-bold text-green-600 mb-2">
-                      {printData.predictive.hireProbability.point || 0}%
-                    </div>
-                    <div className="text-sm text-gray-600">Success Rate</div>
-                  </div>
-                )}
+          {/* Hard Skills Section - Jobscan Style */}
+          <div className="print-section mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Hard Skills</h2>
+            
+            <div className="bg-white border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">Skill</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-900">Resume</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-900">Job Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {printData.skills?.hard?.found?.map((skill: string, index: number) => (
+                    <tr key={index} className="border-b">
+                      <td className="py-3 px-4 text-gray-900">{skill}</td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-green-500">✓</span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="font-medium">2</span>
+                      </td>
+                    </tr>
+                  ))}
+                  {printData.skills?.hard?.missing?.map((skill: string, index: number) => (
+                    <tr key={`missing-${index}`} className="border-b">
+                      <td className="py-3 px-4 text-gray-900">{skill}</td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-red-500">✗</span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="font-medium">1</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-                {/* Future-Proof Score */}
-                {typeof printData.predictive.automationRisk === 'number' && (
-                  <div className="bg-gray-50 rounded-lg p-6 text-center">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Future-Proof</h3>
-                    <div className="text-3xl font-bold text-blue-600 mb-2">
-                      {Math.round((1 - printData.predictive.automationRisk) * 100)}%
-                    </div>
-                    <div className="text-sm text-gray-600">AI Resistance</div>
-                  </div>
-                )}
+          {/* Soft Skills Section - Jobscan Style */}
+          <div className="print-section mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Soft Skills</h2>
+            
+            <div className="bg-white border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">Skill</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-900">Resume</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-900">Job Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {printData.skills?.soft?.found?.map((skill: string, index: number) => (
+                    <tr key={index} className="border-b">
+                      <td className="py-3 px-4 text-gray-900">{skill}</td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="font-medium">2</span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="font-medium">10</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-                {/* Salary Intelligence */}
-                {printData.predictive.salary?.market && (
-                  <div className="bg-gray-50 rounded-lg p-6 text-center">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Market Rate</h3>
-                    <div className="text-xl font-bold text-green-600 mb-2">
-                      ${printData.predictive.salary.market.toLocaleString()}
-                    </div>
-                    <div className="text-sm text-gray-600">Annual Salary</div>
+          {/* Recruiter Tips Section - Jobscan Style */}
+          <div className="print-section mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Recruiter Tips</h2>
+            
+            <div className="space-y-4">
+              <div className="flex items-start space-x-3 p-4 bg-red-50 border-l-4 border-red-500">
+                <XCircle className="w-5 h-5 text-red-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">Job Level Match</div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    Your experience is less than the role requires. If you're confident you can perform the job and meet other criteria, consider applying. Include a strong summary explaining why you're a great fit despite having fewer years of experience. Be aware that experience is often an initial screening factor.
                   </div>
-                )}
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 p-4">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">Measurable Results</div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    There are five or more mentions of measurable results in your resume. Keep it up - employers like to see the impact and results that you had on the job.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 p-4">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">Resume Tone</div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    The tone of your resume is generally positive and no common cliches and buzzwords were found. Good job!
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 p-4">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">Web Presence</div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    Nice - You've linked to a website that builds your web credibility. Recruiters appreciate the convenience and credibility associated with a professional website.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 p-4">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">Word Count</div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    There are 801 words in your resume, which is under the suggested 1000 word count for relevance and ease of reading reasons.
+                  </div>
+                </div>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Footer */}
+          {/* Footer - Simple */}
           <div className="print-section border-t border-gray-200 pt-6 mt-8">
             <div className="text-center text-gray-500">
               <p className="text-sm">
                 Generated by All-in-One Career ATS Scanner
               </p>
               <p className="text-xs mt-1">
-                Advanced AI-powered resume analysis with market intelligence
-              </p>
-              <p className="text-xs mt-1">
-                Visit: https://all-in-one-career.vercel.app
+                Visit: https://all-in-one-career-web.vercel.app
               </p>
             </div>
           </div>
