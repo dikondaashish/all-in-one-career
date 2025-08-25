@@ -594,14 +594,45 @@ export const PDFDownload: React.FC<PDFDownloadProps> = ({ data }) => {
     <button
       onClick={generatePDF}
       disabled={isGenerating}
-      className="inline-flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg font-medium transition-colors duration-200 shadow-sm hover:shadow-md"
+      className="group relative overflow-hidden bg-gradient-to-r from-red-500 via-red-600 to-red-700 hover:from-red-600 hover:via-red-700 hover:to-red-800 disabled:from-red-300 disabled:via-red-400 disabled:to-red-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ease-out border border-red-500/20"
     >
-      {isGenerating ? (
-        <Loader2 className="w-5 h-5 animate-spin" />
-      ) : (
-        <Download className="w-5 h-5" />
-      )}
-      <span>{isGenerating ? 'Generating PDF...' : 'Download PDF Report'}</span>
+      {/* Animated Background Gradient */}
+      <div className="absolute inset-0 bg-gradient-to-r from-red-400/20 to-red-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+      
+      {/* Shimmer Effect */}
+      <div className="absolute inset-0 -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+      
+      {/* Content */}
+      <div className="relative flex items-center space-x-3">
+        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors duration-300">
+          {isGenerating ? (
+            <Loader2 className="w-5 h-5 animate-spin text-white" />
+          ) : (
+            <Download className="w-5 h-5 text-white group-hover:animate-bounce" />
+          )}
+        </div>
+        
+        <div className="flex flex-col items-start">
+          <span className="text-sm font-bold tracking-wide">
+            {isGenerating ? 'Generating...' : 'Download PDF'}
+          </span>
+          <span className="text-xs text-red-100 font-medium">
+            {isGenerating ? 'Please wait' : 'Complete Report'}
+          </span>
+        </div>
+        
+        {/* Progress dots for loading */}
+        {isGenerating && (
+          <div className="flex space-x-1">
+            <div className="w-1 h-1 bg-white rounded-full animate-pulse"></div>
+            <div className="w-1 h-1 bg-white rounded-full animate-pulse animation-delay-200"></div>
+            <div className="w-1 h-1 bg-white rounded-full animate-pulse animation-delay-400"></div>
+          </div>
+        )}
+      </div>
+      
+      {/* Glow Effect */}
+      <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-red-500/20 blur-xl -z-10"></div>
     </button>
   );
 };

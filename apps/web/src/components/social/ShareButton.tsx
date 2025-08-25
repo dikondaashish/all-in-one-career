@@ -133,23 +133,51 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200 shadow-sm hover:shadow-md"
+        className="group relative overflow-hidden bg-gradient-to-r from-blue-500 via-blue-600 to-purple-600 hover:from-blue-600 hover:via-purple-600 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ease-out border border-blue-500/20"
       >
-        <Share2 className="w-5 h-5" />
-        <span>Share Results</span>
+        {/* Animated Background Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        
+        {/* Shimmer Effect */}
+        <div className="absolute inset-0 -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+        
+        {/* Content */}
+        <div className="relative flex items-center space-x-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors duration-300">
+            <Share2 className="w-5 h-5 text-white group-hover:rotate-12 transition-transform duration-300" />
+          </div>
+          
+          <div className="flex flex-col items-start">
+            <span className="text-sm font-bold tracking-wide">Share Results</span>
+            <span className="text-xs text-blue-100 font-medium">Tell the world</span>
+          </div>
+          
+          {/* Pulse indicator */}
+          <div className="relative">
+            <div className="w-2 h-2 bg-white rounded-full"></div>
+            <div className="absolute inset-0 w-2 h-2 bg-white rounded-full animate-ping opacity-75"></div>
+          </div>
+        </div>
+        
+        {/* Glow Effect */}
+        <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-blue-500/20 blur-xl -z-10"></div>
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 z-50 py-2">
-          {/* Header */}
-          <div className="px-4 py-2 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-900">Share Your Results</h3>
-            <p className="text-sm text-gray-600">Spread the word about your ATS score!</p>
+        <div className="absolute right-0 mt-3 w-72 bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 z-50 py-3 transform transition-all duration-300 ease-out scale-100 opacity-100">
+          {/* Header with Gradient */}
+          <div className="px-5 py-3 border-b border-gradient-to-r from-blue-100 to-purple-100">
+            <div className="relative">
+              <h3 className="font-bold text-gray-900 text-lg bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Share Your Results ✨
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">Spread the word about your amazing ATS score!</p>
+            </div>
           </div>
           
-          {/* Share Options */}
-          <div className="py-2">
-            {shareOptions.map((option) => {
+          {/* Share Options with Enhanced Design */}
+          <div className="py-3 space-y-1">
+            {shareOptions.map((option, index) => {
               const Icon = option.icon;
               return (
                 <button
@@ -160,25 +188,52 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
                       setIsOpen(false);
                     }
                   }}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 text-left transition-colors duration-200 ${option.bgColor}`}
+                  className={`w-full flex items-center space-x-4 px-5 py-3 text-left transition-all duration-300 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100 group relative overflow-hidden ${option.bgColor}`}
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  <Icon className={`w-5 h-5 ${option.color}`} />
-                  <span className="font-medium text-gray-900">{option.name}</span>
+                  {/* Icon with enhanced styling */}
+                  <div className={`flex items-center justify-center w-10 h-10 rounded-xl ${option.bgColor.replace('hover:', '')} group-hover:scale-110 transition-transform duration-300`}>
+                    <Icon className={`w-5 h-5 ${option.color} group-hover:scale-110 transition-transform duration-300`} />
+                  </div>
+                  
+                  <div className="flex-1">
+                    <span className="font-semibold text-gray-900 group-hover:text-gray-700 transition-colors duration-300">
+                      {option.name}
+                    </span>
+                    {option.name === 'Copy Link' && (
+                      <div className="text-xs text-gray-500">Click to copy URL</div>
+                    )}
+                  </div>
+                  
                   {option.name === 'Copy Link' && copiedLink && (
-                    <span className="text-xs text-green-600 ml-auto">Copied!</span>
+                    <div className="flex items-center space-x-1 text-green-600 animate-fade-in">
+                      <Check className="w-4 h-4" />
+                      <span className="text-xs font-medium">Copied!</span>
+                    </div>
                   )}
+                  
+                  {/* Hover shimmer effect */}
+                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
                 </button>
               );
             })}
           </div>
           
-          {/* URL Preview */}
-          <div className="px-4 py-3 border-t border-gray-100">
-            <div className="text-xs text-gray-500 mb-1">Share URL:</div>
-            <div className="text-xs bg-gray-50 px-3 py-2 rounded-lg border font-mono break-all">
+          {/* Enhanced URL Preview */}
+          <div className="px-5 py-4 border-t border-gray-100 bg-gradient-to-r from-gray-50/50 to-blue-50/50">
+            <div className="flex items-center space-x-2 mb-2">
+              <Share2 className="w-4 h-4 text-blue-500" />
+              <span className="text-xs font-semibold text-gray-700">Share URL</span>
+            </div>
+            <div className="text-xs bg-white px-4 py-3 rounded-xl border border-gray-200 font-mono break-all shadow-inner relative group">
               {shareUrl}
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </div>
           </div>
+          
+          {/* Decorative elements */}
+          <div className="absolute top-4 right-4 w-2 h-2 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full animate-pulse"></div>
+          <div className="absolute bottom-4 left-4 w-1 h-1 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full animate-pulse animation-delay-500"></div>
         </div>
       )}
     </div>
