@@ -36,6 +36,7 @@ model User {
   notifications    Notification[]
   atsScans         AtsScan[]
   atsScansAdvanced AtsScanAdvanced[]
+  atsScansAdvancedNew ATSScanAdvanced[]
   savedResumes     SavedResume[]
   atsPreferences   AtsUserPreference[]
   ocrJobs          OcrJob[]
@@ -218,7 +219,32 @@ model OcrJob {
   @@index([status])
 }
 
-// Advanced ATS Scanner Models
+// Enhanced Advanced ATS Scanner Models (New Specification)
+model ATSScanAdvanced {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeObjectKey    String?  // S3 key for raw resume (optional)
+  jdUrl              String?  // optional job URL
+  overallScore       Int
+  percentile         Int      // market percentile
+  atsCompatibility   Json     // detailed ATS checks
+  jobTitleMatch      Json     // { exactFound: bool, normalizedMatch: number }
+  skills             Json     // { hardFound: string[], hardMissing: string[], softFound: string[], softMissing: string[], impactWeights: Record<string,int> }
+  recruiterPsych     Json     // first6s, authorityLanguage, narrative, redFlags: string[]
+  marketIntel        Json     // trends, hot/declining, benchmarks
+  industryIntel      Json     // detection, confidence, career paths
+  companyFit         Json?    // cultureMatch, techStackMatch, rewriteSuggestions[]
+  predictions        Json     // hireProbability {prob, ci}, interviewReadiness, salaryPlaybook, xFactor, automationRisk
+  strategy           Json     // nextRoles[], skillGaps[], timeline, actions[]
+  wordStats          Json     // { wordCount: number, recommendedRange: [min,max] }
+  webPresence        Json     // { linkedin: string?, portfolio: string?, github: string? }
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  @@map("ats_scans_advanced_new")
+}
+
+// Legacy Advanced ATS Scanner Models (Existing)
 model AtsScanAdvanced {
   id                   String   @id @default(cuid())
   userId               String
@@ -293,6 +319,14 @@ model CompanyProfiles {
   lastUpdated     DateTime @default(now())
   
   @@map("company_profiles")
+}
+
+model MarketCache {
+  id          String   @id @default(cuid())
+  industry    String
+  payload     Json
+  updatedAt   DateTime @default(now())
+  @@map("market_cache")
 }
 
 

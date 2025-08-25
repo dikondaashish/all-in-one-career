@@ -12,14 +12,17 @@
   "dependencies": {
     "@headlessui/react": "^2.2.7",
     "@heroicons/react": "^2.2.0",
+    "chart.js": "^4.5.0",
     "date-fns": "^4.1.0",
     "firebase": "^12.1.0",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.539.0",
     "next": "15.4.6",
     "react": "19.1.0",
+    "react-chartjs-2": "^5.3.0",
     "react-dom": "19.1.0",
     "react-hot-toast": "^2.6.0",
+    "recharts": "^3.1.2",
     "swr": "^2.3.6",
     "zustand": "^5.0.7"
   },
