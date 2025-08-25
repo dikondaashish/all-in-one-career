@@ -152,6 +152,11 @@ router.post('/advanced-scan/v2', authenticateToken, async (req: Request, res: Re
       predictive: predictiveEnhanced
     });
 
+    // Helper functions for this scan
+    const calculateKeywordDensityForScan = () => calculateKeywordDensity(resumeText, jobDescription);
+    const extractExperienceYearsForScan = () => extractExperienceYears(resumeText);
+    const extractRequiredYearsForScan = () => extractRequiredYears(jobDescription);
+
     const subScores = {
       // A: Foundational ATS & Searchability (40%)
       A1: subs.A1({ 
@@ -189,16 +194,23 @@ router.post('/advanced-scan/v2', authenticateToken, async (req: Request, res: Re
       }),
 
       // B: Relevancy & Skills (35%)
-      B1: subs.B1({ jdSkills: skillsSplit?.hard?.found || [] }),
+      B1: subs.B1({ 
+        jdSkills: skillsSplit?.hard ? 
+          [...(skillsSplit.hard.found || []).map((skill: string) => ({ name: skill, criticality: 'required', found: true })),
+           ...(skillsSplit.hard.missing || []).map((skill: string) => ({ name: skill, criticality: 'required', found: false }))]
+          : []
+      }),
       B2: subs.B2({ 
-        softExpected: 5, // Default expected soft skills
+        softExpected: Math.max(3, Math.min(8, (skillsSplit?.soft?.found?.length || 0) + (skillsSplit?.soft?.missing?.length || 0))),
         softFound: skillsSplit?.soft?.found?.length || 0
       }),
       B3: subs.B3({ transferable: skillsSplit?.transferable || [] }),
-      B4: subs.B4({ densityPerK: 10 }), // Default density
+      B4: subs.B4({ 
+        densityPerK: calculateKeywordDensityForScan() 
+      }),
       B5: subs.B5({ 
-        yearsCandidate: 3, // Default experience
-        yearsRequired: 2 // Default required
+        yearsCandidate: extractExperienceYearsForScan(),
+        yearsRequired: extractRequiredYearsForScan()
       }),
 
       // C: Recruiter Psychology (10%)
@@ -366,6 +378,105 @@ function extractJobTitle(jobDescription: string): string {
   
   // Fallback
   return 'Position';
+}
+
+// Helper functions for accurate data extraction
+
+/**
+ * Calculate keyword density per 1000 words
+ */
+function calculateKeywordDensity(resumeText: string, jobDescription: string): number {
+  const resumeWords = resumeText.split(/\s+/).length;
+  const jobKeywords = extractKeywordsFromJD(jobDescription);
+  const resumeLower = resumeText.toLowerCase();
+  
+  let matchCount = 0;
+  jobKeywords.forEach(keyword => {
+    if (resumeLower.includes(keyword.toLowerCase())) {
+      matchCount++;
+    }
+  });
+  
+  return Math.round((matchCount / resumeWords) * 1000);
+}
+
+/**
+ * Extract key skills/keywords from job description
+ */
+function extractKeywordsFromJD(jobDescription: string): string[] {
+  const commonSkills = [
+    'javascript', 'python', 'react', 'node.js', 'sql', 'aws', 'docker', 'kubernetes',
+    'project management', 'agile', 'scrum', 'leadership', 'communication', 'teamwork',
+    'problem solving', 'analytical', 'creative', 'strategic thinking'
+  ];
+  
+  const jdLower = jobDescription.toLowerCase();
+  return commonSkills.filter(skill => jdLower.includes(skill));
+}
+
+/**
+ * Extract years of experience from resume
+ */
+function extractExperienceYears(resumeText: string): number {
+  // Look for experience patterns
+  const patterns = [
+    /(\d+)\+?\s*years?\s*(?:of\s*)?experience/gi,
+    /(\d+)\+?\s*years?\s*in/gi,
+    /experience:\s*(\d+)\+?\s*years?/gi
+  ];
+  
+  for (const pattern of patterns) {
+    const match = resumeText.match(pattern);
+    if (match) {
+      const years = parseInt(match[0].match(/\d+/)?.[0] || '0');
+      if (years > 0 && years <= 50) return years;
+    }
+  }
+  
+  // Fallback: count work experience entries
+  const workEntries = resumeText.match(/\b(20\d{2})\s*[-–—]\s*(20\d{2}|present|current)/gi);
+  if (workEntries && workEntries.length > 0) {
+    let totalYears = 0;
+    workEntries.forEach(entry => {
+      const years = entry.match(/20\d{2}/g);
+      if (years && years.length >= 1) {
+        const startYear = parseInt(years[0]);
+        const endYear = years[1] ? parseInt(years[1]) : new Date().getFullYear();
+        totalYears += Math.max(0, endYear - startYear);
+      }
+    });
+    return Math.min(totalYears, 30); // Cap at 30 years
+  }
+  
+  return 2; // Default fallback
+}
+
+/**
+ * Extract required years from job description
+ */
+function extractRequiredYears(jobDescription: string): number {
+  const patterns = [
+    /(\d+)\+?\s*years?\s*(?:of\s*)?experience\s*(?:required|preferred|needed)/gi,
+    /minimum\s*(?:of\s*)?(\d+)\+?\s*years?/gi,
+    /at\s*least\s*(\d+)\+?\s*years?/gi,
+    /(\d+)\+?\s*years?\s*(?:of\s*)?(?:relevant\s*)?experience/gi
+  ];
+  
+  for (const pattern of patterns) {
+    const match = jobDescription.match(pattern);
+    if (match) {
+      const years = parseInt(match[0].match(/\d+/)?.[0] || '0');
+      if (years > 0 && years <= 20) return years;
+    }
+  }
+  
+  // Look for seniority level indicators
+  const jdLower = jobDescription.toLowerCase();
+  if (jdLower.includes('senior') || jdLower.includes('lead')) return 5;
+  if (jdLower.includes('mid-level') || jdLower.includes('intermediate')) return 3;
+  if (jdLower.includes('junior') || jdLower.includes('entry')) return 1;
+  
+  return 2; // Default fallback
 }
 
 // Legacy functions removed - using new V2 scoring engine

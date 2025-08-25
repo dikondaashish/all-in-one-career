@@ -51,6 +51,8 @@ import { MarketIndustryCard } from '../../../../../components/atsV2/MarketIndust
 import { OverallScoreCard } from '../../../../../components/atsV2/OverallScoreCard';
 import { ImprovementSuggestions } from '../../../../../components/atsV2/ImprovementSuggestions';
 import { OverallScoreV2 } from '../../../../../components/atsV2/OverallScoreV2';
+import { PDFDownload } from '../../../../../components/reports/PDFDownload';
+import { ShareButton } from '../../../../../components/social/ShareButton';
 
 // Custom CSS animations
 const customStyles = `
@@ -679,13 +681,21 @@ const ScanResultsPage: React.FC = () => {
           </div>
 
           {/* Action Buttons */}
-          <div className="text-center">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
             <button
               onClick={() => router.push('/ats-scanner')}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm hover:shadow-md"
             >
               Run Another Scan
             </button>
+            
+            <PDFDownload data={v2Data} />
+            
+            <ShareButton 
+              scanId={id} 
+              score={v2Data.overallScoreV2?.overall || 0}
+              title="Check out my ATS Analysis Results!"
+            />
           </div>
         </div>
       </div>
