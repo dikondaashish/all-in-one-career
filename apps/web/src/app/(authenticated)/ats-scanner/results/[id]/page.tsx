@@ -53,6 +53,7 @@ import { ImprovementSuggestions } from '../../../../../components/atsV2/Improvem
 import { OverallScoreV2 } from '../../../../../components/atsV2/OverallScoreV2';
 
 import { ShareButton } from '../../../../../components/social/ShareButton';
+import { PrintButton } from '../../../../../components/print/PrintButton';
 
 // Custom CSS animations
 const customStyles = `
@@ -589,6 +590,7 @@ const ScanResultsPage: React.FC = () => {
           <div className="relative mb-8">
             {/* Action Buttons - Top Right */}
             <div className="absolute top-0 right-0 flex flex-col sm:flex-row items-end gap-3 z-10">
+              <PrintButton scanId={id} />
               <ShareButton 
                 scanId={id} 
                 score={v2Data.overallScoreV2?.overall || 0}
