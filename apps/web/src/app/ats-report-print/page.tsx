@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { getAuth } from 'firebase/auth';
 import { 
   Printer, 
   ArrowLeft, 
@@ -39,6 +41,9 @@ export default function ATSReportPrintPage() {
   const searchParams = useSearchParams();
   const scanId = searchParams.get('scanId');
   
+  const auth = getAuth();
+  const [user, userLoading, userError] = useAuthState(auth);
+  
   const [printData, setPrintData] = useState<PrintData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,31 +56,63 @@ export default function ATSReportPrintPage() {
         return;
       }
 
+      if (userLoading) {
+        return; // Wait for auth state to load
+      }
+
+      if (!user) {
+        setError('Authentication required. Please log in.');
+        setLoading(false);
+        return;
+      }
+
       try {
+        const token = await user.getIdToken();
+        
         // Try to fetch V2 data first, then fallback to V1
-        let response = await fetch(`/api/ats/advanced-scan/v2/results/${scanId}`);
+        let response = await fetch(`/api/ats/advanced-scan/v2/results/${scanId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
         
         if (!response.ok) {
-          // Fallback to V1 data
-          response = await fetch(`/api/ats/advanced-scan/results/${scanId}`);
+          // Fallback to V1 advanced results
+          response = await fetch(`/api/ats/advanced-results/${scanId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
         }
         
         if (!response.ok) {
-          throw new Error('Failed to fetch scan data');
+          // Final fallback to regular scan results
+          response = await fetch(`/api/ats/scan-results/${scanId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        }
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch scan data: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
         setPrintData({ ...data, scanId });
       } catch (err) {
         console.error('Error fetching print data:', err);
-        setError('Failed to load scan data');
+        setError(`Failed to load scan data: ${err instanceof Error ? err.message : 'Unknown error'}`);
       } finally {
         setLoading(false);
       }
     };
 
     fetchPrintData();
-  }, [scanId]);
+  }, [scanId, user, userLoading]);
 
   const handlePrint = () => {
     window.print();
@@ -89,12 +126,14 @@ export default function ATSReportPrintPage() {
     }
   };
 
-  if (loading) {
+  if (loading || userLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading print preview...</p>
+          <p className="text-gray-600">
+            {userLoading ? 'Checking authentication...' : 'Loading print preview...'}
+          </p>
         </div>
       </div>
     );
