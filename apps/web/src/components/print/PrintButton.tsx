@@ -1,5 +1,5 @@
 /**
- * Print Button Component - Opens print preview page
+ * Print Button Component - Modern UI button for printing ATS reports
  */
 
 import React from 'react';
@@ -14,9 +14,8 @@ export const PrintButton: React.FC<PrintButtonProps> = ({ scanId }) => {
   const router = useRouter();
 
   const handlePrint = () => {
-    // Open print page in new window
-    const printUrl = `/ats-report-print?scanId=${scanId}`;
-    window.open(printUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    // Navigate to the print preview page
+    router.push(`/ats-report-print?scanId=${scanId}`);
   };
 
   return (
@@ -38,7 +37,7 @@ export const PrintButton: React.FC<PrintButtonProps> = ({ scanId }) => {
         
         <div className="flex flex-col items-start">
           <span className="text-sm font-bold tracking-wide">Print Report</span>
-          <span className="text-xs text-green-100 font-medium">Professional Copy</span>
+          <span className="text-xs text-green-100 font-medium">High Quality</span>
         </div>
         
         {/* Pulse indicator */}
