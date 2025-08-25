@@ -50,6 +50,7 @@ import { RecruiterPsychologyCard } from '../../../../../components/atsV2/Recruit
 import { MarketIndustryCard } from '../../../../../components/atsV2/MarketIndustryCard';
 import { OverallScoreCard } from '../../../../../components/atsV2/OverallScoreCard';
 import { ImprovementSuggestions } from '../../../../../components/atsV2/ImprovementSuggestions';
+import { OverallScoreV2 } from '../../../../../components/atsV2/OverallScoreV2';
 
 // Custom CSS animations
 const customStyles = `
@@ -590,8 +591,11 @@ const ScanResultsPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Overall Score */}
-          <OverallScoreCard data={v2Data} />
+          {/* Overall Score V2 */}
+          <OverallScoreV2 data={v2Data} />
+          
+          {/* Legacy Overall Score (fallback) */}
+          {!v2Data.overallScoreV2 && <OverallScoreCard data={v2Data} />}
 
           {/* Tab Navigation */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">

@@ -15,6 +15,10 @@ import { analyzeIndustryMarket } from '../services/industryMarket.service';
 import { optimizeForCompany } from '../services/companyOptimization.service';
 import { enhancePredictions } from '../services/predictiveEnhanced.service';
 
+// Import V2 scoring system
+import { computeOverallATS, type SubScores } from '../services/scoreEngine';
+import { subs, calculateSignalAvailability } from '../services/subscores';
+
 const router: Router = Router();
 const prisma = new PrismaClient();
 
@@ -138,15 +142,111 @@ router.post('/advanced-scan/v2', authenticateToken, async (req: Request, res: Re
     });
     console.log('✅ V2 scan saved with ID:', scanId);
     
-    // === PHASE 8: CALCULATE OVERALL SCORE ===
-    const overallScore = calculateV2OverallScore({
+    // === PHASE 8: CALCULATE OVERALL SCORE V2 ===
+    const { available, total } = calculateSignalAvailability({
       atsChecks,
-      skillsSplit,
-      recruiterPsych,
-      industryMarket,
+      skills: skillsSplit,
+      recruiterPsychology: recruiterPsych,
+      industry: industryMarket,
       companyOptimization,
-      predictiveEnhanced
+      predictive: predictiveEnhanced
     });
+
+    const subScores = {
+      // A: Foundational ATS & Searchability (40%)
+      A1: subs.A1({ 
+        mime: (req as any).resumeFileMeta?.mime, 
+        ocr: false, // OCR data not available in current structure
+        multiColumn: false, // Layout data not available
+        tables: false // Table data not available
+      }),
+      A2: subs.A2({ 
+        hasExp: atsChecks?.sections?.experience, 
+        hasEdu: atsChecks?.sections?.education, 
+        hasSkills: atsChecks?.sections?.skills, 
+        hasSummary: atsChecks?.sections?.summary 
+      }),
+      A3: subs.A3({ 
+        email: atsChecks?.contact?.email, 
+        phone: atsChecks?.contact?.phone, 
+        location: atsChecks?.contact?.location 
+      }),
+      A4: subs.A4({ datesValid: atsChecks?.datesValid }),
+      A5: subs.A5({ filename: (req as any).resumeFileMeta?.filename }),
+      A6: subs.A6({ 
+        exact: atsChecks?.jobTitleMatch?.exact, 
+        similarity: atsChecks?.jobTitleMatch?.normalizedSimilarity 
+      }),
+      A7: subs.A7({ words: atsChecks?.wordCount }),
+      A8: subs.A8({ 
+        linkedin: atsChecks?.contact?.links?.includes("linkedin"), 
+        portfolio: atsChecks?.contact?.links?.some((l: string) => l !== "linkedin") 
+      }),
+      A9: subs.A9({ 
+        hasTextBoxes: false, // Formatting data not available
+        headersFooters: false, // Formatting data not available
+        graphicsDensity: 0 // Formatting data not available
+      }),
+
+      // B: Relevancy & Skills (35%)
+      B1: subs.B1({ jdSkills: skillsSplit?.hard?.found || [] }),
+      B2: subs.B2({ 
+        softExpected: 5, // Default expected soft skills
+        softFound: skillsSplit?.soft?.found?.length || 0
+      }),
+      B3: subs.B3({ transferable: skillsSplit?.transferable || [] }),
+      B4: subs.B4({ densityPerK: 10 }), // Default density
+      B5: subs.B5({ 
+        yearsCandidate: 3, // Default experience
+        yearsRequired: 2 // Default required
+      }),
+
+      // C: Recruiter Psychology (10%)
+      C1: subs.C1({ readabilityScore: recruiterPsych?.sixSecondImpression }),
+      C2: subs.C2({ 
+        strongVerbPct: recruiterPsych?.authorityLanguage?.strong?.length || 0, 
+        weakVerbPct: recruiterPsych?.authorityLanguage?.weak?.length || 0
+      }),
+      C3: subs.C3({ coherence: recruiterPsych?.narrativeCoherence }),
+      redFlagPenalty: subs.redPenalty({
+        jobHopping: recruiterPsych?.redFlags?.includes("job_hopping"),
+        longGap: recruiterPsych?.redFlags?.includes("gap"),
+        inflation: recruiterPsych?.redFlags?.includes("skill_inflation"),
+        severeTitleMismatch: recruiterPsych?.redFlags?.includes("title_mismatch_severe"),
+      }),
+
+      // D: Market & Company Context (10%) - optional
+      D1: industryMarket?.marketPercentile,
+      D2: companyOptimization?.enabled ? subs.D2({
+        culture: companyOptimization?.cultureAlignment,
+        stack: companyOptimization?.techStackMatch,
+        background: companyOptimization?.backgroundFit
+      }) : undefined,
+      D3: undefined, // Competitiveness data not yet available
+
+      // E: Predictive Enhancements (5%)
+      E1: subs.E1({ xFactor: predictiveEnhanced?.hireProbability?.xFactor || 0 }),
+      E2: subs.E2({ 
+        automationRisk: predictiveEnhanced?.automationRisk || 0.3, 
+        futureLeverage: 0.5 // Default future leverage
+      }),
+
+      // Meta information
+      signalsAvailable: available,
+      signalsTotal: total,
+    };
+
+    const overallScoreV2 = computeOverallATS(subScores as any);
+    
+    // Update the database record with scoring data
+    await prisma.atsScanV2.update({
+      where: { id: scanId },
+      data: {
+        overallScoreV2: JSON.parse(JSON.stringify(overallScoreV2)),
+        subscoresV2: JSON.parse(JSON.stringify(subScores)),
+      }
+    });
+    console.log('✅ V2 scoring data persisted');
     
     const endTime = Date.now();
     const duration = endTime - startTime;
@@ -165,7 +265,14 @@ router.post('/advanced-scan/v2', authenticateToken, async (req: Request, res: Re
       },
       companyOptimization,
       predictive: predictiveEnhanced,
-      overallScore,
+      
+      // V2 Enhanced Scoring System
+      overallScoreV2: overallScoreV2,
+      subscoresV2: subScores,
+      
+      // Legacy compatibility
+      overallScore: overallScoreV2.overall,
+      
       duration: duration,
       timestamp: new Date().toISOString()
     });
@@ -213,6 +320,14 @@ router.get('/advanced-scan/v2/results/:id', authenticateToken, async (req: Reque
       market: scanResult.marketJson,
       companyOptimization: scanResult.companyOpt,
       predictive: scanResult.predictiveV2,
+      
+      // V2 Enhanced Scoring System
+      overallScoreV2: scanResult.overallScoreV2,
+      subscoresV2: scanResult.subscoresV2,
+      
+      // Legacy compatibility
+      overallScore: (scanResult.overallScoreV2 as any)?.overall || 75,
+      
       createdAt: scanResult.createdAt.toISOString()
     };
     
@@ -253,10 +368,12 @@ function extractJobTitle(jobDescription: string): string {
   return 'Position';
 }
 
+// Legacy functions removed - using new V2 scoring engine
+
 /**
- * Calculate overall V2 score based on all components
- */
-function calculateV2OverallScore({
+ * Old scoring functions replaced by scoreEngine.ts and subscores.ts
+ * 
+function calculateV2OverallScore_OLD({
   atsChecks,
   skillsSplit,
   recruiterPsych,
