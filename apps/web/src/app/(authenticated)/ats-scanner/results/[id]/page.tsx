@@ -42,7 +42,11 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
-import { AdvancedResultsDashboard } from '../../../../../components/advanced/AdvancedResultsDashboard';
+import { OverviewPanel } from '../../../../../components/ats/OverviewPanel';
+import { PredictionsPanel } from '../../../../../components/ats/PredictionsPanel';
+import { IntelligencePanel } from '../../../../../components/ats/IntelligencePanel';
+import { CompanyFitPanel } from '../../../../../components/ats/CompanyFitPanel';
+import { StrategyPanel } from '../../../../../components/ats/StrategyPanel';
 
 // Custom CSS animations
 const customStyles = `
@@ -497,30 +501,39 @@ const ScanResultsPage: React.FC = () => {
   // If this is an advanced scan, render the advanced dashboard
   if (isAdvancedScan && advancedData) {
     return (
-      <AdvancedResultsDashboard 
-        scanId={id} 
-        results={{
-          overallScore: advancedData.overallScore,
-          matchRate: advancedData.matchRate,
-          searchability: advancedData.searchability,
-          atsCompatibility: advancedData.atsCompatibility,
-          skillRelevancy: advancedData.skillRelevancy,
-          careerTrajectory: advancedData.careerTrajectory,
-          impactScore: advancedData.impactScore,
-          recruiterAppeal: advancedData.recruiterAppeal,
-          redFlags: advancedData.redFlags,
-          hireProbability: advancedData.hireProbability,
-          interviewReadiness: advancedData.interviewReadiness,
-          salaryNegotiation: advancedData.salaryNegotiation,
-          industryIntel: {
-            industryDetection: advancedData.industryDetection,
-            industrySpecificScoring: advancedData.industryScoring
-          },
-          marketPosition: advancedData.marketPosition,
-          competitiveAnalysis: advancedData.marketPosition,
-          companyOptimization: advancedData.companyOptimization
-        }}
-      />
+      <div className="min-h-screen bg-gray-50">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="text-center py-20">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">🚀 Advanced Analysis Complete!</h1>
+            <p className="text-xl text-gray-600 mb-8">
+              Your revolutionary AI-powered career intelligence report is ready.
+            </p>
+            <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-2xl mx-auto">
+              <div className="grid grid-cols-2 gap-6 text-center">
+                <div>
+                  <div className="text-3xl font-bold text-blue-600 mb-2">{advancedData.overallScore || 0}</div>
+                  <div className="text-sm text-gray-600">Overall Score</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-green-600 mb-2">{advancedData.percentile || 0}th</div>
+                  <div className="text-sm text-gray-600">Percentile</div>
+                </div>
+              </div>
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  🎯 Advanced AI analysis complete with industry intelligence, market trends, and predictive insights!
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => router.push('/ats-scanner')}
+              className="mt-8 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Return to Scanner
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
