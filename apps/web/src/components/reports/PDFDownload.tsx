@@ -40,15 +40,15 @@ export const PDFDownload: React.FC<PDFDownloadProps> = ({ data }) => {
       
       // Color palette (Jobscan-inspired)
       const colors = {
-        primary: [64, 139, 234],     // Blue
-        secondary: [37, 99, 235],    // Darker Blue
-        success: [34, 197, 94],      // Green
-        warning: [245, 158, 11],     // Orange
-        danger: [239, 68, 68],       // Red
-        gray: [107, 114, 128],       // Gray
-        lightGray: [243, 244, 246],  // Light Gray
-        darkGray: [55, 65, 81],      // Dark Gray
-        white: [255, 255, 255]
+        primary: [64, 139, 234] as [number, number, number],     // Blue
+        secondary: [37, 99, 235] as [number, number, number],    // Darker Blue
+        success: [34, 197, 94] as [number, number, number],      // Green
+        warning: [245, 158, 11] as [number, number, number],     // Orange
+        danger: [239, 68, 68] as [number, number, number],       // Red
+        gray: [107, 114, 128] as [number, number, number],       // Gray
+        lightGray: [243, 244, 246] as [number, number, number],  // Light Gray
+        darkGray: [55, 65, 81] as [number, number, number],      // Dark Gray
+        white: [255, 255, 255] as [number, number, number]
       };
       
       // Helper function to add professional header
