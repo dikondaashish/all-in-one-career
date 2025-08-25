@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Printer, 
   CheckCircle, 
@@ -131,32 +132,77 @@ export default function AtsReportPrint() {
   const scanId = searchParams.get('scanId');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (scanId) {
+    if (scanId && user) {
       fetchScanData();
     }
-  }, [scanId]);
+  }, [scanId, user]);
 
   const fetchScanData = async () => {
     try {
       setLoading(true);
       
+      // Get Firebase ID token for authentication
+      let authToken = '';
+      if (user) {
+        try {
+          authToken = await user.getIdToken();
+        } catch (tokenError) {
+          console.error('Failed to get Firebase ID token:', tokenError);
+          setData(null);
+          return;
+        }
+      } else {
+        console.error('No user authentication available');
+        setData(null);
+        return;
+      }
+
+      // Determine API base URL
+      const API_BASE_URL = process.env.NODE_ENV === 'production' 
+        ? 'https://all-in-one-career-api.onrender.com' 
+        : 'http://localhost:3001';
+      
       // Try V2 first, then fallback to V1
-      const v2Response = await fetch(`/api/ats/advanced-scan/v2/results/${scanId}`);
-      if (v2Response.ok) {
-        const v2Data = await v2Response.json();
+      let response = await fetch(`${API_BASE_URL}/api/ats/advanced-scan/v2/results/${scanId}`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+      
+      if (response.ok) {
+        const v2Data = await response.json();
         setData(v2Data);
       } else {
         // Fallback to V1
-        const v1Response = await fetch(`/api/ats/advanced-scan/results/${scanId}`);
-        if (v1Response.ok) {
-          const v1Data = await v1Response.json();
-          setData(v1Data);
+        response = await fetch(`${API_BASE_URL}/api/ats/advanced-results/${scanId}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+          },
+        });
+        
+        if (response.ok) {
+          const v1Data = await response.json();
+          setData(v1Data.results || v1Data);
+        } else {
+          // Last fallback to regular scan results
+          response = await fetch(`${API_BASE_URL}/api/ats/scan-results/${scanId}`, {
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+            },
+          });
+          
+          if (response.ok) {
+            const regularData = await response.json();
+            setData(regularData);
+          }
         }
       }
     } catch (error) {
       console.error('Error fetching scan data:', error);
+      setData(null);
     } finally {
       setLoading(false);
     }
@@ -166,12 +212,15 @@ export default function AtsReportPrint() {
     window.print();
   };
 
-  if (loading) {
+  // Show loading state if waiting for auth or data
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading report data...</p>
+          <p className="text-gray-600">
+            {!user ? 'Authenticating...' : 'Loading report data...'}
+          </p>
         </div>
       </div>
     );
