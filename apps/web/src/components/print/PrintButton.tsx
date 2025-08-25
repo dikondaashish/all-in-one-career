@@ -1,5 +1,5 @@
 /**
- * Print Button Component - Modern UI button for printing ATS reports
+ * Print Button Component - Modern print functionality with clean UI
  */
 
 import React from 'react';
@@ -14,17 +14,17 @@ export const PrintButton: React.FC<PrintButtonProps> = ({ scanId }) => {
   const router = useRouter();
 
   const handlePrint = () => {
-    // Navigate to the print preview page
+    // Navigate to the print-specific page with scan ID
     router.push(`/ats-report-print?scanId=${scanId}`);
   };
 
   return (
     <button
       onClick={handlePrint}
-      className="group relative overflow-hidden bg-gradient-to-r from-green-500 via-green-600 to-emerald-600 hover:from-green-600 hover:via-emerald-600 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ease-out border border-green-500/20"
+      className="group relative overflow-hidden bg-gradient-to-r from-slate-600 via-slate-700 to-slate-800 hover:from-slate-700 hover:via-slate-800 hover:to-slate-900 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ease-out border border-slate-600/20"
     >
       {/* Animated Background Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-r from-green-400/20 to-emerald-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+      <div className="absolute inset-0 bg-gradient-to-r from-slate-500/20 to-slate-700/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
       
       {/* Shimmer Effect */}
       <div className="absolute inset-0 -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
@@ -37,10 +37,10 @@ export const PrintButton: React.FC<PrintButtonProps> = ({ scanId }) => {
         
         <div className="flex flex-col items-start">
           <span className="text-sm font-bold tracking-wide">Print Report</span>
-          <span className="text-xs text-green-100 font-medium">High Quality</span>
+          <span className="text-xs text-slate-100 font-medium">Full Analysis</span>
         </div>
         
-        {/* Pulse indicator */}
+        {/* Print indicator */}
         <div className="relative">
           <div className="w-2 h-2 bg-white rounded-full"></div>
           <div className="absolute inset-0 w-2 h-2 bg-white rounded-full animate-ping opacity-75"></div>
@@ -48,7 +48,7 @@ export const PrintButton: React.FC<PrintButtonProps> = ({ scanId }) => {
       </div>
       
       {/* Glow Effect */}
-      <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-green-500/20 blur-xl -z-10"></div>
+      <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-slate-600/20 blur-xl -z-10"></div>
     </button>
   );
 };
