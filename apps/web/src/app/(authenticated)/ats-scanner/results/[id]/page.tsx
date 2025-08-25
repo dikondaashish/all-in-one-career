@@ -585,12 +585,25 @@ const ScanResultsPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="container mx-auto px-4 py-8 max-w-7xl">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">🚀 Enhanced ATS Analysis Results</h1>
-            <p className="text-lg text-gray-600">
-              Comprehensive foundational checks, recruiter psychology, and market intelligence
-            </p>
+          {/* Header with Action Buttons */}
+          <div className="relative mb-8">
+            {/* Action Buttons - Top Right */}
+            <div className="absolute top-0 right-0 flex flex-col sm:flex-row items-end gap-3 z-10">
+              <PDFDownload data={v2Data} />
+              <ShareButton 
+                scanId={id} 
+                score={v2Data.overallScoreV2?.overall || 0}
+                title="Check out my ATS Analysis Results!"
+              />
+            </div>
+            
+            {/* Header Content */}
+            <div className="text-center pr-0 sm:pr-96">
+              <h1 className="text-4xl font-bold text-gray-900 mb-4">🚀 Enhanced ATS Analysis Results</h1>
+              <p className="text-lg text-gray-600">
+                Comprehensive foundational checks, recruiter psychology, and market intelligence
+              </p>
+            </div>
           </div>
 
           {/* Overall Score V2 */}
@@ -680,22 +693,14 @@ const ScanResultsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
+          {/* Bottom Action Button */}
+          <div className="text-center mb-8">
             <button
               onClick={() => router.push('/ats-scanner')}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm hover:shadow-md"
             >
               Run Another Scan
             </button>
-            
-            <PDFDownload data={v2Data} />
-            
-            <ShareButton 
-              scanId={id} 
-              score={v2Data.overallScoreV2?.overall || 0}
-              title="Check out my ATS Analysis Results!"
-            />
           </div>
         </div>
       </div>
