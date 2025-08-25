@@ -6,6 +6,7 @@ import { Upload, Link, Zap, Search, AlertCircle, FileText, Loader2 } from 'lucid
 import { useToast } from '../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
 import { featureAdvancedLayerV2 } from '../../../config/featureFlags';
+import { LoadingAnalysis } from '../../../components/ats/LoadingAnalysis';
 
 interface ResumeData {
   text: string;
@@ -1049,6 +1050,9 @@ const ATSScanner: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Loading Analysis Animation */}
+      <LoadingAnalysis isVisible={isProcessing} />
     </div>
   );
 };

@@ -48,6 +48,8 @@ import { AtsChecksCard } from '../../../../../components/atsV2/AtsChecksCard';
 import { SkillsMatrix } from '../../../../../components/atsV2/SkillsMatrix';
 import { RecruiterPsychologyCard } from '../../../../../components/atsV2/RecruiterPsychologyCard';
 import { MarketIndustryCard } from '../../../../../components/atsV2/MarketIndustryCard';
+import { OverallScoreCard } from '../../../../../components/atsV2/OverallScoreCard';
+import { ImprovementSuggestions } from '../../../../../components/atsV2/ImprovementSuggestions';
 
 // Custom CSS animations
 const customStyles = `
@@ -588,11 +590,14 @@ const ScanResultsPage: React.FC = () => {
             </p>
           </div>
 
+          {/* Overall Score */}
+          <OverallScoreCard data={v2Data} />
+
           {/* Tab Navigation */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
             <div className="border-b border-gray-200">
               <nav className="flex space-x-8 px-6">
-                {['overview', 'intelligence', 'psychology', 'market'].map((tab) => (
+                {['overview', 'intelligence', 'psychology', 'market', 'improvements'].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -658,6 +663,12 @@ const ScanResultsPage: React.FC = () => {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {activeTab === 'improvements' && (
+                <div className="space-y-6">
+                  <ImprovementSuggestions data={v2Data} />
                 </div>
               )}
             </div>
