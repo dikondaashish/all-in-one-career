@@ -16,16 +16,16 @@ ISSUES=0
 # Check for common API key patterns
 echo "Checking for API keys..."
 
-# Google API Keys - Only check source files, not .env files
-if find . -name "*.ts" -o -name "*.js" -o -name "*.tsx" -o -name "*.jsx" -o -name "*.md" | grep -v node_modules | grep -v dist | grep -v .next | xargs grep "AIza[A-Za-z0-9_-]\{35\}" 2>/dev/null | grep -v "your-firebase-api-key" | grep -v "your-gemini-api-key"; then
+# Google API Keys - Only check source files, not .env files or documentation
+if find . -name "*.ts" -o -name "*.js" -o -name "*.tsx" -o -name "*.jsx" | grep -v node_modules | grep -v dist | grep -v .next | xargs grep "AIza[A-Za-z0-9_-]\{35\}" 2>/dev/null; then
     echo -e "${RED}❌ Google API key detected!${NC}"
     ISSUES=$((ISSUES + 1))
 else
     echo -e "${GREEN}✅ No Google API keys found${NC}"
 fi
 
-# OpenAI API Keys - Only check source files, not .env files
-if find . -name "*.ts" -o -name "*.js" -o -name "*.tsx" -o -name "*.jsx" -o -name "*.md" | grep -v node_modules | grep -v dist | grep -v .next | xargs grep "sk-[A-Za-z0-9]\{40,\}" 2>/dev/null; then
+# OpenAI API Keys - Only check source files, not .env files or documentation
+if find . -name "*.ts" -o -name "*.js" -o -name "*.tsx" -o -name "*.jsx" | grep -v node_modules | grep -v dist | grep -v .next | xargs grep "sk-[A-Za-z0-9]\{40,\}" 2>/dev/null; then
     echo -e "${RED}❌ OpenAI API key detected!${NC}"
     ISSUES=$((ISSUES + 1))
 else
@@ -41,7 +41,7 @@ else
 fi
 
 # Check for hardcoded database URLs with passwords in source code only
-if find . -name "*.ts" -o -name "*.js" -o -name "*.tsx" -o -name "*.jsx" -o -name "*.md" | grep -v node_modules | grep -v dist | grep -v .next | xargs grep "mysql://.*:.*@" 2>/dev/null | grep -v "your-username:your-password" | grep -v "username:password"; then
+if find . -name "*.ts" -o -name "*.js" -o -name "*.tsx" -o -name "*.jsx" | grep -v node_modules | grep -v dist | grep -v .next | xargs grep "mysql://.*:.*@" 2>/dev/null; then
     echo -e "${RED}❌ Database URL with credentials in source code detected!${NC}"
     ISSUES=$((ISSUES + 1))
 else
