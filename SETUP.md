@@ -1,5 +1,7 @@
 # API Setup Guide
 
+⚠️ **SECURITY NOTICE**: Never commit API keys or sensitive data to version control. Always use environment variables. See [SECURITY.md](./SECURITY.md) for complete security guidelines.
+
 ## Environment Variables
 
 Create a `.env` file in the root directory with the following variables:

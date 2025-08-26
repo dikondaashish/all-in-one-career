@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Use environment variable or fallback to hardcoded key
-const apiKey = process.env.GEMINI_API_KEY || "AIzaSyBJvkuDo6TC2GXfulO12R7uhfoJG-p73d8";
-if (!apiKey) throw new Error('GEMINI_API_KEY missing');
+// Use environment variable - no fallback to prevent key exposure
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is required');
 
 export const genAI = new GoogleGenerativeAI(apiKey);
 
