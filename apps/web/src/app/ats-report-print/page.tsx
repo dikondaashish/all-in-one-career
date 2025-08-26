@@ -35,14 +35,18 @@ export default function ATSReportPrintPage() {
   const fetchScanData = async () => {
     try {
       setLoading(true);
-      let response = await fetch(`/api/ats/advanced-scan/v2/results/${scanId}`);
+      
+      // Use the correct backend API URL
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://all-in-one-career-api.onrender.com';
+      
+      let response = await fetch(`${baseUrl}/api/ats/advanced-scan/v2/results/${scanId}`);
       let isV2 = true;
       
       if (!response.ok) {
-        response = await fetch(`/api/ats/advanced-scan/results/${scanId}`);
+        response = await fetch(`${baseUrl}/api/ats/advanced-scan/results/${scanId}`);
         isV2 = false;
         if (!response.ok) {
-          response = await fetch(`/api/ats/results/${scanId}`);
+          response = await fetch(`${baseUrl}/api/ats/results/${scanId}`);
           isV2 = false;
         }
       }
@@ -54,6 +58,7 @@ export default function ATSReportPrintPage() {
       const data = await response.json();
       setScanData({ ...data, isV2 });
     } catch (err) {
+      console.error('Error fetching scan data:', err);
       setError('Failed to load scan results');
     } finally {
       setLoading(false);
