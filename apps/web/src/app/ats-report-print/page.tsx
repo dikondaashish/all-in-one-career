@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Printer, 
   ArrowLeft, 
@@ -17,6 +18,7 @@ import {
 export default function ATSReportPrintPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
   const scanId = searchParams?.get('scanId') || '';
   
   const [scanData, setScanData] = useState(null);
@@ -29,24 +31,54 @@ export default function ATSReportPrintPage() {
       setLoading(false);
       return;
     }
+    if (!user) {
+      setError('Please log in to view scan results');
+      setLoading(false);
+      return;
+    }
     fetchScanData();
-  }, [scanId]);
+  }, [scanId, user]);
 
   const fetchScanData = async () => {
     try {
       setLoading(true);
       
+      // Get Firebase ID token for authentication
+      let authToken = '';
+      if (user) {
+        try {
+          authToken = await user.getIdToken();
+        } catch (tokenError) {
+          console.error('Failed to get Firebase ID token:', tokenError);
+          throw new Error('Authentication failed. Please log in again.');
+        }
+      } else {
+        throw new Error('No user authentication available');
+      }
+      
       // Use the correct backend API URL
       const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://all-in-one-career-api.onrender.com';
       
-      let response = await fetch(`${baseUrl}/api/ats/advanced-scan/v2/results/${scanId}`);
+      let response = await fetch(`${baseUrl}/api/ats/advanced-scan/v2/results/${scanId}`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
       let isV2 = true;
       
       if (!response.ok) {
-        response = await fetch(`${baseUrl}/api/ats/advanced-scan/results/${scanId}`);
+        response = await fetch(`${baseUrl}/api/ats/advanced-scan/results/${scanId}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+          },
+        });
         isV2 = false;
         if (!response.ok) {
-          response = await fetch(`${baseUrl}/api/ats/results/${scanId}`);
+          response = await fetch(`${baseUrl}/api/ats/results/${scanId}`, {
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+            },
+          });
           isV2 = false;
         }
       }
@@ -59,7 +91,7 @@ export default function ATSReportPrintPage() {
       setScanData({ ...data, isV2 });
     } catch (err) {
       console.error('Error fetching scan data:', err);
-      setError('Failed to load scan results');
+      setError('Failed to load scan results. Please ensure you are logged in.');
     } finally {
       setLoading(false);
     }
