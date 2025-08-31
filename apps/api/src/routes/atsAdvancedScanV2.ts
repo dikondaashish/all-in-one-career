@@ -211,14 +211,16 @@ router.post('/advanced-scan/v2', authenticateToken, async (req: Request, res: Re
         severeTitleMismatch: recruiterPsych?.redFlags?.includes("title_mismatch_severe"),
       }),
 
-      // D: Market & Company Context (10%) - optional
-      D1: industryMarket?.marketPercentile,
+      // D: Market & Company Context (10%) - with fallbacks
+      D1: industryMarket?.marketPercentile || 50, // Default to market median if no data
       D2: companyOptimization?.enabled ? subs.D2({
         culture: companyOptimization?.cultureAlignment,
         stack: companyOptimization?.techStackMatch,
         background: companyOptimization?.backgroundFit
-      }) : undefined,
-      D3: undefined, // Competitiveness data not yet available
+      }) : 65, // Default company alignment score
+      D3: subs.D3({ 
+        competitiveness: industryMarket?.detected?.primary === 'tech' ? 'crowded' : 'normal' 
+      }), // Market competitiveness based on industry
 
       // E: Predictive Enhancements (5%)
       E1: subs.E1({ xFactor: predictiveEnhanced?.hireProbability?.xFactor || 0 }),
