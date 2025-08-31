@@ -72,14 +72,7 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// Explicit OPTIONS handler for preflight requests
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
-});
+// CORS middleware will handle preflight OPTIONS requests automatically
 app.use(express.json({ limit: '5mb' }));
 
 // Optional auth attach (public routes still work)
