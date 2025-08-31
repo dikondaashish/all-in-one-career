@@ -19,29 +19,16 @@ import { enhancePredictions } from '../services/predictiveEnhanced.service';
 import { computeOverallATS, type SubScores } from '../services/scoreEngine';
 import { subs, calculateSignalAvailability } from '../services/subscores';
 
+// Import shared authentication middleware
+import { authenticateToken } from '../middleware/auth';
+
 const router: Router = Router();
 const prisma = new PrismaClient();
 
-// Authentication middleware
-const authenticateToken = async (req: any, res: any, next: any) => {
-  try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-
-    // Import Firebase Admin SDK dynamically
-    const firebase = await import('../lib/firebase');
-    const decodedToken = await firebase.verifyIdToken(token);
-    req.user = { uid: decodedToken.uid, email: decodedToken.email };
-    next();
-  } catch (error) {
-    console.error('Token verification failed:', error);
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-};
+// Handle OPTIONS preflight requests explicitly
+router.options('*', (req, res) => {
+  res.status(204).send();
+});
 
 /**
  * POST /api/ats/advanced-scan/v2

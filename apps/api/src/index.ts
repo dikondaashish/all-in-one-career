@@ -63,16 +63,25 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'https://all-in-one-career-web.vercel.app',
-    'https://all-in-one-career-web-git-feature-global-search-dikondaashish.vercel.app'
+    'https://all-in-one-career-web-git-feature-global-search-dikondaashish.vercel.app',
+    // Allow all Vercel preview deployments for this project
+    /^https:\/\/all-in-one-career-web.*\.vercel\.app$/
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Cache-Control',
+    'X-File-Name'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
   preflightContinue: false,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 204
 }));
-
-// CORS middleware will handle preflight OPTIONS requests automatically
 app.use(express.json({ limit: '5mb' }));
 
 // Optional auth attach (public routes still work)
