@@ -135,7 +135,7 @@ interface ScanResult {
   createdAt: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://all-in-one-career.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://all-in-one-career-api.onrender.com';
 
 // Helper function to get score color and styling
 const getScoreColor = (score: number) => {

@@ -649,11 +649,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
                   console.warn("diag:pdf:using_fallback_pdf-parse");
                   try {
                     const pdf = (await import('pdf-parse')).default;
-                    const data = await pdf(buf, {
-                      // Add options for better parsing
-                      max: 0, // Don't limit pages
-                      version: 'v1.10.100' // Use specific version
-                    });
+                    const data = await pdf(buf);
                     extractedText = (data.text || "").trim();
                     console.info("diag:pdf:fallback_success", { 
                       textLen: extractedText.length,
@@ -690,10 +686,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
           try {
             console.time("diag:pdfparse:extract");
             const pdf = (await import('pdf-parse')).default;
-            const data = await pdf(buf, {
-              max: 0, // Don't limit pages
-              version: 'v1.10.100' // Use specific version
-            });
+            const data = await pdf(buf);
             console.timeEnd("diag:pdfparse:extract");
             extractedText = (data.text || "").trim();
             console.info("diag:pdf:fallback_after_error", { 

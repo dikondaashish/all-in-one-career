@@ -303,11 +303,29 @@ router.post('/advanced-scan/v2', authenticateToken, async (req: Request, res: Re
 });
 
 /**
+ * OPTIONS /api/ats/advanced-scan/v2/results/:id
+ * Handle preflight requests for CORS
+ */
+router.options('/advanced-scan/v2/results/:id', (req: Request, res: Response) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || 'https://all-in-one-career-web.vercel.app');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
+
+/**
  * GET /api/ats/advanced-scan/v2/results/:id
  * Retrieve v2 scan results
  */
 router.get('/advanced-scan/v2/results/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
+    // Add CORS headers explicitly for this route
+    res.header('Access-Control-Allow-Origin', req.headers.origin || 'https://all-in-one-career-web.vercel.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
     const { id } = req.params;
     const userId = (req as any).user.uid;
     
