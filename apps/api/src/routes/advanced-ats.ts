@@ -17,10 +17,7 @@ import { authenticateToken } from '../middleware/auth';
 const router: Router = Router();
 const prisma = new PrismaClient();
 
-// Handle OPTIONS preflight requests explicitly
-router.options('*', (req, res) => {
-  res.status(204).send();
-});
+// OPTIONS requests are handled by the main CORS middleware in index.ts
 
 // Advanced ATS Scan endpoint
 router.post('/advanced-scan', authenticateToken, async (req: any, res) => {

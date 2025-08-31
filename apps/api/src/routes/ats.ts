@@ -478,10 +478,7 @@ ${rawContent}`;
 export default function atsRouter(prisma: PrismaClient): Router {
   const router = Router();
   
-  // Handle OPTIONS preflight requests explicitly
-  router.options('*', (req, res) => {
-    res.status(204).send();
-  });
+  // OPTIONS requests are handled by the main CORS middleware in index.ts
 
   // Initialize Gemini AI
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
