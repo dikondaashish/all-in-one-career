@@ -8,7 +8,7 @@ import GlobalLoader from '@/components/GlobalLoader';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { signIn, signInWithEmail, setRememberMe, setGuestMode } = useAuth();
+  const { signIn, signInSilently, signInWithEmail, setRememberMe, setGuestMode } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -20,19 +20,28 @@ export default function LandingPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // STEP 1: Splash Logic - Check for existing JWT token on component mount
+  // STEP 1: Enhanced Auth Check - Check JWT token and attempt silent sign-in
   useEffect(() => {
-    const checkAuthStatus = () => {
+    const checkAuthStatus = async () => {
       try {
         const token = localStorage.getItem('token');
         if (token) {
           // Valid token exists, redirect to dashboard immediately
           console.log('JWT token found, redirecting to dashboard');
           router.push('/dashboard');
-          return; // Exit early to prevent any rendering
+          return;
+        }
+        
+        // No token, try silent sign-in for returning users
+        console.log('No JWT token found, attempting silent sign-in...');
+        const silentSignInSuccess = await signInSilently();
+        
+        if (silentSignInSuccess) {
+          console.log('Silent sign-in successful, redirecting to dashboard');
+          router.push('/dashboard');
         } else {
-          // No token, show login page
-          console.log('No JWT token found, showing login page');
+          // No existing auth, show login page
+          console.log('No existing authentication found, showing login page');
           setIsCheckingAuth(false);
         }
       } catch (error) {
@@ -43,7 +52,7 @@ export default function LandingPage() {
 
     // Execute immediately to prevent any flash
     checkAuthStatus();
-  }, [router]);
+  }, [router, signInSilently]);
 
   // Slider data
   const slides = [
@@ -135,10 +144,34 @@ export default function LandingPage() {
     try {
       setIsLoading(true);
       setError('');
+      
+      // Check if this will use redirect (to show appropriate loading message)
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isChrome = /Chrome/i.test(navigator.userAgent);
+      
+      if (isChrome || isMobile) {
+        // For redirect flow, show a different loading state
+        console.log('Using redirect sign-in (no pop-ups)');
+      }
+      
       await signIn();
+      
+      // If we reach here with redirect, the page will have redirected
+      // If popup was used, continue to dashboard
       router.push('/dashboard');
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to sign in with Google';
+      let errorMessage = 'Failed to sign in with Google';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('cancelled') || err.message.includes('popup-closed')) {
+          errorMessage = 'Sign-in was cancelled. Please try again.';
+        } else if (err.message.includes('network')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
     } finally {
       setIsLoading(false);

@@ -60,47 +60,31 @@ export default function ATSReportPrintPage() {
       const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://all-in-one-career-api.onrender.com';
       
       let response = await fetch(`${baseUrl}/api/ats/advanced-scan/v2/results/${scanId}`, {
-        method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
-        credentials: 'include',
       });
       let isV2 = true;
       
       if (!response.ok) {
-        console.log('V2 fetch failed, trying V1 advanced scan...');
         response = await fetch(`${baseUrl}/api/ats/advanced-scan/results/${scanId}`, {
-          method: 'GET',
           headers: {
             'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
           },
-          credentials: 'include',
         });
         isV2 = false;
         if (!response.ok) {
-          console.log('V1 advanced scan failed, trying basic ATS scan...');
           response = await fetch(`${baseUrl}/api/ats/results/${scanId}`, {
-            method: 'GET',
             headers: {
               'Authorization': `Bearer ${authToken}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
             },
-            credentials: 'include',
           });
           isV2 = false;
         }
       }
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('All API calls failed. Last response:', response.status, errorText);
-        throw new Error(`Failed to fetch scan results: ${response.status} - ${errorText}`);
+        throw new Error('Failed to fetch scan results');
       }
       
       const data = await response.json();

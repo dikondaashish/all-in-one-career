@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { 
   User, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
@@ -22,6 +24,7 @@ interface AuthContextType {
   isGuest: boolean;
   profileImageUrl: string | null;
   signIn: () => Promise<void>;
+  signInSilently: () => Promise<boolean>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name?: string, profileImage?: File) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
@@ -48,7 +51,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    // Handle redirect result on page load
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log('Google redirect sign-in successful');
+          // Process the successful redirect result
+          await processAuthResult(result.user);
+        }
+      } catch (error) {
+        console.error('Redirect result error:', error);
+      }
+    };
+
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setUser(user);
       setIsAuthenticated(!!user);
       setLoading(false);
@@ -69,193 +86,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // Check for redirect result on component mount
+    handleRedirectResult();
+
     return unsubscribe;
   }, []);
 
-  const signIn = async () => {
-    const maxRetries = 2;
-    let lastError: Error | null = null;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`Google sign-in attempt ${attempt}/${maxRetries}`);
-        
-        // STEP 2: Google Firebase authentication first
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
-        
-        // Get Firebase ID token
-        const firebaseToken = await user.getIdToken();
-        
-        // Call backend to get JWT token
-        const API_BASE_URL = process.env.NODE_ENV === 'production' 
-          ? 'https://all-in-one-career.onrender.com'
-          : 'http://localhost:4000';
-        
-        console.log('Attempting to connect to backend at:', API_BASE_URL);
-        
-        // Test backend connectivity first with timeout
-        let healthCheckPassed = false;
-        try {
-          const healthController = new AbortController();
-          const healthTimeout = setTimeout(() => healthController.abort(), 10000); // 10 second timeout
-          
-          const healthResponse = await fetch(`${API_BASE_URL}/health`, {
-            signal: healthController.signal
-          });
-          
-          clearTimeout(healthTimeout);
-          
-          if (healthResponse.ok) {
-            console.log('Backend health check passed:', healthResponse.status);
-            healthCheckPassed = true;
-          } else {
-            console.error('Backend health check failed with status:', healthResponse.status);
-          }
-        } catch (healthError: unknown) {
-          console.error('Backend health check failed:', healthError);
-          if (healthError instanceof Error && healthError.name === 'AbortError') {
-            throw new Error('Backend server is not responding. Please try again later.');
-          }
-          throw new Error('Cannot connect to backend server. Please check your internet connection and try again.');
-        }
-        
-        if (!healthCheckPassed) {
-          // If backend health check fails, offer fallback authentication
-          console.log('Backend unavailable, offering fallback authentication');
-          await signInWithFallback(user);
-          return;
-        }
-          
-        // Now attempt the actual authentication
-        const authController = new AbortController();
-        const authTimeout = setTimeout(() => authController.abort(), 15000); // 15 second timeout for auth
-        
-        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            firebaseToken,
-            email: user.email,
-            photoURL: user.photoURL, // Send Google profile photo URL
-          }),
-          signal: authController.signal
-        });
-        
-        clearTimeout(authTimeout);
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          console.error('Backend auth error:', response.status, errorData);
-          
-          if (response.status === 500) {
-            throw new Error('Server error occurred. Please try again later.');
-          } else if (response.status === 401) {
-            throw new Error('Authentication failed. Please try again.');
-          } else if (response.status === 404) {
-            throw new Error('Authentication service not found. Please contact support.');
-          } else {
-            throw new Error(`Authentication failed: ${response.status}. Please try again.`);
-          }
-        }
-
-        const { token } = await response.json();
-        
-        // Store JWT token in localStorage
-        setAuthToken(token);
-        
-        // Populate Zustand store with user data
-        useUserStore.getState().setUser({
-          id: user.uid,
-          name: user.displayName || 'User',
-          email: user.email || '',
-          avatarUrl: user.photoURL || '',
-          profileImage: user.photoURL || ''
-        });
-        
-        console.log('Google login successful, JWT token stored, Zustand store populated');
-        return; // Success, exit retry loop
-        
-      } catch (error: unknown) {
-        console.error(`Google sign in error (attempt ${attempt}):`, error);
-        lastError = error instanceof Error ? error : new Error('Unknown error occurred');
-        
-        // Don't retry for certain errors
-        if (error instanceof Error) {
-          if (error.message.includes('popup-closed') || error.message.includes('cancelled')) {
-            throw error; // Don't retry user-cancelled actions
-          }
-          if (error.message.includes('auth/popup-closed-by-user')) {
-            throw error; // Don't retry user-cancelled popup
-          }
-        }
-        
-        // If this is the last attempt, throw the error
-        if (attempt === maxRetries) {
-          break;
-        }
-        
-        // Wait before retrying (exponential backoff)
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 3000);
-        console.log(`Waiting ${delay}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-    
-    // If we get here, all retries failed
-    console.error('All Google sign-in attempts failed');
-    
-    // Provide more specific error messages for common issues
-    if (lastError instanceof TypeError && lastError.message === 'Failed to fetch') {
-      throw new Error('Cannot connect to server. Please check your internet connection and try again.');
-    }
-    
-    if (lastError instanceof Error && lastError.name === 'AbortError') {
-      throw new Error('Request timed out. Please try again.');
-    }
-    
-    throw lastError || new Error('Failed to sign in with Google. Please try again.');
-  };
-
-  const signInWithEmail = async (email: string, password: string) => {
+  // Helper function to process authentication result (shared between popup and redirect)
+  const processAuthResult = async (user: User) => {
     try {
-      // STEP 2: Firebase authentication first
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
       // Get Firebase ID token
       const firebaseToken = await user.getIdToken();
       
-      // Call backend to get JWT token
+      // Call backend to get JWT token with optimized error handling
       const API_BASE_URL = process.env.NODE_ENV === 'production' 
-        ? 'https://all-in-one-career.onrender.com'
+        ? 'https://all-in-one-career-api.onrender.com'
         : 'http://localhost:4000';
       
-      // Test backend connectivity first
-      try {
-        const healthController = new AbortController();
-        const healthTimeout = setTimeout(() => healthController.abort(), 10000);
-        
-        const healthResponse = await fetch(`${API_BASE_URL}/health`, {
-          signal: healthController.signal
-        });
-        
-        clearTimeout(healthTimeout);
-        
-        if (!healthResponse.ok) {
-          throw new Error('Backend health check failed');
-        }
-      } catch (healthError: unknown) {
-        console.error('Backend health check failed:', healthError);
-        throw new Error('Cannot connect to server. Please check your internet connection and try again.');
-      }
-        
-      // Now attempt the actual authentication with timeout
-      const authController = new AbortController();
-      const authTimeout = setTimeout(() => authController.abort(), 15000);
+      console.log('Processing auth result for user:', user.email);
       
+      // Streamlined backend auth - remove redundant health check
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
@@ -264,25 +114,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           firebaseToken,
           email: user.email,
+          photoURL: user.photoURL,
         }),
-        signal: authController.signal
+        // Reduced timeout for faster response
+        signal: AbortSignal.timeout(10000) // 10 seconds
       });
-      
-      clearTimeout(authTimeout);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Backend auth error:', response.status, errorData);
-        
-        if (response.status === 500) {
-          throw new Error('Server error occurred. Please try again later.');
-        } else if (response.status === 401) {
-          throw new Error('Authentication failed. Please try again.');
-        } else if (response.status === 404) {
-          throw new Error('Authentication service not found. Please contact support.');
-        } else {
-          throw new Error(`Authentication failed: ${response.status}. Please try again.`);
-        }
+        // If backend fails, use fallback auth but don't throw error
+        console.log('Backend auth failed, using fallback authentication');
+        await signInWithFallback(user);
+        return;
       }
 
       const { token } = await response.json();
@@ -299,20 +141,102 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profileImage: user.photoURL || ''
       });
       
-      console.log('Login successful, JWT token stored, Zustand store populated');
+      console.log('Authentication successful with backend');
+      
+    } catch (error: unknown) {
+      console.error('Auth processing error:', error);
+      // Use fallback auth instead of throwing error
+      await signInWithFallback(user);
+    }
+  };
+
+  const signIn = async () => {
+    try {
+      console.log('Starting optimized Google sign-in...');
+      
+      // Check if this is a mobile device or if pop-ups are likely to be blocked
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isChrome = /Chrome/i.test(navigator.userAgent);
+      
+      // For Chrome and mobile devices, use redirect for better UX (no pop-ups)
+      if (isChrome || isMobile) {
+        console.log('Using redirect flow for better UX (no pop-ups)');
+        await signInWithRedirect(auth, provider);
+        // The redirect will happen and processAuthResult will be called on return
+        return;
+      }
+      
+      // For other browsers, try popup first with fallback to redirect
+      try {
+        console.log('Attempting popup sign-in...');
+        const result = await signInWithPopup(auth, provider);
+        await processAuthResult(result.user);
+        console.log('Popup sign-in successful');
+      } catch (popupError: unknown) {
+        console.log('Popup failed, falling back to redirect:', popupError);
+        
+        // If popup fails (blocked, etc.), use redirect
+        if (popupError instanceof Error && 
+            (popupError.message.includes('popup-blocked') || 
+             popupError.message.includes('popup-closed') ||
+             popupError.message.includes('auth/popup-blocked'))) {
+          console.log('Popup was blocked, using redirect instead');
+          await signInWithRedirect(auth, provider);
+          return;
+        }
+        
+        // For other popup errors, still try redirect as fallback
+        throw popupError;
+      }
+      
+    } catch (error: unknown) {
+      console.error('Google sign-in error:', error);
+      
+      // Provide user-friendly error messages
+      if (error instanceof Error) {
+        if (error.message.includes('popup-closed') || error.message.includes('cancelled')) {
+          throw new Error('Sign-in was cancelled. Please try again.');
+        }
+        if (error.message.includes('network-request-failed')) {
+          throw new Error('Network error. Please check your connection and try again.');
+        }
+        if (error.message.includes('too-many-requests')) {
+          throw new Error('Too many sign-in attempts. Please wait a moment and try again.');
+        }
+      }
+      
+      throw error instanceof Error ? error : new Error('Failed to sign in with Google. Please try again.');
+    }
+  };
+
+  // Silent sign-in for returning users (check if already authenticated)
+  const signInSilently = async (): Promise<boolean> => {
+    try {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        console.log('User already authenticated, processing silently...');
+        await processAuthResult(currentUser);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Silent sign-in failed:', error);
+      return false;
+    }
+  };
+
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      // Firebase authentication first
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Use the shared processAuthResult function
+      await processAuthResult(user);
+      console.log('Email login successful');
       
     } catch (err: unknown) {
       console.error('Email sign in error:', err);
-      
-      // Handle timeout errors
-      if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error('Request timed out. Please try again.');
-      }
-      
-      // Handle network errors
-      if (err instanceof TypeError && err.message === 'Failed to fetch') {
-        throw new Error('Cannot connect to server. Please check your internet connection and try again.');
-      }
       
       // Handle Firebase auth errors
       if (err instanceof Error && 'code' in err) {
@@ -653,7 +577,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{ 
       user, 
       loading, 
-      signIn, 
+      signIn,
+      signInSilently, 
       signInWithEmail, 
       signUpWithEmail,
       sendPasswordReset,
