@@ -44,16 +44,7 @@ try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     provider = new GoogleAuthProvider();
-    
-    // Optimize Google Auth Provider
-    provider.addScope('email');
-    provider.addScope('profile');
-    provider.setCustomParameters({
-      prompt: 'select_account', // Allow users to select account without forcing login
-      // hd: 'example.com', // Uncomment to restrict to specific domain
-    });
-    
-    console.log('Firebase initialized successfully with optimized settings');
+    console.log('Firebase initialized successfully');
   } else {
     throw new Error('Firebase configuration incomplete');
   }
