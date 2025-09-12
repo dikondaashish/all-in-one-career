@@ -47,6 +47,13 @@ const ATSScanner: React.FC = () => {
     if (savedResumeData) {
       try {
         const resumeData = JSON.parse(savedResumeData);
+        console.log('Loading saved resume:', {
+          filename: resumeData.filename,
+          source: resumeData.source,
+          textLength: resumeData.text.length
+        });
+        console.log('Loaded resume content preview:', resumeData.text.slice(0, 200) + '...');
+        
         setResumeData(resumeData);
         showToast({
           icon: '✅',
@@ -560,7 +567,15 @@ const ATSScanner: React.FC = () => {
       // Save resume if requested
       if (saveResume && resumeName.trim()) {
         try {
-          console.log('Saving resume:', { resumeName, hasResumeText: !!resumeData.text });
+          console.log('Saving resume:', { 
+            resumeName, 
+            hasResumeText: !!resumeData.text,
+            resumeTextLength: resumeData.text.length,
+            resumeSource: resumeData.source,
+            resumeFilename: resumeData.filename
+          });
+          console.log('Resume content preview:', resumeData.text.slice(0, 200) + '...');
+          
           const saveResumeResponse = await fetch(`${API_BASE_URL}/api/ats/saved-resumes`, {
             method: 'POST',
             headers: {

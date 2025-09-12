@@ -82,12 +82,26 @@ const SavedResumesPage: React.FC = () => {
   };
 
   const handleUseResume = (resume: SavedResume) => {
+    console.log('Using saved resume:', {
+      resumeName: resume.resumeName,
+      resumeTextLength: resume.resumeText?.length || 0,
+      resumeTextPreview: resume.resumeText?.slice(0, 200) + '...'
+    });
+    
     // Store the resume data in localStorage to be picked up by the ATS scanner
-    localStorage.setItem('selectedResumeData', JSON.stringify({
+    const resumeDataToStore = {
       text: resume.resumeText,
       filename: `${resume.resumeName}.txt`,
       source: 'saved' as const
-    }));
+    };
+    
+    console.log('Storing in localStorage:', {
+      textLength: resumeDataToStore.text?.length || 0,
+      filename: resumeDataToStore.filename,
+      source: resumeDataToStore.source
+    });
+    
+    localStorage.setItem('selectedResumeData', JSON.stringify(resumeDataToStore));
     
     showToast({
       icon: '✅',

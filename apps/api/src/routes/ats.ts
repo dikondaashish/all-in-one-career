@@ -1908,6 +1908,13 @@ Title:`;
       const userId = req.user?.uid || req.user?.id;
       const { resumeName, resumeText, fileUrl } = req.body;
 
+      console.log('Saving resume to database:', {
+        resumeName,
+        resumeTextLength: resumeText?.length || 0,
+        hasFileUrl: !!fileUrl,
+        textPreview: resumeText?.slice(0, 200) + '...'
+      });
+
       if (!userId) {
         return res.status(401).json({ error: 'User authentication required' });
       }
@@ -1978,6 +1985,12 @@ Title:`;
           createdAt: true
         }
       });
+
+      console.log('Fetched saved resumes:', resumes.map(r => ({
+        id: r.id,
+        resumeName: r.resumeName,
+        resumeTextLength: r.resumeText?.length || 0
+      })));
 
       res.status(200).json(resumes);
 
