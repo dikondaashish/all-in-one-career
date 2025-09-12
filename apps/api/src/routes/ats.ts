@@ -1541,22 +1541,45 @@ export default function atsRouter(prisma: PrismaClient): Router {
       }
       
       // Try to extract job title from any text fields if still not found
-      if (!jobTitle) {
-        // Look for job-related keywords in various fields
-        const searchFields = [
-          atsChecks?.jobDescription,
-          atsChecks?.originalJobDescription,
-          industry?.jobDetails,
-          companyOpt?.jobDetails
-        ].filter(Boolean);
+      if (!jobTitle && atsChecks?.originalJobDescription) {
+        // Extract job title from original job description using same logic as V2 scan
+        const lines = atsChecks.originalJobDescription.split('\n').filter(line => line.trim().length > 0);
         
-        for (const field of searchFields) {
-          if (typeof field === 'string') {
-            // Try to extract job title from text
-            const lines = field.split('\n');
-            const potentialTitle = lines[0]?.trim();
-            if (potentialTitle && potentialTitle.length < 100) {
-              jobTitle = potentialTitle;
+        for (const line of lines.slice(0, 5)) {
+          const cleaned = line.trim();
+          
+          // Skip common non-title lines
+          if (/^(job|position|role|about|company|description|overview)/i.test(cleaned)) {
+            continue;
+          }
+          
+          // If line looks like a title (reasonable length, no excessive punctuation)
+          if (cleaned.length > 3 && cleaned.length < 100 && !/[.]{2,}/.test(cleaned)) {
+            jobTitle = cleaned.replace(/^(title|position|role):\s*/i, '');
+            break;
+          }
+        }
+      }
+      
+      // Try to extract company name from job description if not found elsewhere
+      if (!companyName && atsChecks?.originalJobDescription) {
+        const jobText = atsChecks.originalJobDescription.toLowerCase();
+        
+        // Look for common company patterns
+        const companyPatterns = [
+          /company:\s*([^\n\r,;.]+)/i,
+          /at\s+([A-Z][a-zA-Z\s&]+?)(?:\s+(?:is|seeks|looking|needs|requires|wants))/i,
+          /join\s+([A-Z][a-zA-Z\s&]+?)(?:\s+(?:team|as|in|to))/i,
+          /^([A-Z][a-zA-Z\s&]+?)\s+(?:is|seeks|looking|hiring)/m
+        ];
+        
+        for (const pattern of companyPatterns) {
+          const match = atsChecks.originalJobDescription.match(pattern);
+          if (match && match[1]) {
+            const extracted = match[1].trim();
+            // Validate it's a reasonable company name
+            if (extracted.length > 1 && extracted.length < 50 && !/^\d+$/.test(extracted)) {
+              companyName = extracted;
               break;
             }
           }
@@ -1616,17 +1639,20 @@ export default function atsRouter(prisma: PrismaClient): Router {
         systemInstruction: 'You are a professional title generator for job applications. Extract the job role and company name from the provided information and create a concise title.'
       });
 
+      // Use original job description for AI if available, otherwise use constructed description
+      const contextForAI = atsChecks?.originalJobDescription || jobDescription;
+      
       const prompt = `Create a professional job application title based on the following information:
 
 ${jobTitle ? `Job Title: ${jobTitle}` : ''}
 ${companyName ? `Company Name: ${companyName}` : ''}
 ${detectedIndustry ? `Industry: ${detectedIndustry}` : ''}
-${jobDescription ? `Context: ${jobDescription.slice(0, 500)}` : ''}
+${contextForAI ? `Job Details: ${contextForAI.slice(0, 800)}` : ''}
 
 REQUIREMENTS:
-1. Create a professional title using any available information above
+1. Create a professional title using the most relevant information above
 2. Format: "[Job Role] at [Company]" or "[Job Role] - [Industry]" or just "[Job Role]"
-3. If no job title is provided, use industry or company to infer a role
+3. Extract the job role from the job details if job title is not clear
 4. Maximum 60 characters
 5. Return ONLY the title, no quotes, no explanations
 
@@ -1635,7 +1661,7 @@ Examples:
 - "Marketing Manager at Tesla" 
 - "Data Scientist - Healthcare"
 - "Application at Microsoft"
-- "Position - Technology"
+- "Frontend Developer - Tech"
 
 Title:`;
 
