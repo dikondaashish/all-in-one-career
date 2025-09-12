@@ -1811,27 +1811,115 @@ export default function atsRouter(prisma: PrismaClient): Router {
   router.get('/history', authenticateToken, async (req: any, res) => {
     try {
       const userId = req.user?.uid || req.user?.id;
-      const limit = parseInt(req.query.limit as string) || 10;
+      const limit = parseInt(req.query.limit as string) || 20;
 
       if (!userId) {
         return res.status(401).json({ error: 'User authentication required' });
       }
 
-      const scans = await prisma.atsScan.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        select: {
-          id: true,
-          jobTitle: true,
-          companyName: true,
-          overallScore: true,
-          matchRate: true,
-          createdAt: true
-        }
-      });
+      // Fetch scans from all three tables in parallel
+      const [basicScans, advancedScans, v2Scans] = await Promise.all([
+        // Basic ATS scans
+        prisma.atsScan.findMany({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            jobTitle: true,
+            companyName: true,
+            overallScore: true,
+            matchRate: true,
+            createdAt: true
+          }
+        }),
+        
+        // Advanced ATS scans (v1)
+        prisma.atsScanAdvanced.findMany({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            overallScore: true,
+            matchRate: true,
+            createdAt: true,
+            // Extract job title and company from JSON fields if available
+            detailedAnalysis: true,
+            resumeText: true,
+            jobDescription: true,
+            companyName: true
+          }
+        }),
+        
+        // V2 ATS scans
+        prisma.atsScanV2.findMany({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            createdAt: true,
+            overallScoreV2: true,
+            atsChecks: true,
+            industryJson: true
+          }
+        })
+      ]);
 
-      res.status(200).json(scans);
+      // Transform and combine all scans
+      const allScans = [
+        // Basic scans (already in correct format)
+        ...basicScans,
+        
+        // Advanced scans (v1) - extract job title and company from JSON or text
+        ...advancedScans.map(scan => {
+          // Try to extract job title from job description
+          const jobTitleMatch = scan.jobDescription?.match(/(?:job title|position|role):\s*([^\n]+)/i);
+          const jobTitle = jobTitleMatch?.[1]?.trim() || 
+                          scan.jobDescription?.split('\n')[0]?.trim().slice(0, 50) || 
+                          'Advanced Scan';
+          
+          return {
+            id: scan.id,
+            jobTitle,
+            companyName: scan.companyName || null,
+            overallScore: scan.overallScore,
+            matchRate: scan.matchRate,
+            createdAt: scan.createdAt
+          };
+        }),
+        
+        // V2 scans - extract data from JSON fields
+        ...v2Scans.map(scan => {
+          const overallScore = (scan.overallScoreV2 as any)?.overall || 75;
+          const atsChecks = scan.atsChecks as any;
+          const industry = scan.industryJson as any;
+          
+          // Extract job title from atsChecks or industry data
+          const jobTitle = atsChecks?.jobTitleMatch?.title || 
+                          industry?.industryDetection?.detectedIndustry || 
+                          'Enhanced AI Scan';
+          
+          // Extract company name if available
+          const companyName = atsChecks?.companyName || null;
+          
+          return {
+            id: scan.id,
+            jobTitle,
+            companyName,
+            overallScore,
+            matchRate: atsChecks?.jobTitleMatch?.normalizedSimilarity ? 
+                      Math.round(atsChecks.jobTitleMatch.normalizedSimilarity * 100) : 75,
+            createdAt: scan.createdAt
+          };
+        })
+      ];
+
+      // Sort by creation date (most recent first) and limit results
+      const sortedScans = allScans
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, limit);
+
+      console.log(`Returning ${sortedScans.length} scans from history (${basicScans.length} basic, ${advancedScans.length} advanced, ${v2Scans.length} v2)`);
+      res.status(200).json(sortedScans);
 
     } catch (error) {
       logger.error('Error fetching scan history: ' + (error as Error).message);
