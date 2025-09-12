@@ -57,13 +57,20 @@ const ScanHistoryPage: React.FC = () => {
 
       const url = `${API_BASE_URL}/api/ats/history?limit=20`;
       console.log('Making request to:', url);
+      console.log('Auth token available:', !!authToken);
 
-      let response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      let response;
+      try {
+        response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      } catch (networkError) {
+        console.error('Network error during fetch:', networkError);
+        throw new Error(`Network error: ${networkError instanceof Error ? networkError.message : 'Connection failed'}`);
+      }
       
       console.log('API Response:', { status: response.status, ok: response.ok });
       
@@ -72,15 +79,27 @@ const ScanHistoryPage: React.FC = () => {
         console.log('Token expired, refreshing...');
         try {
           const freshToken = await user.getIdToken(true); // Force refresh
-          response = await fetch(url, {
-            headers: {
-              'Authorization': `Bearer ${freshToken}`,
-              'Content-Type': 'application/json',
-            },
-          });
-          console.log('Retry API Response:', { status: response.status, ok: response.ok });
+          console.log('Fresh token obtained:', !!freshToken);
+          
+          if (!freshToken) {
+            throw new Error('Failed to obtain fresh token');
+          }
+          
+          try {
+            response = await fetch(url, {
+              headers: {
+                'Authorization': `Bearer ${freshToken}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            console.log('Retry API Response:', { status: response.status, ok: response.ok });
+          } catch (retryNetworkError) {
+            console.error('Network error during retry fetch:', retryNetworkError);
+            throw new Error(`Retry network error: ${retryNetworkError instanceof Error ? retryNetworkError.message : 'Connection failed'}`);
+          }
         } catch (refreshError) {
           console.error('Token refresh failed:', refreshError);
+          throw new Error(`Token refresh failed: ${refreshError instanceof Error ? refreshError.message : 'Unknown error'}`);
         }
       }
       
