@@ -142,8 +142,16 @@ const ScanHistoryPage: React.FC = () => {
     try {
       setGeneratingTitle(scanId);
       
+      console.log('Debug: Starting AI title generation for scan ID:', scanId);
+      console.log('Debug: API Base URL:', API_BASE_URL);
+
       const authToken = await user?.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/ats/scan/${scanId}/generate-title`, {
+      console.log('Debug: Auth token obtained:', !!authToken);
+
+      const url = `${API_BASE_URL}/api/ats/scan/${scanId}/generate-title`;
+      console.log('Debug: Full URL:', url);
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -151,7 +159,16 @@ const ScanHistoryPage: React.FC = () => {
         },
       });
 
+      console.log('Debug: Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Debug: Response error text:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
       const data = await response.json();
+      console.log('Debug: Response data:', data);
       
       if (data.success) {
         // Update the scan in the local state
@@ -173,10 +190,25 @@ const ScanHistoryPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error generating AI title:', error);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+
+      let errorMessage = 'Could not generate AI title. Please try again.';
+      if (error.message?.includes('Failed to fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.message?.includes('HTTP 401')) {
+        errorMessage = 'Authentication failed. Please refresh the page and try again.';
+      } else if (error.message?.includes('HTTP 404')) {
+        errorMessage = 'Scan not found. Please refresh the page.';
+      }
+
       showToast({
         icon: '❌',
         title: 'Generation Failed',
-        message: 'Could not generate AI title. Please try again.'
+        message: errorMessage
       });
     } finally {
       setGeneratingTitle(null);
@@ -204,17 +236,39 @@ const ScanHistoryPage: React.FC = () => {
     }
 
     try {
+      console.log('Debug: Starting title update for scan ID:', scanId);
+      console.log('Debug: New title:', newTitle.trim());
+      console.log('Debug: API Base URL:', API_BASE_URL);
+
       const authToken = await user?.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/ats/scan/${scanId}/title`, {
+      console.log('Debug: Auth token obtained:', !!authToken);
+
+      const url = `${API_BASE_URL}/api/ats/scan/${scanId}/title`;
+      console.log('Debug: Full URL:', url);
+
+      const requestBody = { title: newTitle.trim() };
+      console.log('Debug: Request body:', requestBody);
+
+      const response = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ title: newTitle.trim() })
+        body: JSON.stringify(requestBody)
       });
 
+      console.log('Debug: Response status:', response.status);
+      console.log('Debug: Response headers:', response.headers);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Debug: Response error text:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
       const data = await response.json();
+      console.log('Debug: Response data:', data);
       
       if (data.success) {
         // Update the scan in the local state
@@ -239,10 +293,25 @@ const ScanHistoryPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error updating title:', error);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      
+      let errorMessage = 'Could not update title. Please try again.';
+      if (error.message?.includes('Failed to fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.message?.includes('HTTP 401')) {
+        errorMessage = 'Authentication failed. Please refresh the page and try again.';
+      } else if (error.message?.includes('HTTP 404')) {
+        errorMessage = 'Scan not found. Please refresh the page.';
+      }
+
       showToast({
         icon: '❌',
         title: 'Update Failed',
-        message: 'Could not update title. Please try again.'
+        message: errorMessage
       });
     }
   };
