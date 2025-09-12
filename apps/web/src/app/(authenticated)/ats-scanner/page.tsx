@@ -574,7 +574,13 @@ const ATSScanner: React.FC = () => {
             resumeSource: resumeData.source,
             resumeFilename: resumeData.filename
           });
-          console.log('Resume content preview:', resumeData.text.slice(0, 200) + '...');
+          console.log('Resume content preview (first 200 chars):', resumeData.text.slice(0, 200) + '...');
+          console.log('Resume content preview (last 200 chars):', '...' + resumeData.text.slice(-200));
+          
+          // Double-check that we have the full content
+          if (resumeData.text.length < 1000) {
+            console.warn('WARNING: Resume text seems short for a typical resume:', resumeData.text.length, 'characters');
+          }
           
           const saveResumeResponse = await fetch(`${API_BASE_URL}/api/ats/saved-resumes`, {
             method: 'POST',

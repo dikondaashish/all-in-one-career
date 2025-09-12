@@ -1927,6 +1927,13 @@ Title:`;
         return res.status(400).json({ error: 'Resume text is required' });
       }
 
+      // Check for potential truncation issues
+      if (resumeText.length > 65000) {
+        return res.status(400).json({ error: 'Resume text is too long. Please reduce the content.' });
+      }
+      
+      console.log('Resume text length validation passed:', resumeText.length);
+
       // Check if resume name already exists for this user
       const existingResume = await prisma.savedResume.findFirst({
         where: { 
@@ -1947,6 +1954,14 @@ Title:`;
           resumeText: resumeText.trim(),
           fileUrl: fileUrl || null
         }
+      });
+
+      // Verify the save
+      console.log('Resume saved to database:', {
+        id: savedResume.id,
+        originalLength: resumeText.trim().length,
+        savedLength: savedResume.resumeText?.length || 0,
+        wasTruncated: (resumeText.trim().length !== (savedResume.resumeText?.length || 0))
       });
 
       logger.info(`Resume saved: ${savedResume.id} for user ${userId}`);
