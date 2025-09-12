@@ -7,7 +7,7 @@ import { initFirebase, verifyIdToken } from './lib/firebase';
 import { geminiGenerate } from './lib/gemini';
 import { authenticateToken, optionalAuth } from './middleware/auth';
 
-// Validate critical environment variables
+// Validate critical environment variables - Resume save functionality enabled
 const requiredEnvVars = ['DATABASE_URL'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
