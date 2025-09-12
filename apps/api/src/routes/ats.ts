@@ -1926,6 +1926,208 @@ export default function atsRouter(prisma: PrismaClient): Router {
       res.status(500).json({ error: 'Failed to fetch scan history' });
     }
   });
+  
+  // Generate AI title for scan
+  router.post('/scan/:id/generate-title', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user?.uid || req.user?.id;
+      const { id } = req.params;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User authentication required' });
+      }
+
+      // Find the scan in all three tables
+      const [basicScan, advancedScan, v2Scan] = await Promise.all([
+        prisma.atsScan.findFirst({ where: { id, userId } }),
+        prisma.atsScanAdvanced.findFirst({ 
+          where: { id, userId },
+          select: { id: true, jobDescription: true, resumeText: true, companyName: true }
+        }),
+        prisma.atsScanV2.findFirst({ 
+          where: { id, userId },
+          select: { id: true, atsChecks: true, industryJson: true }
+        })
+      ]);
+
+      let jobDescription = '';
+      let resumeText = '';
+      let companyName = '';
+
+      if (basicScan) {
+        jobDescription = basicScan.jobDescription;
+        resumeText = basicScan.resumeText;
+        companyName = basicScan.companyName || '';
+      } else if (advancedScan) {
+        jobDescription = advancedScan.jobDescription || '';
+        resumeText = advancedScan.resumeText || '';
+        companyName = advancedScan.companyName || '';
+      } else if (v2Scan) {
+        const atsChecks = v2Scan.atsChecks as any;
+        const industry = v2Scan.industryJson as any;
+        
+        // Extract job info from V2 scan JSON data
+        jobDescription = atsChecks?.originalJobDescription || '';
+        companyName = atsChecks?.companyName || '';
+        
+        // If no direct job description, build from available data
+        if (!jobDescription && industry?.industryDetection) {
+          jobDescription = `${industry.industryDetection.detectedIndustry} position`;
+        }
+      } else {
+        return res.status(404).json({ error: 'Scan not found' });
+      }
+
+      // Generate AI title using Gemini
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.0-flash-exp',
+        systemInstruction: 'You are a professional title generator. Create concise, professional job application titles.'
+      });
+
+      const prompt = `Based on this job application data, generate a concise, professional title (max 60 characters) that includes the job role and company if available.
+
+Job Description: ${jobDescription.slice(0, 1000)}
+${companyName ? `Company: ${companyName}` : ''}
+${resumeText ? `Candidate Background: ${resumeText.slice(0, 500)}` : ''}
+
+Generate a title in this format: "[Job Role] at [Company]" or "[Job Role] - [Industry/Field]" if no company.
+Examples:
+- "Software Engineer at Google"
+- "Marketing Manager at Tesla" 
+- "Data Scientist - Healthcare"
+- "Frontend Developer - Fintech"
+
+Return only the title, nothing else.`;
+
+      try {
+        const result = await model.generateContent(prompt);
+        const generatedTitle = result.response?.text()?.trim() || '';
+        
+        // Clean up the title (remove quotes, limit length)
+        const cleanTitle = generatedTitle
+          .replace(/['"]/g, '')
+          .slice(0, 60)
+          .trim();
+
+        if (!cleanTitle) {
+          return res.status(500).json({ error: 'Failed to generate title' });
+        }
+
+        console.log(`Generated AI title for scan ${id}: "${cleanTitle}"`);
+        
+        res.status(200).json({ 
+          success: true,
+          title: cleanTitle,
+          scanId: id
+        });
+
+      } catch (aiError) {
+        console.error('AI title generation failed:', aiError);
+        
+        // Fallback title generation
+        let fallbackTitle = 'Job Application';
+        
+        if (companyName) {
+          fallbackTitle = `Application at ${companyName}`;
+        } else if (jobDescription) {
+          const firstLine = jobDescription.split('\n')[0]?.trim();
+          if (firstLine && firstLine.length > 0) {
+            fallbackTitle = firstLine.slice(0, 50) + (firstLine.length > 50 ? '...' : '');
+          }
+        }
+        
+        res.status(200).json({
+          success: true,
+          title: fallbackTitle,
+          scanId: id,
+          fallback: true
+        });
+      }
+
+    } catch (error) {
+      logger.error('Error generating scan title: ' + (error as Error).message);
+      res.status(500).json({ error: 'Failed to generate scan title' });
+    }
+  });
+
+  // Update scan title
+  router.patch('/scan/:id/title', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user?.uid || req.user?.id;
+      const { id } = req.params;
+      const { title } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User authentication required' });
+      }
+
+      if (!title || typeof title !== 'string' || title.trim().length === 0) {
+        return res.status(400).json({ error: 'Title is required and must be a non-empty string' });
+      }
+
+      if (title.length > 100) {
+        return res.status(400).json({ error: 'Title must be 100 characters or less' });
+      }
+
+      const trimmedTitle = title.trim();
+
+      // Find which table contains the scan and update accordingly
+      const [basicScan, advancedScan, v2Scan] = await Promise.all([
+        prisma.atsScan.findFirst({ where: { id, userId } }),
+        prisma.atsScanAdvanced.findFirst({ where: { id, userId } }),
+        prisma.atsScanV2.findFirst({ where: { id, userId } })
+      ]);
+
+      let updateResult = null;
+
+      if (basicScan) {
+        updateResult = await prisma.atsScan.update({
+          where: { id },
+          data: { jobTitle: trimmedTitle }
+        });
+      } else if (advancedScan) {
+        // For advanced scans, we'll update the jobDescription field to start with the new title
+        const existingDescription = advancedScan.jobDescription || '';
+        const lines = existingDescription.split('\n');
+        // Replace the first line with our new title, or prepend it
+        const updatedDescription = [trimmedTitle, ...lines.slice(1)].join('\n');
+        
+        updateResult = await prisma.atsScanAdvanced.update({
+          where: { id },
+          data: { jobDescription: updatedDescription }
+        });
+      } else if (v2Scan) {
+        // For V2 scans, we need to update the atsChecks JSON field
+        const atsChecks = v2Scan.atsChecks as any;
+        const updatedAtsChecks = {
+          ...atsChecks,
+          jobTitleMatch: {
+            ...atsChecks?.jobTitleMatch,
+            title: trimmedTitle
+          }
+        };
+        
+        updateResult = await prisma.atsScanV2.update({
+          where: { id },
+          data: { atsChecks: updatedAtsChecks }
+        });
+      } else {
+        return res.status(404).json({ error: 'Scan not found' });
+      }
+
+      console.log(`Updated scan title for ${id}: "${trimmedTitle}"`);
+      
+      res.status(200).json({ 
+        success: true, 
+        message: 'Scan title updated successfully',
+        title: trimmedTitle
+      });
+
+    } catch (error) {
+      logger.error('Error updating scan title: ' + (error as Error).message);
+      res.status(500).json({ error: 'Failed to update scan title' });
+    }
+  });
 
   // Get saved resumes
   router.get('/saved-resumes', authenticateToken, async (req: any, res) => {
