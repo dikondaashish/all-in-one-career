@@ -1927,6 +1927,27 @@ export default function atsRouter(prisma: PrismaClient): Router {
     }
   });
 
+  // Test endpoint for debugging
+  router.get('/test-endpoint', authenticateToken, async (req: any, res) => {
+    res.status(200).json({ 
+      success: true,
+      message: 'ATS endpoints are working',
+      timestamp: new Date().toISOString(),
+      userId: req.user?.uid || req.user?.id
+    });
+  });
+
+  // Test PATCH method specifically
+  router.patch('/test-patch', authenticateToken, async (req: any, res) => {
+    res.status(200).json({ 
+      success: true,
+      message: 'PATCH method is working',
+      timestamp: new Date().toISOString(),
+      userId: req.user?.uid || req.user?.id,
+      body: req.body
+    });
+  });
+
   // Generate AI title for scan
   router.post('/scan/:id/generate-title', authenticateToken, async (req: any, res) => {
     try {
