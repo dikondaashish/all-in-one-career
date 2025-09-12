@@ -111,11 +111,19 @@ router.post('/advanced-scan/v2', authenticateToken, async (req: Request, res: Re
     console.log('💾 Saving v2 scan results...');
     const scanId = crypto.randomUUID();
     
+    // Enhance atsChecks with original input data for title generation
+    const enhancedAtsChecks = {
+      ...atsChecks,
+      originalJobDescription: jobDescription,
+      originalJobTitle: jobTitle,
+      originalCompanyHint: companyHint
+    };
+
     const v2ScanRecord = await prisma.atsScanV2.create({
       data: {
         id: scanId,
         userId: userId,
-        atsChecks: JSON.parse(JSON.stringify(atsChecks)),
+        atsChecks: JSON.parse(JSON.stringify(enhancedAtsChecks)),
         skillsSplit: JSON.parse(JSON.stringify(skillsSplit)),
         recruiterPsych: JSON.parse(JSON.stringify(recruiterPsych)),
         industryJson: JSON.parse(JSON.stringify(industryMarket)),
