@@ -272,22 +272,18 @@ const ScanResultsPage: React.FC = () => {
   const { user } = useAuth();
   const id = params?.id as string;
   
-  const [scanData, setScanData] = useState<ScanResult | null>(null);
-  const [advancedData, setAdvancedData] = useState<any | null>(null);
   const [v2Data, setV2Data] = useState<any | null>(null);
-  const [isAdvancedScan, setIsAdvancedScan] = useState(false);
-  const [isV2Scan, setIsV2Scan] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [isVisible, setIsVisible] = useState(false);
 
   // Animation trigger after data loads
   useEffect(() => {
-    if ((scanData || advancedData) && !loading) {
+    if (v2Data && !loading) {
       const timer = setTimeout(() => setIsVisible(true), 100);
       return () => clearTimeout(timer);
     }
-  }, [scanData, advancedData, loading]);
+  }, [v2Data, loading]);
 
   useEffect(() => {
     if (id) {
@@ -310,55 +306,22 @@ const ScanResultsPage: React.FC = () => {
         throw new Error('No user authentication available');
       }
 
-      // Try v2 results first, then advanced results, then fall back to regular results
+      // Only fetch V2 results
       let response = await fetch(`${API_BASE_URL}/api/ats/advanced-scan/v2/results/${id}`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
         },
       });
       
-      let isV2Result = true;
-      
-      // If v2 results not found, try v1 advanced results
-      if (response.status === 404) {
-        response = await fetch(`${API_BASE_URL}/api/ats/advanced-results/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-          },
-        });
-        isV2Result = false;
-      }
-      
-      // If advanced results not found, try regular results
-      if (response.status === 404) {
-        response = await fetch(`${API_BASE_URL}/api/ats/scan-results/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-          },
-        });
-        isV2Result = false;
-      }
-      
       // If unauthorized, refresh token once and retry
       if (response.status === 401 && user) {
         try {
           const freshToken = await user.getIdToken(true);
-          
-          // Try advanced results first with fresh token
-          response = await fetch(`${API_BASE_URL}/api/ats/advanced-results/${id}`, {
+          response = await fetch(`${API_BASE_URL}/api/ats/advanced-scan/v2/results/${id}`, {
             headers: {
               'Authorization': `Bearer ${freshToken}`,
             },
           });
-          
-          // If advanced results not found, try regular results
-          if (response.status === 404) {
-            response = await fetch(`${API_BASE_URL}/api/ats/scan-results/${id}`, {
-              headers: {
-                'Authorization': `Bearer ${freshToken}`,
-              },
-            });
-          }
         } catch (refreshErr) {
           console.error('Failed to refresh token:', refreshErr);
         }

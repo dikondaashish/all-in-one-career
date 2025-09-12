@@ -31,7 +31,6 @@ import searchInsightsRouter from './routes/search-insights';
 import authRouter from './routes/auth';
 import { notificationsRouter } from './routes/notifications';
 import atsRouter from './routes/ats';
-import advancedAtsRouter from './routes/advanced-ats';
 import atsAdvancedScanV2Router from './routes/atsAdvancedScanV2';
 
 
@@ -495,9 +494,8 @@ app.post('/api/notifications/announce', async (req: any, res) => {
 
 app.use('/api/notifications', authenticateToken, notificationsRouter(prisma));
 
-// ATS Scanner routes
+// ATS Scanner routes - V2 Enhanced AI Scans only
 app.use('/api/ats', atsRouter(prisma));
-app.use('/api/ats', advancedAtsRouter);
 app.use('/api/ats', atsAdvancedScanV2Router); // V2 enhanced features
 
 

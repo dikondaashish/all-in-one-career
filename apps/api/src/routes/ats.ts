@@ -319,100 +319,6 @@ class AdvancedContentExtractor {
   }
 }
 
-// Fallback analysis generator for when Gemini AI fails
-function generateFallbackAnalysis(resumeText: string, jobDescription: string): string {
-  console.info('diag:analyze:fallback_start', { 
-    resumeLength: resumeText.length, 
-    jobLength: jobDescription.length 
-  });
-
-  // Simple keyword matching for basic analysis
-  const resumeLower = resumeText.toLowerCase();
-  const jobLower = jobDescription.toLowerCase();
-  
-  // Common technical skills to look for
-  const commonSkills = [
-    'javascript', 'python', 'java', 'react', 'node.js', 'sql', 'html', 'css',
-    'aws', 'docker', 'kubernetes', 'git', 'agile', 'scrum', 'typescript',
-    'angular', 'vue', 'mongodb', 'postgresql', 'redis', 'restful', 'api'
-  ];
-  
-  const foundSkills = commonSkills.filter(skill => 
-    resumeLower.includes(skill) && jobLower.includes(skill)
-  );
-  
-  const missingSkills = commonSkills.filter(skill => 
-    jobLower.includes(skill) && !resumeLower.includes(skill)
-  );
-  
-  // Basic scoring
-  const hasContact = /\b\w+@\w+\.\w+\b/.test(resumeText) || /\(\d{3}\)\s?\d{3}-?\d{4}/.test(resumeText);
-  const hasExperience = /experience|worked|developed|built|managed/i.test(resumeText);
-  const hasEducation = /university|college|degree|bachelor|master|phd/i.test(resumeText);
-  
-  const matchRate = Math.min(90, Math.max(40, (foundSkills.length / Math.max(1, foundSkills.length + missingSkills.length)) * 100));
-  const overallScore = Math.min(95, Math.max(45, matchRate * 0.8 + (hasContact ? 10 : 0) + (hasExperience ? 10 : 0)));
-  
-  return JSON.stringify({
-    overallScore: Math.round(overallScore),
-    matchRate: Math.round(matchRate),
-    searchability: Math.round(overallScore * 0.9),
-    atsCompatibility: Math.round(overallScore * 0.85),
-    contactInformation: {
-      score: hasContact ? 90 : 60,
-      status: hasContact ? "excellent" : "needs_improvement",
-      feedback: hasContact ? "Contact information found" : "Please ensure contact information is clearly visible"
-    },
-    professionalSummary: {
-      score: 75,
-      status: "good",
-      feedback: "Summary section detected and appears professional"
-    },
-    technicalSkills: {
-      score: Math.round(matchRate),
-      status: matchRate > 70 ? "excellent" : matchRate > 50 ? "good" : "needs_improvement",
-      feedback: `Found ${foundSkills.length} matching technical skills`
-    },
-    qualifiedAchievements: {
-      score: hasExperience ? 75 : 50,
-      status: hasExperience ? "good" : "needs_improvement",
-      feedback: hasExperience ? "Experience and achievements detected" : "Consider adding more specific achievements"
-    },
-    educationCertifications: {
-      score: hasEducation ? 80 : 60,
-      status: hasEducation ? "good" : "needs_improvement",
-      feedback: hasEducation ? "Education information found" : "Education section could be more detailed"
-    },
-    atsFormat: {
-      score: 70,
-      status: "good",
-      feedback: "Document format appears to be ATS-compatible"
-    },
-    hardSkillsFound: foundSkills.slice(0, 10),
-    hardSkillsMissing: missingSkills.slice(0, 8),
-    recruiterTips: [
-      {
-        category: "Technical Skills",
-        title: "Skill Matching",
-        description: `Your resume matches ${foundSkills.length} key technical skills from the job description.`,
-        priority: "high"
-      }
-    ],
-    keywordAnalysis: {
-      totalJobKeywords: foundSkills.length + missingSkills.length,
-      foundKeywords: foundSkills.slice(0, 10),
-      missingKeywords: missingSkills.slice(0, 8),
-      optimizationSuggestions: missingSkills.length > 0 ? 
-        [`Consider adding experience with ${missingSkills.slice(0, 3).join(', ')}`] : 
-        ["Great keyword coverage!"]
-    },
-    improvementSuggestions: [
-      "Add specific metrics and achievements to quantify your impact",
-      "Include relevant certifications and training",
-      "Ensure all technical skills from the job description are represented"
-    ]
-  });
-}
 
 // AI-powered job content refinement
 async function refineJobContentWithGemini(rawContent: string, genAI: GoogleGenerativeAI): Promise<string> {
@@ -1474,338 +1380,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
     }
   });
 
-  // Main analysis endpoint using Gemini AI
-  router.post('/analyze', authenticateToken, async (req: any, res) => {
-    try {
-      console.info('diag:analyze:start', { userId: req.user?.uid || req.user?.id });
-      
-      const { resumeText, jobDescription, saveResume, resumeName } = req.body;
-      const userId = req.user?.uid || req.user?.id;
 
-      if (!userId) {
-        console.warn('diag:analyze:no_user');
-        return res.status(401).json({ error: 'User authentication required' });
-      }
-
-      console.info('diag:analyze:input_validation', {
-        hasResumeText: !!resumeText?.trim(),
-        resumeLength: resumeText?.length || 0,
-        hasJobDescription: !!jobDescription?.trim(),
-        jobDescriptionLength: jobDescription?.length || 0,
-        saveResume,
-        resumeName: resumeName?.substring(0, 50)
-      });
-
-      if (!resumeText?.trim() || !jobDescription?.trim()) {
-        console.warn('diag:analyze:missing_content', {
-          resumeText: resumeText?.length || 0,
-          jobDescription: jobDescription?.length || 0
-        });
-        return res.status(400).json({ 
-          error: 'Resume text and job description are required' 
-        });
-      }
-
-      // Check Gemini API availability
-      if (!process.env.GEMINI_API_KEY) {
-        console.error('diag:analyze:no_gemini_key');
-        return res.status(500).json({ error: 'AI analysis service not configured' });
-      }
-
-      // Generate analysis using Gemini AI
-      console.info('diag:analyze:gemini_start');
-      const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-      
-      const analysisPrompt = `
-      You are an expert ATS (Applicant Tracking System) analyzer and career coach. Analyze the following resume against the job description and provide a comprehensive assessment.
-
-      RESUME:
-      ${resumeText}
-
-      JOB DESCRIPTION:
-      ${jobDescription}
-
-      Provide your analysis in the following JSON format (RETURN ONLY VALID JSON, NO MARKDOWN):
-      {
-        "overallScore": 75,
-        "matchRate": 80,
-        "searchability": 70, 
-        "atsCompatibility": 85,
-        "contactInformation": {"score": 90, "status": "excellent", "feedback": "Contact information is complete and professional"},
-        "professionalSummary": {"score": 75, "status": "good", "feedback": "Summary effectively highlights key qualifications"},
-        "technicalSkills": {"score": 80, "status": "good", "feedback": "Strong technical skill alignment with job requirements"},
-        "qualifiedAchievements": {"score": 70, "status": "good", "feedback": "Achievements demonstrate impact and results"},
-        "educationCertifications": {"score": 85, "status": "excellent", "feedback": "Education matches job requirements well"},
-        "atsFormat": {"score": 80, "status": "good", "feedback": "Format is ATS-friendly with clear sections"},
-        "hardSkillsFound": ["JavaScript", "React", "Node.js"],
-        "hardSkillsMissing": ["Python", "AWS"],
-        "recruiterTips": [
-          {
-            "category": "Technical Foundation",
-            "title": "Strong Technical Foundation", 
-            "description": "Candidate shows solid technical skills",
-            "priority": "high"
-          }
-        ],
-        "keywordAnalysis": {
-          "totalJobKeywords": 20,
-          "foundKeywords": ["JavaScript", "React", "Node.js"],
-          "missingKeywords": ["Python", "AWS"],
-          "optimizationSuggestions": ["Add Python experience", "Include AWS certifications"]
-        },
-        "improvementSuggestions": ["Add quantified achievements", "Include relevant certifications"]
-      }
-
-      Focus on:
-      1. ATS compatibility (formatting, keywords, sections)
-      2. Keyword matching between resume and job description
-      3. Professional presentation and impact
-      4. Specific, actionable recommendations
-      5. Industry-specific best practices
-      `;
-
-      let result, response, analysisData;
-      
-      try {
-        result = await model.generateContent(analysisPrompt);
-        response = result.response.text();
-        console.info('diag:analyze:gemini_response', { 
-          responseLength: response.length,
-          hasJsonMarkers: response.includes('```')
-        });
-      } catch (geminiError: any) {
-        console.error('diag:analyze:gemini_error', { 
-          error: geminiError.message,
-          stack: geminiError.stack,
-          code: geminiError.code
-        });
-        
-        // Check if it's a configuration issue
-        if (geminiError.message?.includes('API_KEY') || geminiError.message?.includes('401')) {
-          return res.status(500).json({ 
-            error: 'AI service configuration error. Please contact support.' 
-          });
-        }
-        
-        // Check if it's a quota issue
-        if (geminiError.message?.includes('quota') || geminiError.message?.includes('429')) {
-          return res.status(500).json({ 
-            error: 'AI service temporarily unavailable due to quota limits. Please try again later.' 
-          });
-        }
-        
-        // For other errors, use fallback analysis
-        console.warn('diag:analyze:using_fallback_analysis');
-        response = generateFallbackAnalysis(resumeText, jobDescription);
-        analysisData = JSON.parse(response);
-        console.info('diag:analyze:fallback_analysis_generated');
-      }
-      
-      // Parse the AI response with better error handling (only if not already parsed from fallback)
-      if (!analysisData) {
-        try {
-          const cleanedResponse = response.replace(/```json\n?|\n?```/g, '').trim();
-          analysisData = JSON.parse(cleanedResponse);
-          console.info('diag:analyze:json_parsed', { success: true });
-        } catch (parseError: any) {
-          console.error('diag:analyze:json_parse_error', { 
-            error: parseError.message,
-            responsePreview: response.substring(0, 200)
-          });
-          
-          // Use fallback analysis if JSON parsing fails
-          console.warn('diag:analyze:json_parse_failed_using_fallback');
-          response = generateFallbackAnalysis(resumeText, jobDescription);
-          analysisData = JSON.parse(response);
-          console.info('diag:analyze:fallback_after_parse_error');
-        }
-      }
-
-      // Generate unique ID for this scan
-      const scanId = crypto.randomUUID();
-
-      // Save to database with error handling
-      let savedScan;
-      try {
-        console.info('diag:analyze:db_save_start', { scanId });
-        savedScan = await prisma.atsScan.create({
-        data: {
-          id: scanId,
-          userId: userId,
-          resumeText: resumeText,
-          jobDescription: jobDescription,
-            overallScore: analysisData.overallScore || 0,
-            matchRate: analysisData.matchRate || 0,
-            searchabilityScore: analysisData.searchability || 0,
-            atsCompatibilityScore: analysisData.atsCompatibility || 0,
-          detailedAnalysis: {
-              contactInformation: analysisData.contactInformation || {},
-              professionalSummary: analysisData.professionalSummary || {},
-              technicalSkills: analysisData.technicalSkills || {},
-              qualifiedAchievements: analysisData.qualifiedAchievements || {},
-              educationCertifications: analysisData.educationCertifications || {},
-              atsFormat: analysisData.atsFormat || {},
-            },
-            foundKeywords: JSON.stringify(analysisData.hardSkillsFound || []),
-            missingKeywords: JSON.stringify(analysisData.hardSkillsMissing || []),
-          recruiterTips: analysisData.recruiterTips || [],
-          improvementSuggestions: analysisData.keywordAnalysis?.optimizationSuggestions || []
-        }
-      });
-        console.info('diag:analyze:db_save_success', { scanId });
-      } catch (dbError: any) {
-        console.error('diag:analyze:db_save_error', { 
-          error: dbError.message,
-          code: dbError.code,
-          stack: dbError.stack
-        });
-        return res.status(500).json({ 
-          error: 'Failed to save analysis results. Please try again.' 
-        });
-      }
-
-      // Save resume if requested
-      if (saveResume && resumeName) {
-        await prisma.savedResume.create({
-          data: {
-            userId: userId,
-            resumeName: resumeName,
-            resumeText: resumeText
-          }
-        });
-      }
-
-      // Structure the response
-      const analysisResult = {
-        id: scanId,
-        overallScore: analysisData.overallScore,
-        matchRate: analysisData.matchRate,
-        searchability: analysisData.searchability,
-        atsCompatibility: analysisData.atsCompatibility,
-        detailedAnalysis: {
-          contactInformation: analysisData.contactInformation,
-          professionalSummary: analysisData.professionalSummary,
-          technicalSkills: analysisData.technicalSkills,
-          qualifiedAchievements: analysisData.qualifiedAchievements,
-          educationCertifications: analysisData.educationCertifications,
-          atsFormat: analysisData.atsFormat,
-        },
-        hardSkills: {
-          found: analysisData.hardSkillsFound || [],
-          missing: analysisData.hardSkillsMissing || [],
-          matchPercentage: Math.round((analysisData.hardSkillsFound?.length || 0) / 
-            ((analysisData.hardSkillsFound?.length || 0) + (analysisData.hardSkillsMissing?.length || 0)) * 100)
-        },
-        recruiterTips: analysisData.recruiterTips || [],
-        keywordOptimization: {
-          score: analysisData.matchRate,
-          totalKeywords: analysisData.keywordAnalysis?.totalJobKeywords || 0,
-          foundKeywords: analysisData.keywordAnalysis?.foundKeywords || [],
-          missingKeywords: analysisData.keywordAnalysis?.missingKeywords || [],
-          suggestions: analysisData.keywordAnalysis?.optimizationSuggestions || []
-        },
-        competitiveAnalysis: {
-          score: Math.round((analysisData.overallScore + analysisData.matchRate) / 2),
-          comparison: [
-            { metric: 'Keyword Match Rate', userScore: analysisData.matchRate, marketAverage: 75 },
-            { metric: 'Skills Coverage', userScore: analysisData.technicalSkills.score, marketAverage: 80 },
-            { metric: 'Experience Relevance', userScore: analysisData.qualifiedAchievements.score, marketAverage: 78 },
-            { metric: 'ATS Readability', userScore: analysisData.atsCompatibility, marketAverage: 85 }
-          ]
-        }
-      };
-
-      res.status(200).json(analysisResult);
-
-    } catch (error: any) {
-      console.error('diag:analyze:unexpected_error', { 
-        error: error.message,
-        stack: error.stack,
-        code: error.code,
-        name: error.name
-      });
-      logger.error('Analysis error: ' + error.message);
-      
-      // Provide more specific error messages based on error type
-      let errorMessage = 'Failed to analyze resume';
-      if (error.message?.includes('GEMINI_API_KEY')) {
-        errorMessage = 'AI analysis service not configured. Please contact support.';
-      } else if (error.message?.includes('quota')) {
-        errorMessage = 'AI analysis service temporarily unavailable. Please try again later.';
-      } else if (error.message?.includes('database') || error.code?.startsWith('P')) {
-        errorMessage = 'Database error. Please try again.';
-      } else if (error.message?.includes('timeout')) {
-        errorMessage = 'Analysis took too long. Please try again with shorter content.';
-      }
-      
-      res.status(500).json({ error: errorMessage });
-    }
-  });
-
-  // Get scan results by ID
-  router.get('/scan-results/:id', authenticateToken, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      const userId = req.user?.uid || req.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({ error: 'User authentication required' });
-      }
-
-      const scan = await prisma.atsScan.findFirst({
-        where: {
-          id: id,
-          userId: userId
-        }
-      });
-
-      if (!scan) {
-        return res.status(404).json({ error: 'Scan not found' });
-      }
-
-      // Transform data to match frontend interface
-      const response = {
-        id: scan.id,
-        overallScore: scan.overallScore,
-        matchRate: scan.matchRate,
-        searchability: scan.searchabilityScore,
-        atsCompatibility: scan.atsCompatibilityScore,
-        detailedAnalysis: scan.detailedAnalysis,
-        hardSkills: {
-          found: scan.foundKeywords ? JSON.parse(scan.foundKeywords as string) : [],
-          missing: scan.missingKeywords ? JSON.parse(scan.missingKeywords as string) : [],
-          matchPercentage: Math.round(
-            ((scan.foundKeywords ? JSON.parse(scan.foundKeywords as string).length : 0)) / 
-            (((scan.foundKeywords ? JSON.parse(scan.foundKeywords as string).length : 0)) + ((scan.missingKeywords ? JSON.parse(scan.missingKeywords as string).length : 0))) * 100
-          )
-        },
-        recruiterTips: scan.recruiterTips || [],
-        keywordOptimization: {
-          score: scan.matchRate,
-          totalKeywords: ((scan.foundKeywords ? JSON.parse(scan.foundKeywords as string).length : 0)) + ((scan.missingKeywords ? JSON.parse(scan.missingKeywords as string).length : 0)),
-          foundKeywords: scan.foundKeywords ? JSON.parse(scan.foundKeywords as string) : [],
-          missingKeywords: scan.missingKeywords ? JSON.parse(scan.missingKeywords as string) : [],
-          suggestions: scan.improvementSuggestions || []
-        },
-        competitiveAnalysis: {
-          score: Math.round(((scan.overallScore || 0) + (scan.matchRate || 0)) / 2),
-          comparison: [
-            { metric: 'Keyword Match Rate', userScore: scan.matchRate, marketAverage: 75 },
-            { metric: 'Skills Coverage', userScore: (scan.detailedAnalysis as any)?.technicalSkills?.score || 80, marketAverage: 80 },
-            { metric: 'Experience Relevance', userScore: (scan.detailedAnalysis as any)?.qualifiedAchievements?.score || 78, marketAverage: 78 },
-            { metric: 'ATS Readability', userScore: scan.atsCompatibilityScore, marketAverage: 85 }
-          ]
-        },
-        createdAt: scan.createdAt
-      };
-
-      res.status(200).json(response);
-
-    } catch (error) {
-      logger.error('Error fetching scan results: ' + (error as Error).message);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  });
 
   // Get user's scan history
   router.get('/history', authenticateToken, async (req: any, res) => {
@@ -1817,121 +1392,56 @@ export default function atsRouter(prisma: PrismaClient): Router {
         return res.status(401).json({ error: 'User authentication required' });
       }
 
-      // Fetch scans from all three tables in parallel
-      const [basicScans, advancedScans, v2Scans] = await Promise.all([
-        // Basic ATS scans
-        prisma.atsScan.findMany({
-          where: { userId },
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            jobTitle: true,
-            companyName: true,
-            overallScore: true,
-            matchRate: true,
-            createdAt: true
-          }
-        }),
-        
-        // Advanced ATS scans (v1)
-        prisma.atsScanAdvanced.findMany({
-          where: { userId },
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            overallScore: true,
-            matchRate: true,
-            createdAt: true,
-            // Extract job title and company from JSON fields if available
-            detailedAnalysis: true,
-            resumeText: true,
-            jobDescription: true,
-            companyName: true
-          }
-        }),
-        
-        // V2 ATS scans
-        prisma.atsScanV2.findMany({
-          where: { userId },
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            createdAt: true,
-            overallScoreV2: true,
-            atsChecks: true,
-            industryJson: true
-          }
-        })
-      ]);
+      // Fetch scans from V2 table only
+      const v2Scans = await prisma.atsScanV2.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          createdAt: true,
+          overallScoreV2: true,
+          atsChecks: true,
+          industryJson: true
+        }
+      });
 
-      // Transform and combine all scans
-      const allScans = [
-        // Basic scans (already in correct format)
-        ...basicScans,
+      // Transform V2 scans to history format
+      const allScans = v2Scans.map(scan => {
+        const overallScore = (scan.overallScoreV2 as any)?.overall || 75;
+        const atsChecks = scan.atsChecks as any;
+        const industry = scan.industryJson as any;
         
-        // Advanced scans (v1) - extract job title from custom field or fallback
-        ...advancedScans.map(scan => {
-          // First try to get custom title, then fallback to extraction
-          const detailedAnalysis = scan.detailedAnalysis as any;
-          const customTitle = detailedAnalysis?.customTitle;
-          
-          let jobTitle = customTitle;
-          if (!jobTitle) {
-            // Try to extract job title from job description as fallback
-            const jobTitleMatch = scan.jobDescription?.match(/(?:job title|position|role):\s*([^\n]+)/i);
-            jobTitle = jobTitleMatch?.[1]?.trim() || 
-                      scan.jobDescription?.split('\n')[0]?.trim().slice(0, 50) || 
-                      'Advanced Scan';
-          }
-          
-          return {
-            id: scan.id,
-            jobTitle,
-            companyName: scan.companyName || null,
-            overallScore: scan.overallScore,
-            matchRate: scan.matchRate,
-            createdAt: scan.createdAt
-          };
-        }),
+        // First try custom title, then fallback to extracted data
+        const customTitle = atsChecks?.customTitle;
+        let jobTitle = customTitle;
         
-        // V2 scans - extract data from JSON fields with custom title priority
-        ...v2Scans.map(scan => {
-          const overallScore = (scan.overallScoreV2 as any)?.overall || 75;
-          const atsChecks = scan.atsChecks as any;
-          const industry = scan.industryJson as any;
-          
-          // First try custom title, then fallback to extracted data
-          const customTitle = atsChecks?.customTitle;
-          let jobTitle = customTitle;
-          
-          if (!jobTitle) {
-            // Extract job title from atsChecks or industry data as fallback
-            jobTitle = atsChecks?.jobTitleMatch?.title || 
-                      industry?.industryDetection?.detectedIndustry || 
-                      'Enhanced AI Scan';
-          }
-          
-          // Extract company name if available
-          const companyName = atsChecks?.companyName || null;
-          
-          return {
-            id: scan.id,
-            jobTitle,
-            companyName,
-            overallScore,
-            matchRate: atsChecks?.jobTitleMatch?.normalizedSimilarity ? 
-                      Math.round(atsChecks.jobTitleMatch.normalizedSimilarity * 100) : 75,
-            createdAt: scan.createdAt
-          };
-        })
-      ];
+        if (!jobTitle) {
+          // Extract job title from atsChecks or industry data as fallback
+          jobTitle = atsChecks?.jobTitleMatch?.title || 
+                    industry?.industryDetection?.detectedIndustry || 
+                    'Enhanced AI Scan';
+        }
+        
+        // Extract company name if available
+        const companyName = atsChecks?.companyName || null;
+        
+        return {
+          id: scan.id,
+          jobTitle,
+          companyName,
+          overallScore,
+          matchRate: atsChecks?.jobTitleMatch?.normalizedSimilarity ? 
+                    Math.round(atsChecks.jobTitleMatch.normalizedSimilarity * 100) : 75,
+          createdAt: scan.createdAt
+        };
+      });
 
       // Sort by creation date (most recent first) and limit results
       const sortedScans = allScans
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, limit);
 
-      console.log(`Returning ${sortedScans.length} scans from history (${basicScans.length} basic, ${advancedScans.length} advanced, ${v2Scans.length} v2)`);
+      console.log(`Returning ${sortedScans.length} V2 scans from history`);
       res.status(200).json(sortedScans);
 
     } catch (error) {
@@ -1957,45 +1467,26 @@ export default function atsRouter(prisma: PrismaClient): Router {
         return res.status(401).json({ error: 'User authentication required' });
       }
 
-      // Find the scan in all three tables
-      const [basicScan, advancedScan, v2Scan] = await Promise.all([
-        prisma.atsScan.findFirst({ where: { id, userId } }),
-        prisma.atsScanAdvanced.findFirst({ 
-          where: { id, userId },
-          select: { id: true, jobDescription: true, resumeText: true, companyName: true, detailedAnalysis: true }
-        }),
-        prisma.atsScanV2.findFirst({ 
-          where: { id, userId },
-          select: { id: true, atsChecks: true, industryJson: true }
-        })
-      ]);
+      // Find the scan in V2 table only
+      const v2Scan = await prisma.atsScanV2.findFirst({ 
+        where: { id, userId },
+        select: { id: true, atsChecks: true, industryJson: true }
+      });
 
-      let jobDescription = '';
-      let resumeText = '';
-      let companyName = '';
-
-      if (basicScan) {
-        jobDescription = basicScan.jobDescription;
-        resumeText = basicScan.resumeText;
-        companyName = basicScan.companyName || '';
-      } else if (advancedScan) {
-        jobDescription = advancedScan.jobDescription || '';
-        resumeText = advancedScan.resumeText || '';
-        companyName = advancedScan.companyName || '';
-      } else if (v2Scan) {
-        const atsChecks = v2Scan.atsChecks as any;
-        const industry = v2Scan.industryJson as any;
-        
-        // Extract job info from V2 scan JSON data
-        jobDescription = atsChecks?.originalJobDescription || '';
-        companyName = atsChecks?.companyName || '';
-        
-        // If no direct job description, build from available data
-        if (!jobDescription && industry?.industryDetection) {
-          jobDescription = `${industry.industryDetection.detectedIndustry} position`;
-        }
-      } else {
+      if (!v2Scan) {
         return res.status(404).json({ error: 'Scan not found' });
+      }
+
+      const atsChecks = v2Scan.atsChecks as any;
+      const industry = v2Scan.industryJson as any;
+      
+      // Extract job info from V2 scan JSON data
+      let jobDescription = atsChecks?.originalJobDescription || '';
+      const companyName = atsChecks?.companyName || '';
+      
+      // If no direct job description, build from available data
+      if (!jobDescription && industry?.industryDetection) {
+        jobDescription = `${industry.industryDetection.detectedIndustry} position`;
       }
 
       // Generate AI title using Gemini
@@ -2008,7 +1499,6 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
 Job Description: ${jobDescription.slice(0, 1000)}
 ${companyName ? `Company: ${companyName}` : ''}
-${resumeText ? `Candidate Background: ${resumeText.slice(0, 500)}` : ''}
 
 Generate a title in this format: "[Job Role] at [Company]" or "[Job Role] - [Industry/Field]" if no company.
 Examples:
@@ -2102,62 +1592,31 @@ Return only the title, nothing else.`;
       const trimmedTitle = title.trim();
       console.log('Processing title update for scan:', id, 'with title:', trimmedTitle);
 
-      // Find which table contains the scan and update accordingly
-      console.log('Searching for scan in all tables...');
-      const [basicScan, advancedScan, v2Scan] = await Promise.all([
-        prisma.atsScan.findFirst({ where: { id, userId } }),
-        prisma.atsScanAdvanced.findFirst({ where: { id, userId } }),
-        prisma.atsScanV2.findFirst({ where: { id, userId } })
-      ]);
+      // Find V2 scan only
+      console.log('Searching for V2 scan...');
+      const v2Scan = await prisma.atsScanV2.findFirst({ where: { id, userId } });
 
-      console.log('Scan lookup results:', {
-        basicScan: !!basicScan,
-        advancedScan: !!advancedScan,
-        v2Scan: !!v2Scan
-      });
-
-      let updateResult = null;
-
-      if (basicScan) {
-        console.log('Updating basic scan...');
-        updateResult = await prisma.atsScan.update({
-          where: { id },
-          data: { jobTitle: trimmedTitle }
-        });
-      } else if (advancedScan) {
-        console.log('Updating advanced scan...');
-        // For advanced scans, we'll store the title in the detailedAnalysis JSON field
-        const existingAnalysis = (advancedScan.detailedAnalysis as any) || {};
-        const updatedAnalysis = {
-          ...existingAnalysis,
-          customTitle: trimmedTitle  // Store custom title here
-        };
-        
-        updateResult = await prisma.atsScanAdvanced.update({
-          where: { id },
-          data: { detailedAnalysis: updatedAnalysis }
-        });
-      } else if (v2Scan) {
-        console.log('Updating V2 scan...');
-        // For V2 scans, we need to update the atsChecks JSON field
-        const atsChecks = v2Scan.atsChecks as any;
-        const updatedAtsChecks = {
-          ...atsChecks,
-          customTitle: trimmedTitle,  // Store custom title at root level
-          jobTitleMatch: {
-            ...atsChecks?.jobTitleMatch,
-            title: trimmedTitle
-          }
-        };
-        
-        updateResult = await prisma.atsScanV2.update({
-          where: { id },
-          data: { atsChecks: updatedAtsChecks }
-        });
-      } else {
-        console.log('No scan found for user');
+      if (!v2Scan) {
+        console.log('No V2 scan found for user');
         return res.status(404).json({ error: 'Scan not found' });
       }
+
+      console.log('Updating V2 scan...');
+      // For V2 scans, update the atsChecks JSON field
+      const atsChecks = v2Scan.atsChecks as any;
+      const updatedAtsChecks = {
+        ...atsChecks,
+        customTitle: trimmedTitle,  // Store custom title at root level
+        jobTitleMatch: {
+          ...atsChecks?.jobTitleMatch,
+          title: trimmedTitle
+        }
+      };
+      
+      const updateResult = await prisma.atsScanV2.update({
+        where: { id },
+        data: { atsChecks: updatedAtsChecks }
+      });
 
       console.log(`Successfully updated scan title for ${id}: "${trimmedTitle}"`);
       
