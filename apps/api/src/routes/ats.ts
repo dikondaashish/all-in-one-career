@@ -1450,6 +1450,38 @@ export default function atsRouter(prisma: PrismaClient): Router {
     }
   });
 
+  // Internal function to update scan title (used by auto-save)
+  async function updateScanTitleInternal(scanId: string, userId: string, title: string) {
+    const trimmedTitle = title.trim();
+    
+    if (!trimmedTitle || trimmedTitle.length === 0) {
+      throw new Error('Title cannot be empty');
+    }
+
+    // Find V2 scan only
+    const v2Scan = await prisma.atsScanV2.findFirst({ where: { id: scanId, userId } });
+
+    if (!v2Scan) {
+      throw new Error('Scan not found');
+    }
+
+    // For V2 scans, update the atsChecks JSON field
+    const atsChecks = v2Scan.atsChecks as any;
+    const updatedAtsChecks = {
+      ...atsChecks,
+      customTitle: trimmedTitle,  // Store custom title at root level
+      jobTitleMatch: {
+        ...atsChecks?.jobTitleMatch,
+        title: trimmedTitle
+      }
+    };
+    
+    await prisma.atsScanV2.update({
+      where: { id: scanId },
+      data: { atsChecks: updatedAtsChecks }
+    });
+  }
+
   // Generate AI title for scan
   router.post('/scan/:id/generate-title', authenticateToken, async (req: any, res) => {
     try {
@@ -1620,17 +1652,53 @@ export default function atsRouter(prisma: PrismaClient): Router {
       
       // If we have any data at all, we can try to generate a title
       if (!jobTitle && !companyName && !detectedIndustry && !jobDescription) {
-        console.warn('No extractable data found for title generation');
-        
-        // Final fallback: use a generic title based on scan date
-        const fallbackTitle = `Job Application - ${new Date().toLocaleDateString()}`;
-        return res.status(200).json({
-          success: true,
-          title: fallbackTitle,
-          scanId: id,
-          fallback: true,
-          reason: 'No extractable job data found in scan'
+        console.warn('No extractable data found for title generation - checking raw data');
+        console.log('Raw scan data check:', {
+          atsChecksRaw: JSON.stringify(atsChecks, null, 2),
+          industryRaw: JSON.stringify(industry, null, 2),
+          companyOptRaw: JSON.stringify(companyOpt, null, 2)
         });
+        
+        // Try one more extraction from any available text
+        let emergencyTitle = 'Enhanced AI Scan';
+        
+        // Check if there's any text in atsChecks we can use
+        if (atsChecks) {
+          const allValues = Object.values(atsChecks).filter(v => typeof v === 'string' && v.length > 0);
+          if (allValues.length > 0) {
+            const firstText = allValues[0];
+            if (firstText.length > 3 && firstText.length < 100) {
+              emergencyTitle = firstText.slice(0, 50);
+            }
+          }
+        }
+        
+        // Auto-save the emergency title
+        try {
+          await updateScanTitleInternal(id, userId, emergencyTitle);
+          console.log(`Auto-saved emergency title for scan ${id}`);
+          
+          return res.status(200).json({
+            success: true,
+            title: emergencyTitle,
+            scanId: id,
+            fallback: true,
+            autoSaved: true,
+            reason: 'No extractable job data found in scan'
+          });
+        } catch (saveError) {
+          console.error('Failed to auto-save emergency title:', saveError);
+          
+          return res.status(200).json({
+            success: true,
+            title: emergencyTitle,
+            scanId: id,
+            fallback: true,
+            autoSaved: false,
+            saveError: 'Failed to auto-save title',
+            reason: 'No extractable job data found in scan'
+          });
+        }
       }
 
       // Generate AI title using Gemini
@@ -1681,11 +1749,29 @@ Title:`;
 
         console.log(`Generated AI title for scan ${id}: "${cleanTitle}"`);
         
-        res.status(200).json({ 
-          success: true,
-          title: cleanTitle,
-          scanId: id
-        });
+        // Auto-save the generated title
+        try {
+          await updateScanTitleInternal(id, userId, cleanTitle);
+          console.log(`Auto-saved AI generated title for scan ${id}`);
+          
+          res.status(200).json({
+            success: true,
+            title: cleanTitle,
+            scanId: id,
+            autoSaved: true
+          });
+        } catch (saveError) {
+          console.error('Failed to auto-save generated title:', saveError);
+          
+          // Still return the title even if save failed
+          res.status(200).json({
+            success: true,
+            title: cleanTitle,
+            scanId: id,
+            autoSaved: false,
+            saveError: 'Failed to auto-save title'
+          });
+        }
 
       } catch (aiError) {
         console.error('AI title generation failed:', aiError);
@@ -1711,12 +1797,30 @@ Title:`;
           fallbackTitle = fallbackTitle.slice(0, 57) + '...';
         }
         
-        res.status(200).json({
-          success: true,
-          title: fallbackTitle,
-          scanId: id,
-          fallback: true
-        });
+        // Auto-save the fallback title
+        try {
+          await updateScanTitleInternal(id, userId, fallbackTitle);
+          console.log(`Auto-saved fallback title for scan ${id}`);
+          
+          res.status(200).json({
+            success: true,
+            title: fallbackTitle,
+            scanId: id,
+            fallback: true,
+            autoSaved: true
+          });
+        } catch (saveError) {
+          console.error('Failed to auto-save fallback title:', saveError);
+          
+          res.status(200).json({
+            success: true,
+            title: fallbackTitle,
+            scanId: id,
+            fallback: true,
+            autoSaved: false,
+            saveError: 'Failed to auto-save title'
+          });
+        }
       }
 
     } catch (error) {

@@ -180,11 +180,25 @@ const ScanHistoryPage: React.FC = () => {
           )
         );
 
-        showToast({
-          icon: '🤖',
-          title: 'AI Title Generated!',
-          message: `Generated: "${data.title}"${data.fallback ? ' (fallback)' : ''}`
-        });
+        // Show appropriate toast based on auto-save status
+        if (data.autoSaved) {
+          showToast({
+            icon: '✅',
+            title: 'AI Title Generated & Saved!',
+            message: `"${data.title}"${data.fallback ? ' (fallback)' : ''}`
+          });
+        } else {
+          showToast({
+            icon: '🤖',
+            title: 'AI Title Generated!',
+            message: `"${data.title}"${data.fallback ? ' (fallback)' : ''} - ${data.saveError || 'Not auto-saved'}`
+          });
+        }
+        
+        // Refresh the scan list to ensure we have the latest data
+        if (data.autoSaved) {
+          fetchScanHistory();
+        }
       } else {
         throw new Error(data.error || 'Failed to generate title');
       }
