@@ -42,7 +42,6 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
-import { AdvancedResultsDashboard } from '../../../../../components/advanced/AdvancedResultsDashboard';
 import { featureAdvancedLayerV2 } from '../../../../../config/featureFlags';
 import { AtsChecksCard } from '../../../../../components/atsV2/AtsChecksCard';
 import { SkillsMatrix } from '../../../../../components/atsV2/SkillsMatrix';
@@ -328,142 +327,22 @@ const ScanResultsPage: React.FC = () => {
       }
       
       if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Scan results not found. This scan may have been created with an older version.');
+        }
         throw new Error('Failed to fetch scan results');
       }
       
       const data = await response.json();
       
-      // Check result type and handle accordingly
-      if (isV2Result && data.atsChecks) {
-        // This is a V2 scan result - store V2 data and create backward compatible data
-        setIsV2Scan(true);
-        setV2Data(data);
-        
-        // Create basic scan data for core UI components
-        const basicScanData: ScanResult = {
-          id: id,
-          overallScore: data.overallScore || 75,
-          matchRate: data.atsChecks?.jobTitleMatch?.normalizedSimilarity ? Math.round(data.atsChecks.jobTitleMatch.normalizedSimilarity * 100) : 75,
-          searchabilityScore: data.atsChecks?.wordCountStatus === 'optimal' ? 85 : 70,
-          atsCompatibilityScore: 80,
-          detailedAnalysis: {
-            contactInformation: { score: 90, status: 'excellent', feedback: 'Complete contact information' },
-            professionalSummary: { score: data.recruiterPsychology?.narrativeCoherence || 75, status: 'good', feedback: 'Strong narrative coherence' },
-            technicalSkills: { score: 80, status: 'excellent', feedback: 'Well-aligned skills' },
-            qualifiedAchievements: { score: 70, status: 'good', feedback: 'Good quantification of achievements' },
-            educationCertifications: { score: 80, status: 'good', feedback: 'Relevant background' },
-            atsFormat: { score: data.recruiterPsychology?.sixSecondImpression || 75, status: 'excellent', feedback: 'ATS-friendly format' }
-          },
-          hardSkills: {
-            found: data.skills?.hard?.found || [],
-            missing: data.skills?.hard?.missing || [],
-            matchPercentage: data.skills?.hard?.found?.length ? Math.round((data.skills.hard.found.length / (data.skills.hard.found.length + data.skills.hard.missing.length)) * 100) : 0
-          },
-          recruiterTips: [
-            { category: "Analysis", title: "Based on V2 analysis", description: "Enhanced analysis complete", priority: "medium" as const },
-            { category: "ATS", title: "Focus on ATS optimization", description: "Improve compatibility", priority: "high" as const },
-            { category: "Appeal", title: "Improve recruiter appeal", description: "Enhance presentation", priority: "medium" as const }
-          ],
-          keywordOptimization: {
-            score: 75,
-            totalKeywords: (data.skills?.hard?.found?.length || 0) + (data.skills?.hard?.missing?.length || 0),
-            foundKeywords: data.skills?.hard?.found || [],
-            missingKeywords: data.skills?.hard?.missing || [],
-            suggestions: ["Add missing hard skills", "Optimize keyword placement"]
-          },
-          competitiveAnalysis: {
-            score: data.predictive?.hireProbability?.point || 75,
-            comparison: [
-              {
-                metric: 'Hire Probability',
-                userScore: data.predictive?.hireProbability?.point || 0,
-                marketAverage: 65
-              },
-              {
-                metric: 'Technical Skills',
-                userScore: data.skills?.hard?.found?.length ? data.skills.hard.found.length * 10 : 0,
-                marketAverage: 70
-              },
-              {
-                metric: 'Market Position',
-                userScore: data.industry?.marketPercentile || 0,
-                marketAverage: 50
-              }
-            ]
-          },
-          createdAt: data.createdAt || new Date().toISOString()
-        };
-        
-        setScanData(basicScanData);
-      } else if (data.results) {
-        // This is an advanced scan result - store both advanced and transformed data
-        setIsAdvancedScan(true);
-        setAdvancedData(data.results);
-        
-        // Also create transformed data for backward compatibility
-        const advancedData = data.results;
-        const transformedData: ScanResult = {
-          id: advancedData.id,
-          overallScore: advancedData.overallScore,
-          matchRate: advancedData.matchRate,
-          searchability: advancedData.searchability,
-          atsCompatibility: advancedData.atsCompatibility,
-          detailedAnalysis: advancedData.detailedAnalysis || {
-            contactInformation: { score: 90, status: 'excellent', feedback: 'Complete contact information' },
-            professionalSummary: { score: advancedData.recruiterAppeal?.storytellingQuality || 75, status: 'good', feedback: 'Strong narrative coherence' },
-            technicalSkills: { score: advancedData.skillRelevancy?.score || 80, status: 'excellent', feedback: 'Well-aligned skills' },
-            qualifiedAchievements: { score: advancedData.impactScore?.quantificationQuality || 70, status: 'good', feedback: 'Good quantification of achievements' },
-            educationCertifications: { score: 80, status: 'good', feedback: 'Relevant background' },
-            atsFormat: { score: advancedData.recruiterAppeal?.firstImpressionScore || 85, status: 'excellent', feedback: 'ATS-friendly format' }
-          },
-          hardSkills: {
-            found: advancedData.hardSkillsFound || [],
-            missing: advancedData.hardSkillsMissing || [],
-            matchPercentage: advancedData.skillRelevancy?.score || 0
-          },
-          recruiterTips: advancedData.recruiterTips || [],
-          keywordOptimization: {
-            score: advancedData.keywordAnalysis?.score || 75,
-            totalKeywords: advancedData.keywordAnalysis?.totalJobKeywords || 0,
-            foundKeywords: advancedData.keywordAnalysis?.foundKeywords || [],
-            missingKeywords: advancedData.keywordAnalysis?.missingKeywords || [],
-            suggestions: advancedData.improvementSuggestions || []
-          },
-          competitiveAnalysis: {
-            score: advancedData.hireProbability?.probability || 75,
-            comparison: [
-              {
-                metric: 'Hire Probability',
-                userScore: advancedData.hireProbability?.probability || 0,
-                marketAverage: 65
-              },
-              {
-                metric: 'Technical Skills',
-                userScore: advancedData.skillRelevancy?.score || 0,
-                marketAverage: 70
-              },
-              {
-                metric: 'Experience Level',
-                userScore: advancedData.careerTrajectory?.score || 0,
-                marketAverage: 75
-              }
-            ]
-          },
-          createdAt: advancedData.createdAt || new Date().toISOString()
-        };
-        
-        setScanData(transformedData);
-      } else {
-        // This is a regular scan result
-        setIsAdvancedScan(false);
-      setScanData(data);
-      }
+      // Store V2 data
+      setV2Data(data);
     } catch (error) {
-      console.error('Failed to fetch scan results:', error);
-      showToast({ 
-        icon: '❌', 
-        title: 'Error', 
-        message: 'Failed to load scan results' 
+      console.error('Error fetching scan results:', error);
+      showToast({
+        icon: '❌',
+        title: 'Error',
+        message: error.message || 'Failed to load scan results'
       });
     } finally {
       setLoading(false);
@@ -527,7 +406,7 @@ const ScanResultsPage: React.FC = () => {
     );
   }
 
-  if (!scanData && !advancedData) {
+  if (!v2Data) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -544,8 +423,7 @@ const ScanResultsPage: React.FC = () => {
     );
   }
 
-  // If this is a V2 scan, render V2 components with enhanced features
-  if (isV2Scan && v2Data && featureAdvancedLayerV2) {
+  // Render V2 Enhanced AI Scan results
   return (
     <div className="min-h-screen bg-gray-50">
         <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -673,11 +551,10 @@ const ScanResultsPage: React.FC = () => {
         </div>
       </div>
     </div>
-    );
-  }
+  );
+};
 
-  // If this is an advanced scan, render the advanced dashboard
-  if (isAdvancedScan && advancedData) {
+export default ScanResultsPage;
     return (
       <AdvancedResultsDashboard 
         scanId={id} 
