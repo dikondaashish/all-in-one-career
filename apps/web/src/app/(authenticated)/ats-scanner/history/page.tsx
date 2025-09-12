@@ -25,16 +25,25 @@ const ScanHistoryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchScanHistory();
-  }, []);
+    // Only fetch when user is available
+    if (user) {
+      fetchScanHistory();
+    } else {
+      // If no user, show empty state
+      setLoading(false);
+    }
+  }, [user]);
 
   const fetchScanHistory = async () => {
     try {
+      console.log('Fetching scan history...', { user: !!user, apiUrl: API_BASE_URL });
+      
       // Get Firebase ID token for authentication
       let authToken = '';
       if (user) {
         try {
           authToken = await user.getIdToken();
+          console.log('Firebase token obtained successfully');
         } catch (tokenError) {
           console.error('Failed to get Firebase ID token:', tokenError);
           throw new Error('Authentication failed. Please log in again.');
@@ -43,25 +52,60 @@ const ScanHistoryPage: React.FC = () => {
         throw new Error('No user authentication available');
       }
 
-      let response = await fetch(`${API_BASE_URL}/api/ats/history?limit=20`, {
+      const url = `${API_BASE_URL}/api/ats/history?limit=20`;
+      console.log('Making request to:', url);
+
+      let response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
         },
       });
       
+      console.log('API Response:', { status: response.status, ok: response.ok });
+      
+      // If unauthorized, try refreshing the token once
+      if (response.status === 401 && user) {
+        console.log('Token expired, refreshing...');
+        try {
+          const freshToken = await user.getIdToken(true); // Force refresh
+          response = await fetch(url, {
+            headers: {
+              'Authorization': `Bearer ${freshToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          console.log('Retry API Response:', { status: response.status, ok: response.ok });
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
+        }
+      }
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch scan history');
+        const errorText = await response.text();
+        console.error('API Error:', { status: response.status, body: errorText });
+        
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please log in again.');
+        } else if (response.status === 404) {
+          throw new Error('History endpoint not found. This might be a deployment issue.');
+        } else {
+          throw new Error(`Failed to fetch scan history: ${response.status} ${errorText}`);
+        }
       }
       
       const data = await response.json();
+      console.log('Scan history data received:', { count: data.length, data });
       setScans(data);
     } catch (error) {
       console.error('Failed to fetch scan history:', error);
       showToast({ 
         icon: '❌', 
         title: 'Error', 
-        message: 'Failed to load scan history' 
+        message: `Failed to load scan history: ${error instanceof Error ? error.message : 'Unknown error'}` 
       });
+      // Set empty scans array so the empty state shows
+      setScans([]);
     } finally {
       setLoading(false);
     }
@@ -95,6 +139,28 @@ const ScanHistoryPage: React.FC = () => {
         <div className="text-center">
           <Loader2 className="mx-auto h-12 w-12 text-blue-600 animate-spin" />
           <p className="mt-4 text-gray-600">Loading scan history...</p>
+          <p className="mt-2 text-sm text-gray-400">Authenticating and fetching your data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is not authenticated, show login prompt
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Search className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-4 text-lg font-medium text-gray-900">Authentication Required</h3>
+          <p className="mt-2 text-gray-600">
+            Please log in to view your scan history.
+          </p>
+          <button
+            onClick={() => router.push('/ats-scanner')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Go to Scanner
+          </button>
         </div>
       </div>
     );
