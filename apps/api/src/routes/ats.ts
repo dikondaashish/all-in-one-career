@@ -1946,13 +1946,44 @@ Title:`;
         return res.status(400).json({ error: 'A resume with this name already exists' });
       }
 
+      // Handle large resume text by using fileUrl field for overflow content
+      const trimmedText = resumeText.trim();
+      const MAX_CHUNK_SIZE = 180; // Safe size under VARCHAR(191) limit
+      
+      let finalResumeText = trimmedText;
+      let finalFileUrl = fileUrl || null;
+      
+      // If text is too long, store overflow in fileUrl field as JSON
+      if (trimmedText.length > MAX_CHUNK_SIZE) {
+        console.log(`Resume text too long (${trimmedText.length} chars), using overflow storage`);
+        
+        try {
+          // Split content: first part in resumeText, rest in fileUrl as JSON
+          const mainContent = trimmedText.slice(0, MAX_CHUNK_SIZE);
+          const overflowContent = trimmedText.slice(MAX_CHUNK_SIZE);
+          
+          finalResumeText = mainContent;
+          finalFileUrl = JSON.stringify({
+            type: 'overflow',
+            content: overflowContent,
+            originalUrl: fileUrl || null
+          });
+          
+          console.log(`Split content: main(${mainContent.length}) + overflow(${overflowContent.length}) = ${trimmedText.length} total`);
+        } catch (splitError) {
+          console.error('Failed to split resume text:', splitError);
+          // Fallback: truncate with message
+          finalResumeText = trimmedText.slice(0, 150) + '\n\n[Content truncated due to storage limitations. Please contact support.]';
+        }
+      }
+
       // Create the saved resume
       const savedResume = await prisma.savedResume.create({
         data: {
           userId,
           resumeName: resumeName.trim(),
-          resumeText: resumeText.trim(),
-          fileUrl: fileUrl || null
+          resumeText: finalResumeText,
+          fileUrl: finalFileUrl
         }
       });
 
@@ -1997,17 +2028,41 @@ Title:`;
           id: true,
           resumeName: true,
           resumeText: true,
+          fileUrl: true,
           createdAt: true
         }
       });
 
-      console.log('Fetched saved resumes:', resumes.map(r => ({
+      // Reassemble any split content
+      const reassembledResumes = resumes.map(resume => {
+        if (resume.fileUrl) {
+          try {
+            const urlData = JSON.parse(resume.fileUrl);
+            if (urlData.type === 'overflow' && urlData.content) {
+              // Reassemble the full content
+              const fullContent = resume.resumeText + urlData.content;
+              console.log(`Reassembled resume ${resume.id}: ${resume.resumeText?.length || 0} + ${urlData.content.length} = ${fullContent.length} chars`);
+              return {
+                ...resume,
+                resumeText: fullContent,
+                fileUrl: urlData.originalUrl // Restore original file URL
+              };
+            }
+          } catch (parseError) {
+            console.log(`Resume ${resume.id} has normal fileUrl, not overflow data`);
+            // Not overflow data, return as-is
+          }
+        }
+        return resume;
+      });
+
+      console.log('Fetched saved resumes:', reassembledResumes.map(r => ({
         id: r.id,
         resumeName: r.resumeName,
         resumeTextLength: r.resumeText?.length || 0
       })));
 
-      res.status(200).json(resumes);
+      res.status(200).json(reassembledResumes);
 
     } catch (error) {
       logger.error('Error fetching saved resumes: ' + (error as Error).message);
