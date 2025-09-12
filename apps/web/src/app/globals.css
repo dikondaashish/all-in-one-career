@@ -207,3 +207,72 @@ html.light {
   background-size: 200% 200%;
   animation: gradient-shift 3s ease infinite;
 }
+
+/* PDF Generation Styles */
+.generating-pdf {
+  /* Hide non-printable elements during PDF generation */
+}
+
+.generating-pdf .bg-gradient-to-br,
+.generating-pdf .backdrop-blur-lg,
+.generating-pdf .bg-white\/80,
+.generating-pdf .sticky {
+  /* Simplify complex backgrounds for PDF */
+  background: white !important;
+  backdrop-filter: none !important;
+  position: static !important;
+}
+
+.print-report-content {
+  /* Ensure good print layout */
+  max-width: none;
+  background: white;
+}
+
+/* Print-specific styles for browser print fallback */
+@media print {
+  /* Hide everything except the report content */
+  body * {
+    visibility: hidden !important;
+  }
+  
+  #print-area,
+  #print-area * {
+    visibility: visible !important;
+  }
+  
+  #print-area {
+    position: absolute !important;
+    inset: 0 !important;
+    background: white !important;
+    padding: 20px !important;
+  }
+  
+  /* Page breaks between major sections */
+  .print-break {
+    page-break-before: always;
+  }
+  
+  /* Remove shadows and complex styling for print */
+  .print-report-content * {
+    box-shadow: none !important;
+    border-radius: 8px !important; /* Simplified rounded corners */
+    background: white !important;
+  }
+  
+  /* Ensure text is black for print */
+  .print-report-content {
+    color: black !important;
+  }
+  
+  /* Hide elements that shouldn't be printed */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Optimize charts and graphs for print */
+  canvas {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+}

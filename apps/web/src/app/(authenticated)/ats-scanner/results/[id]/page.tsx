@@ -598,15 +598,17 @@ const ScanResultsPage: React.FC = () => {
               />
             </div>
             
-            {/* Header Content */}
-            <div className="text-center pr-0 sm:pr-96">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">🚀 Enhanced ATS Analysis Results</h1>
-              <p className="text-lg text-gray-600">
-                Comprehensive foundational checks, recruiter psychology, and market intelligence
-              </p>
-            </div>
+          {/* Header Content */}
+          <div className="text-center pr-0 sm:pr-96">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">🚀 Enhanced ATS Analysis Results</h1>
+            <p className="text-lg text-gray-600">
+              Comprehensive foundational checks, recruiter psychology, and market intelligence
+            </p>
           </div>
+        </div>
 
+        {/* Printable Report Area */}
+        <div id="print-area" className="print-report-content">
           {/* Overall Score V2 */}
           <OverallScoreV2 data={v2Data} />
           
@@ -694,17 +696,20 @@ const ScanResultsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom Action Button */}
-          <div className="text-center mb-8">
-            <button
-              onClick={() => router.push('/ats-scanner')}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm hover:shadow-md"
-            >
-              Run Another Scan
-            </button>
-          </div>
+        </div>
+        {/* End Printable Report Area */}
+
+        {/* Bottom Action Button - Outside print area */}
+        <div className="text-center mb-8">
+          <button
+            onClick={() => router.push('/ats-scanner')}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm hover:shadow-md"
+          >
+            Run Another Scan
+          </button>
         </div>
       </div>
+    </div>
     );
   }
 
@@ -812,6 +817,9 @@ const ScanResultsPage: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+        
+        {/* Printable Report Area */}
+        <div id="print-area" className="print-report-content space-y-6 sm:space-y-8">
         
         {/* Hero Score Section */}
         <div className={`relative overflow-hidden transition-all duration-1000 ease-out transform ${
@@ -1255,6 +1263,10 @@ const ScanResultsPage: React.FC = () => {
             </div>
           </div>
         </div>
+        
+        </div>
+        {/* End Printable Report Area */}
+        
       </div>
     </div>
   );
