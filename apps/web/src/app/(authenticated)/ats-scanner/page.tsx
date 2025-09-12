@@ -35,7 +35,7 @@ const ATSScanner: React.FC = () => {
   const [urlInputs, setUrlInputs] = useState({ resume: '', job: '' });
   const [saveResume, setSaveResume] = useState(false);
   const [resumeName, setResumeName] = useState('');
-  const [errors, setErrors] = useState<{ resume?: string; job?: string }>({});
+  const [errors, setErrors] = useState<{ resume?: string; job?: string; resumeName?: string }>({});
   const [ocrStatus, setOcrStatus] = useState<{
     resume?: { show: boolean; running: boolean; jobId?: string; s3Key?: string; filename?: string; fileBuffer?: string };
     job?: { show: boolean; running: boolean; jobId?: string; s3Key?: string; filename?: string; fileBuffer?: string };
@@ -493,15 +493,27 @@ const ATSScanner: React.FC = () => {
   };
 
   const handleScan = async () => {
-    if (!resumeData.text.trim() || !jobData.text.trim()) {
-      setErrors({
-        resume: !resumeData.text.trim() ? 'Resume is required' : undefined,
-        job: !jobData.text.trim() ? 'Job description is required' : undefined,
-      });
+    // Validation
+    const validationErrors: { resume?: string; job?: string; resumeName?: string } = {};
+    
+    if (!resumeData.text.trim()) {
+      validationErrors.resume = 'Resume is required';
+    }
+    
+    if (!jobData.text.trim()) {
+      validationErrors.job = 'Job description is required';
+    }
+    
+    if (saveResume && !resumeName.trim()) {
+      validationErrors.resumeName = 'Resume name is required when saving resume';
+    }
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
       showToast({ 
         icon: '⚠️', 
         title: 'Missing Information', 
-        message: 'Please provide both resume and job description' 
+        message: Object.values(validationErrors).join('. ')
       });
       return;
     }
@@ -523,6 +535,50 @@ const ATSScanner: React.FC = () => {
       
       // Extract company name from job description if available
       const companyName = jobData.title || null;
+      
+      // Save resume if requested
+      if (saveResume && resumeName.trim()) {
+        try {
+          console.log('Saving resume:', { resumeName, hasResumeText: !!resumeData.text });
+          const saveResumeResponse = await fetch(`${API_BASE_URL}/api/ats/saved-resumes`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({
+              resumeName: resumeName.trim(),
+              resumeText: resumeData.text,
+              fileUrl: resumeData.source === 'file' ? resumeData.filename : null
+            }),
+          });
+
+          if (saveResumeResponse.ok) {
+            const saveResult = await saveResumeResponse.json();
+            console.log('Resume saved successfully:', saveResult);
+            showToast({
+              icon: '💾',
+              title: 'Resume Saved!',
+              message: `"${resumeName}" has been saved for future use`
+            });
+          } else {
+            const saveError = await saveResumeResponse.json();
+            console.warn('Failed to save resume:', saveError);
+            showToast({
+              icon: '⚠️',
+              title: 'Resume Save Failed',
+              message: saveError.error || 'Failed to save resume, but continuing with scan...'
+            });
+          }
+        } catch (saveError) {
+          console.error('Error saving resume:', saveError);
+          showToast({
+            icon: '⚠️',
+            title: 'Resume Save Error',
+            message: 'Failed to save resume, but continuing with scan...'
+          });
+        }
+      }
       
       showToast({ 
         icon: '🧠', 
@@ -829,25 +885,32 @@ const ATSScanner: React.FC = () => {
             </div>
 
             {/* Save Resume Option */}
-            <div className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                id="saveResume"
-                className="w-4 h-4 text-blue-600"
-                checked={saveResume}
-                onChange={(e) => setSaveResume(e.target.checked)}
-              />
-              <label htmlFor="saveResume" className="text-sm text-gray-700">
-                Save resume for future use
-              </label>
-              {saveResume && (
+            <div className="space-y-2">
+              <div className="flex items-center space-x-3">
                 <input
-                  type="text"
-                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
-                  placeholder="Resume name"
-                  value={resumeName}
-                  onChange={(e) => setResumeName(e.target.value)}
+                  type="checkbox"
+                  id="saveResume"
+                  className="w-4 h-4 text-blue-600"
+                  checked={saveResume}
+                  onChange={(e) => setSaveResume(e.target.checked)}
                 />
+                <label htmlFor="saveResume" className="text-sm text-gray-700">
+                  Save resume for future use
+                </label>
+                {saveResume && (
+                  <input
+                    type="text"
+                    className={`flex-1 px-2 py-1 text-sm border rounded ${
+                      errors.resumeName ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="Resume name"
+                    value={resumeName}
+                    onChange={(e) => setResumeName(e.target.value)}
+                  />
+                )}
+              </div>
+              {errors.resumeName && (
+                <p className="text-sm text-red-600 ml-7">{errors.resumeName}</p>
               )}
             </div>
           </div>

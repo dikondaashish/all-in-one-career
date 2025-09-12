@@ -1902,6 +1902,63 @@ Title:`;
     }
   });
 
+  // Save resume
+  router.post('/saved-resumes', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user?.uid || req.user?.id;
+      const { resumeName, resumeText, fileUrl } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User authentication required' });
+      }
+
+      if (!resumeName || !resumeName.trim()) {
+        return res.status(400).json({ error: 'Resume name is required' });
+      }
+
+      if (!resumeText || !resumeText.trim()) {
+        return res.status(400).json({ error: 'Resume text is required' });
+      }
+
+      // Check if resume name already exists for this user
+      const existingResume = await prisma.savedResume.findFirst({
+        where: { 
+          userId, 
+          resumeName: resumeName.trim() 
+        }
+      });
+
+      if (existingResume) {
+        return res.status(400).json({ error: 'A resume with this name already exists' });
+      }
+
+      // Create the saved resume
+      const savedResume = await prisma.savedResume.create({
+        data: {
+          userId,
+          resumeName: resumeName.trim(),
+          resumeText: resumeText.trim(),
+          fileUrl: fileUrl || null
+        }
+      });
+
+      logger.info(`Resume saved: ${savedResume.id} for user ${userId}`);
+      res.status(201).json({
+        success: true,
+        message: 'Resume saved successfully',
+        savedResume: {
+          id: savedResume.id,
+          resumeName: savedResume.resumeName,
+          createdAt: savedResume.createdAt
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error saving resume: ' + (error as Error).message);
+      res.status(500).json({ error: 'Failed to save resume' });
+    }
+  });
+
   // Get saved resumes
   router.get('/saved-resumes', authenticateToken, async (req: any, res) => {
     try {
