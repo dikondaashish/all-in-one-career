@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Search, Calendar, Loader2, TrendingUp, Building } from 'lucide-react';
+import { ArrowLeft, Search, Calendar, Loader2, TrendingUp, Building, Hash, Copy } from 'lucide-react';
 import { useToast } from '../../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -71,6 +71,22 @@ const ScanHistoryPage: React.FC = () => {
     if (score >= 80) return 'text-green-600 bg-green-100';
     if (score >= 60) return 'text-yellow-600 bg-yellow-100';
     return 'text-red-600 bg-red-100';
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast({
+        icon: '📋',
+        title: 'Copied!',
+        message: `${label} copied to clipboard`
+      });
+    }).catch(() => {
+      showToast({
+        icon: '❌',
+        title: 'Failed to copy',
+        message: 'Could not copy to clipboard'
+      });
+    });
   };
 
   if (loading) {
@@ -160,11 +176,33 @@ const ScanHistoryPage: React.FC = () => {
                           )}
                         </div>
                         
-                        <div className="flex items-center text-sm text-gray-500 mt-1">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          <span>{new Date(scan.createdAt).toLocaleDateString()}</span>
-                          <span className="mx-2">•</span>
-                          <span>{new Date(scan.createdAt).toLocaleTimeString()}</span>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Calendar className="w-4 h-4 mr-1" />
+                            <span>{new Date(scan.createdAt).toLocaleDateString()}</span>
+                            <span className="mx-2">•</span>
+                            <span>{new Date(scan.createdAt).toLocaleTimeString()}</span>
+                          </div>
+                          
+                          {/* Scan ID Display */}
+                          <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-1 px-2 py-1 bg-gray-50 rounded-md">
+                              <Hash className="w-3 h-3 text-gray-400" />
+                              <span className="text-xs font-mono text-gray-600">
+                                {scan.id.slice(0, 8)}...
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyToClipboard(scan.id, 'Scan ID');
+                                }}
+                                className="p-0.5 hover:bg-gray-200 rounded transition-colors"
+                                title="Copy full scan ID"
+                              >
+                                <Copy className="w-3 h-3 text-gray-400 hover:text-gray-600" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>

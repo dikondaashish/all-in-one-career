@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Link, Zap, Search, AlertCircle, FileText, Loader2 } from 'lucide-react';
+import { Upload, Link, Zap, Search, AlertCircle, FileText, Loader2, History, Clock } from 'lucide-react';
 import { useToast } from '../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
 import { featureAdvancedLayerV2 } from '../../../config/featureFlags';
@@ -621,7 +621,26 @@ const ATSScanner: React.FC = () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="relative text-center mb-8">
+          {/* History Button - Top Right */}
+          <div className="absolute top-0 right-0">
+            <button
+              onClick={() => router.push('/ats-scanner/history')}
+              className="group flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all duration-200 hover:scale-105"
+            >
+              <div className="p-1.5 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
+                <History className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-medium text-gray-900">History</div>
+                <div className="text-xs text-gray-500 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  <span>View past scans</span>
+                </div>
+              </div>
+            </button>
+          </div>
+
           <div className="flex items-center justify-center gap-3 mb-4">
             <h1 className="text-3xl font-bold text-gray-900">Advanced ATS Scanner</h1>
             <div className="px-3 py-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-medium rounded-full flex items-center gap-1">
