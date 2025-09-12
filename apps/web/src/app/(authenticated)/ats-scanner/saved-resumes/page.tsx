@@ -68,6 +68,16 @@ const SavedResumesPage: React.FC = () => {
       }
       
       const data = await response.json();
+      
+      // Debug what we received from the backend
+      console.log('📥 Received saved resumes from backend:', data.map((r: SavedResume) => ({
+        id: r.id,
+        resumeName: r.resumeName,
+        resumeTextLength: r.resumeText?.length || 0,
+        hasResumeText: !!r.resumeText,
+        resumeTextPreview: r.resumeText?.slice(0, 100) + '...'
+      })));
+      
       setResumes(data);
     } catch (error) {
       console.error('Failed to fetch saved resumes:', error);
@@ -88,6 +98,12 @@ const SavedResumesPage: React.FC = () => {
       resumeTextPreview: resume.resumeText?.slice(0, 200) + '...'
     });
     
+    // Double-check that we have the full content (backend should have reassembled it)
+    if (resume.resumeText && resume.resumeText.length < 1000) {
+      console.warn('Resume content seems short - this might indicate reassembly issues');
+      console.log('Full resume text received:', resume.resumeText);
+    }
+    
     // Store the resume data in localStorage to be picked up by the ATS scanner
     const resumeDataToStore = {
       text: resume.resumeText,
@@ -106,7 +122,7 @@ const SavedResumesPage: React.FC = () => {
     showToast({
       icon: '✅',
       title: 'Resume Selected',
-      message: `"${resume.resumeName}" is ready to use`
+      message: `"${resume.resumeName}" is ready to use (${resumeDataToStore.text?.length || 0} chars)`
     });
     
     // Navigate to ATS scanner

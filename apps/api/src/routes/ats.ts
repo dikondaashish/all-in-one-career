@@ -2040,8 +2040,15 @@ Title:`;
             const urlData = JSON.parse(resume.fileUrl);
             if (urlData.type === 'overflow' && urlData.content) {
               // Reassemble the full content
-              const fullContent = resume.resumeText + urlData.content;
-              console.log(`Reassembled resume ${resume.id}: ${resume.resumeText?.length || 0} + ${urlData.content.length} = ${fullContent.length} chars`);
+              const mainLength = resume.resumeText?.length || 0;
+              const overflowLength = urlData.content.length;
+              const fullContent = (resume.resumeText || '') + urlData.content;
+              console.log(`🔧 Reassembling resume ${resume.id}:`);
+              console.log(`   Main part: ${mainLength} chars`);
+              console.log(`   Overflow part: ${overflowLength} chars`);
+              console.log(`   Total reassembled: ${fullContent.length} chars`);
+              console.log(`   Preview: "${fullContent.slice(0, 100)}...${fullContent.slice(-100)}"`);
+              
               return {
                 ...resume,
                 resumeText: fullContent,
