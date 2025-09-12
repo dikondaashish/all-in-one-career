@@ -1495,31 +1495,77 @@ export default function atsRouter(prisma: PrismaClient): Router {
         hasCompanyOpt: !!companyOpt,
         atsChecksKeys: atsChecks ? Object.keys(atsChecks) : [],
         industryKeys: industry ? Object.keys(industry) : [],
-        companyOptKeys: companyOpt ? Object.keys(companyOpt) : []
+        companyOptKeys: companyOpt ? Object.keys(companyOpt) : [],
+        atsChecksFullData: atsChecks,
+        industryFullData: industry,
+        companyOptFullData: companyOpt
       });
       
-      // Extract job info from V2 JSON structure
+      // Extract job info from V2 JSON structure with comprehensive search
       let jobDescription = '';
       let companyName = '';
       let jobTitle = '';
+      let detectedIndustry = '';
       
-      // Extract job title from atsChecks
+      // Extract job title from multiple possible locations
       if (atsChecks?.jobTitleMatch?.title) {
         jobTitle = atsChecks.jobTitleMatch.title;
+      } else if (atsChecks?.jobTitle) {
+        jobTitle = atsChecks.jobTitle;
+      } else if (atsChecks?.title) {
+        jobTitle = atsChecks.title;
       }
       
       // Extract company name from multiple sources
       if (companyOpt?.companyName) {
         companyName = companyOpt.companyName;
+      } else if (companyOpt?.company) {
+        companyName = companyOpt.company;
       } else if (atsChecks?.companyName) {
         companyName = atsChecks.companyName;
+      } else if (atsChecks?.company) {
+        companyName = atsChecks.company;
       } else if (industry?.companyName) {
         companyName = industry.companyName;
+      } else if (industry?.company) {
+        companyName = industry.company;
       }
       
-      // For job description, try to reconstruct from available data
-      if (jobTitle && industry?.industryDetection?.detectedIndustry) {
-        jobDescription = `${jobTitle} position in ${industry.industryDetection.detectedIndustry} industry`;
+      // Extract industry information
+      if (industry?.industryDetection?.detectedIndustry) {
+        detectedIndustry = industry.industryDetection.detectedIndustry;
+      } else if (industry?.detectedIndustry) {
+        detectedIndustry = industry.detectedIndustry;
+      } else if (industry?.industry) {
+        detectedIndustry = industry.industry;
+      }
+      
+      // Try to extract job title from any text fields if still not found
+      if (!jobTitle) {
+        // Look for job-related keywords in various fields
+        const searchFields = [
+          atsChecks?.jobDescription,
+          atsChecks?.originalJobDescription,
+          industry?.jobDetails,
+          companyOpt?.jobDetails
+        ].filter(Boolean);
+        
+        for (const field of searchFields) {
+          if (typeof field === 'string') {
+            // Try to extract job title from text
+            const lines = field.split('\n');
+            const potentialTitle = lines[0]?.trim();
+            if (potentialTitle && potentialTitle.length < 100) {
+              jobTitle = potentialTitle;
+              break;
+            }
+          }
+        }
+      }
+      
+      // Construct job description from available data
+      if (jobTitle && detectedIndustry) {
+        jobDescription = `${jobTitle} position in ${detectedIndustry}`;
         if (companyName) {
           jobDescription += ` at ${companyName}`;
         }
@@ -1528,11 +1574,13 @@ export default function atsRouter(prisma: PrismaClient): Router {
         if (companyName) {
           jobDescription += ` at ${companyName}`;
         }
-      } else if (industry?.industryDetection?.detectedIndustry) {
-        jobDescription = `Position in ${industry.industryDetection.detectedIndustry} industry`;
+      } else if (detectedIndustry) {
+        jobDescription = `Position in ${detectedIndustry}`;
         if (companyName) {
           jobDescription += ` at ${companyName}`;
         }
+      } else if (companyName) {
+        jobDescription = `Position at ${companyName}`;
       }
       
       console.log('Extracted data for AI title generation:', {
@@ -1540,18 +1588,25 @@ export default function atsRouter(prisma: PrismaClient): Router {
         jobDescriptionLength: jobDescription.length,
         jobDescriptionPreview: jobDescription.slice(0, 100),
         companyName,
-        detectedIndustry: industry?.industryDetection?.detectedIndustry,
+        detectedIndustry,
         hasJobTitle: !!jobTitle,
         hasJobDescription: !!jobDescription,
-        hasCompanyName: !!companyName
+        hasCompanyName: !!companyName,
+        hasDetectedIndustry: !!detectedIndustry
       });
       
-      // If we have a job title, we can generate a good title even without full job description
-      if (!jobTitle && !jobDescription && !companyName) {
-        console.warn('No job title, description, or company name found for title generation');
-        return res.status(400).json({ 
-          error: 'Insufficient data for title generation',
-          details: 'No job title, description, or company information found in scan data'
+      // If we have any data at all, we can try to generate a title
+      if (!jobTitle && !companyName && !detectedIndustry && !jobDescription) {
+        console.warn('No extractable data found for title generation');
+        
+        // Final fallback: use a generic title based on scan date
+        const fallbackTitle = `Job Application - ${new Date().toLocaleDateString()}`;
+        return res.status(200).json({
+          success: true,
+          title: fallbackTitle,
+          scanId: id,
+          fallback: true,
+          reason: 'No extractable job data found in scan'
         });
       }
 
@@ -1565,13 +1620,13 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
 ${jobTitle ? `Job Title: ${jobTitle}` : ''}
 ${companyName ? `Company Name: ${companyName}` : ''}
-${industry?.industryDetection?.detectedIndustry ? `Industry: ${industry.industryDetection.detectedIndustry}` : ''}
-${jobDescription ? `Additional Context: ${jobDescription.slice(0, 500)}` : ''}
+${detectedIndustry ? `Industry: ${detectedIndustry}` : ''}
+${jobDescription ? `Context: ${jobDescription.slice(0, 500)}` : ''}
 
 REQUIREMENTS:
-1. Use the provided job title as the main role
-2. Include the company name if provided
-3. Format: "[Job Role] at [Company]" or "[Job Role] - [Industry]" if no company
+1. Create a professional title using any available information above
+2. Format: "[Job Role] at [Company]" or "[Job Role] - [Industry]" or just "[Job Role]"
+3. If no job title is provided, use industry or company to infer a role
 4. Maximum 60 characters
 5. Return ONLY the title, no quotes, no explanations
 
@@ -1579,8 +1634,8 @@ Examples:
 - "Software Engineer at Google"
 - "Marketing Manager at Tesla" 
 - "Data Scientist - Healthcare"
-- "Frontend Developer - Fintech"
-- "Product Manager at Microsoft"
+- "Application at Microsoft"
+- "Position - Technology"
 
 Title:`;
 
@@ -1616,13 +1671,13 @@ Title:`;
           fallbackTitle = `${jobTitle} at ${companyName}`;
         } else if (jobTitle) {
           fallbackTitle = jobTitle;
-          if (industry?.industryDetection?.detectedIndustry) {
-            fallbackTitle += ` - ${industry.industryDetection.detectedIndustry}`;
+          if (detectedIndustry) {
+            fallbackTitle += ` - ${detectedIndustry}`;
           }
         } else if (companyName) {
           fallbackTitle = `Application at ${companyName}`;
-        } else if (industry?.industryDetection?.detectedIndustry) {
-          fallbackTitle = `Position - ${industry.industryDetection.detectedIndustry}`;
+        } else if (detectedIndustry) {
+          fallbackTitle = `Position - ${detectedIndustry}`;
         }
         
         // Ensure title is within 60 characters
