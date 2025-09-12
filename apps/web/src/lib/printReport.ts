@@ -67,6 +67,48 @@ export async function printElementToPdf(el: HTMLElement, fileName: string = 'ats
           (elem as HTMLElement).style.transform = 'none';
           (elem as HTMLElement).style.animation = 'none';
         });
+
+        // Replace unsupported CSS color functions with fallback colors
+        const allElements = clonedDoc.querySelectorAll('*');
+        allElements.forEach(elem => {
+          const htmlElem = elem as HTMLElement;
+          const computedStyle = window.getComputedStyle(htmlElem);
+          
+          // Replace oklch, lab, lch, and other modern color functions with RGB equivalents
+          ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor'].forEach(prop => {
+            const value = computedStyle.getPropertyValue(prop);
+            if (value && (value.includes('oklch') || value.includes('lab(') || value.includes('lch(') || value.includes('color('))) {
+              // Get the actual computed RGB value and apply it
+              try {
+                const rgbValue = computedStyle.getPropertyValue(prop);
+                if (rgbValue && !rgbValue.includes('oklch') && !rgbValue.includes('lab') && !rgbValue.includes('lch')) {
+                  htmlElem.style.setProperty(prop, rgbValue);
+                } else {
+                  // Fallback to safe colors
+                  if (prop === 'color') htmlElem.style.color = '#000000';
+                  if (prop === 'backgroundColor') htmlElem.style.backgroundColor = '#ffffff';
+                  if (prop.includes('border')) htmlElem.style.setProperty(prop, '#e5e7eb');
+                }
+              } catch (e) {
+                // Fallback colors if anything fails
+                if (prop === 'color') htmlElem.style.color = '#000000';
+                if (prop === 'backgroundColor') htmlElem.style.backgroundColor = '#ffffff';
+                if (prop.includes('border')) htmlElem.style.setProperty(prop, '#e5e7eb');
+              }
+            }
+          });
+
+          // Also check CSS custom properties that might contain oklch
+          const cssText = htmlElem.style.cssText;
+          if (cssText.includes('oklch') || cssText.includes('lab(') || cssText.includes('lch(')) {
+            // Replace with safe equivalents
+            htmlElem.style.cssText = cssText
+              .replace(/oklch\([^)]+\)/g, '#000000')
+              .replace(/lab\([^)]+\)/g, '#000000')
+              .replace(/lch\([^)]+\)/g, '#000000')
+              .replace(/color\([^)]+\)/g, '#000000');
+          }
+        });
       }
     });
 

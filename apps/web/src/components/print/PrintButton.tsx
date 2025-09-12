@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { Printer, Loader2 } from 'lucide-react';
 import { printElementToPdf } from '@/lib/printReport';
 import { printElementToPdfSimple } from '@/lib/printReportSimple';
+import { printElementToPdfFixed } from '@/lib/printReportFixed';
 
 interface PrintButtonProps {
   scanId: string;
@@ -33,21 +34,28 @@ export const PrintButton: React.FC<PrintButtonProps> = ({ scanId }) => {
       // Generate PDF with the scan ID in filename
       const fileName = `ats-report-${scanId}.pdf`;
       
-      console.log('Attempting advanced PDF generation...');
-      let success = await printElementToPdf(printArea, fileName);
+      console.log('Attempting fixed PDF generation (handles oklch colors)...');
+      let success = await printElementToPdfFixed(printArea, fileName);
       
       if (!success) {
-        console.log('Advanced PDF generation failed, trying simple approach...');
+        console.log('Fixed PDF generation failed, trying simple approach...');
         success = await printElementToPdfSimple(printArea, fileName);
         
         if (!success) {
-          console.warn('Both PDF generation methods failed');
-          alert('PDF generation failed. Please check the browser console for details and try again. You can also try refreshing the page.');
+          console.log('Simple PDF generation failed, trying advanced approach...');
+          success = await printElementToPdf(printArea, fileName);
+          
+          if (!success) {
+            console.warn('All PDF generation methods failed');
+            alert('PDF generation failed. This might be due to complex CSS styling. You can try the browser print dialog as a fallback.');
+          } else {
+            console.log('Advanced PDF generation succeeded as last resort');
+          }
         } else {
           console.log('Simple PDF generation succeeded');
         }
       } else {
-        console.log('Advanced PDF generation succeeded');
+        console.log('Fixed PDF generation succeeded');
       }
     } catch (error) {
       console.error('Error during print operation:', error);
