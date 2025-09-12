@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Search, Calendar, Loader2, TrendingUp, Building, Hash, Copy, Edit3, Sparkles, Check, X } from 'lucide-react';
+import { ArrowLeft, Search, Calendar, Loader2, TrendingUp, Building, Hash, Copy, Edit2, Check, X, Sparkles } from 'lucide-react';
 import { useToast } from '../../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -24,9 +24,8 @@ const ScanHistoryPage: React.FC = () => {
   const [scans, setScans] = useState<ScanHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
-  const [editedTitle, setEditedTitle] = useState('');
-  const [generatingTitles, setGeneratingTitles] = useState<Set<string>>(new Set());
-  const [savingTitle, setSavingTitle] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [generatingTitle, setGeneratingTitle] = useState<string | null>(null);
 
   useEffect(() => {
     // Only fetch when user is available
@@ -138,12 +137,12 @@ const ScanHistoryPage: React.FC = () => {
   };
 
   const generateAITitle = async (scanId: string) => {
-    if (!user || generatingTitles.has(scanId)) return;
-
+    if (generatingTitle === scanId) return;
+    
     try {
-      setGeneratingTitles(prev => new Set([...prev, scanId]));
-
-      const authToken = await user.getIdToken();
+      setGeneratingTitle(scanId);
+      
+      const authToken = await user?.getIdToken();
       const response = await fetch(`${API_BASE_URL}/api/ats/scan/${scanId}/generate-title`, {
         method: 'POST',
         headers: {
@@ -152,102 +151,99 @@ const ScanHistoryPage: React.FC = () => {
         },
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate title');
-      }
-
       const data = await response.json();
       
-      // Update the scan in the local state
-      setScans(prevScans => 
-        prevScans.map(scan => 
-          scan.id === scanId 
-            ? { ...scan, jobTitle: data.title }
-            : scan
-        )
-      );
+      if (data.success) {
+        // Update the scan in the local state
+        setScans(prevScans => 
+          prevScans.map(scan => 
+            scan.id === scanId 
+              ? { ...scan, jobTitle: data.title }
+              : scan
+          )
+        );
 
-      showToast({
-        icon: '✨',
-        title: 'AI Title Generated',
-        message: data.fallback ? 'Fallback title created' : 'Smart title generated!'
-      });
-
+        showToast({
+          icon: '🤖',
+          title: 'AI Title Generated!',
+          message: `Generated: "${data.title}"${data.fallback ? ' (fallback)' : ''}`
+        });
+      } else {
+        throw new Error(data.error || 'Failed to generate title');
+      }
     } catch (error) {
-      console.error('Failed to generate AI title:', error);
+      console.error('Error generating AI title:', error);
       showToast({
         icon: '❌',
         title: 'Generation Failed',
-        message: 'Could not generate title. Please try again.'
+        message: 'Could not generate AI title. Please try again.'
       });
     } finally {
-      setGeneratingTitles(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(scanId);
-        return newSet;
-      });
+      setGeneratingTitle(null);
     }
   };
 
-  const startEditingTitle = (scanId: string, currentTitle: string) => {
-    setEditingTitle(scanId);
-    setEditedTitle(currentTitle);
+  const startEditingTitle = (scan: ScanHistoryItem) => {
+    setEditingTitle(scan.id);
+    setNewTitle(scan.jobTitle || '');
   };
 
   const cancelEditingTitle = () => {
     setEditingTitle(null);
-    setEditedTitle('');
+    setNewTitle('');
   };
 
-  const saveTitle = async (scanId: string) => {
-    if (!user || !editedTitle.trim() || savingTitle) return;
+  const updateScanTitle = async (scanId: string) => {
+    if (!newTitle.trim()) {
+      showToast({
+        icon: '⚠️',
+        title: 'Invalid Title',
+        message: 'Title cannot be empty'
+      });
+      return;
+    }
 
     try {
-      setSavingTitle(true);
-
-      const authToken = await user.getIdToken();
+      const authToken = await user?.getIdToken();
       const response = await fetch(`${API_BASE_URL}/api/ats/scan/${scanId}/title`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ title: editedTitle.trim() }),
+        body: JSON.stringify({ title: newTitle.trim() })
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update title');
-      }
 
       const data = await response.json();
       
-      // Update the scan in the local state
-      setScans(prevScans => 
-        prevScans.map(scan => 
-          scan.id === scanId 
-            ? { ...scan, jobTitle: data.title }
-            : scan
-        )
-      );
+      if (data.success) {
+        // Update the scan in the local state
+        setScans(prevScans => 
+          prevScans.map(scan => 
+            scan.id === scanId 
+              ? { ...scan, jobTitle: data.title }
+              : scan
+          )
+        );
 
-      setEditingTitle(null);
-      setEditedTitle('');
+        setEditingTitle(null);
+        setNewTitle('');
 
-      showToast({
-        icon: '✅',
-        title: 'Title Updated',
-        message: 'Scan title saved successfully!'
-      });
-
+        showToast({
+          icon: '✅',
+          title: 'Title Updated!',
+          message: `Updated to: "${data.title}"`
+        });
+      } else {
+        throw new Error(data.error || 'Failed to update title');
+      }
     } catch (error) {
-      console.error('Failed to save title:', error);
+      console.error('Error updating title:', error);
       showToast({
         icon: '❌',
-        title: 'Save Failed',
-        message: 'Could not save title. Please try again.'
+        title: 'Update Failed',
+        message: 'Could not update title. Please try again.'
       });
-    } finally {
-      setSavingTitle(false);
     }
   };
 
@@ -345,99 +341,93 @@ const ScanHistoryPage: React.FC = () => {
                       
                       {/* Job Info */}
                       <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          {/* Title Display/Edit */}
+                        <div className="flex items-center space-x-2">
                           {editingTitle === scan.id ? (
+                            // Editing mode
                             <div className="flex items-center space-x-2 flex-1">
                               <input
                                 type="text"
-                                value={editedTitle}
-                                onChange={(e) => setEditedTitle(e.target.value)}
-                                className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={newTitle}
+                                onChange={(e) => setNewTitle(e.target.value)}
+                                className="flex-1 px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="Enter job title..."
-                                maxLength={100}
-                                onClick={(e) => e.stopPropagation()}
+                                autoFocus
                                 onKeyPress={(e) => {
                                   if (e.key === 'Enter') {
-                                    saveTitle(scan.id);
+                                    updateScanTitle(scan.id);
                                   } else if (e.key === 'Escape') {
                                     cancelEditingTitle();
                                   }
                                 }}
                               />
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  saveTitle(scan.id);
-                                }}
-                                disabled={!editedTitle.trim() || savingTitle}
-                                className="p-1 text-green-600 hover:bg-green-100 rounded transition-colors disabled:opacity-50"
+                                onClick={() => updateScanTitle(scan.id)}
+                                className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
                                 title="Save title"
                               >
-                                {savingTitle ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Check className="w-4 h-4" />
-                                )}
+                                <Check className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  cancelEditingTitle();
-                                }}
-                                className="p-1 text-gray-500 hover:bg-gray-100 rounded transition-colors"
+                                onClick={cancelEditingTitle}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
                                 title="Cancel editing"
                               >
                                 <X className="w-4 h-4" />
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center space-x-2 flex-1">
-                              <span className="font-medium text-gray-900 flex-1">
-                                {scan.jobTitle || 'Untitled Scan'}
-                              </span>
+                            // Display mode
+                            <>
+                              <div className="flex items-center space-x-2 flex-1">
+                                {scan.jobTitle ? (
+                                  <span className="font-medium text-gray-900">{scan.jobTitle}</span>
+                                ) : (
+                                  <span className="text-gray-400 italic">No title</span>
+                                )}
+                                
+                                {/* Edit and AI Generate buttons */}
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      startEditingTitle(scan);
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                                    title="Edit title"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
+                                  
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      generateAITitle(scan.id);
+                                    }}
+                                    disabled={generatingTitle === scan.id}
+                                    className="p-1 text-purple-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors disabled:opacity-50"
+                                    title="Generate AI title"
+                                  >
+                                    {generatingTitle === scan.id ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <Sparkles className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
                               
-                              {/* AI Generate Title Button */}
-                              {(!scan.jobTitle || scan.jobTitle === 'Enhanced AI Scan' || scan.jobTitle === 'Advanced Scan') && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    generateAITitle(scan.id);
-                                  }}
-                                  disabled={generatingTitles.has(scan.id)}
-                                  className="p-1 text-purple-600 hover:bg-purple-100 rounded transition-colors disabled:opacity-50"
-                                  title="Generate AI title"
-                                >
-                                  {generatingTitles.has(scan.id) ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <Sparkles className="w-4 h-4" />
-                                  )}
-                                </button>
+                              {scan.companyName && (
+                                <>
+                                  <span className="text-gray-400">•</span>
+                                  <div className="flex items-center text-gray-600">
+                                    <Building className="w-4 h-4 mr-1" />
+                                    <span>{scan.companyName}</span>
+                                  </div>
+                                </>
                               )}
-                              
-                              {/* Edit Title Button */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  startEditingTitle(scan.id, scan.jobTitle || '');
-                                }}
-                                className="p-1 text-gray-500 hover:bg-gray-100 rounded transition-colors"
-                                title="Edit title"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                            </div>
+                            </>
                           )}
                         </div>
-                        
-                        {/* Company Name */}
-                        {scan.companyName && (
-                          <div className="flex items-center text-gray-600 mb-1">
-                            <Building className="w-4 h-4 mr-1" />
-                            <span>{scan.companyName}</span>
-                          </div>
-                        )}
                         
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center text-sm text-gray-500">

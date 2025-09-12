@@ -1926,7 +1926,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
       res.status(500).json({ error: 'Failed to fetch scan history' });
     }
   });
-  
+
   // Generate AI title for scan
   router.post('/scan/:id/generate-title', authenticateToken, async (req: any, res) => {
     try {
