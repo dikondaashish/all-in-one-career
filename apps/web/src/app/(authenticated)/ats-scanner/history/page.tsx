@@ -316,62 +316,6 @@ const ScanHistoryPage: React.FC = () => {
     }
   };
 
-  // Test functions for debugging
-  const testAtsEndpoint = async () => {
-    try {
-      const authToken = await user?.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/ats/test-endpoint`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      const data = await response.json();
-      console.log('Test endpoint result:', data);
-      showToast({
-        icon: '✅',
-        title: 'Test Successful',
-        message: 'GET endpoint is working'
-      });
-    } catch (error) {
-      console.error('Test endpoint error:', error);
-      showToast({
-        icon: '❌',
-        title: 'Test Failed',
-        message: 'GET endpoint failed'
-      });
-    }
-  };
-
-  const testPatchEndpoint = async () => {
-    try {
-      const authToken = await user?.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/ats/test-patch`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ test: 'data' })
-      });
-      const data = await response.json();
-      console.log('Test PATCH result:', data);
-      showToast({
-        icon: '✅',
-        title: 'PATCH Test Successful',
-        message: 'PATCH method is working'
-      });
-    } catch (error) {
-      console.error('Test PATCH error:', error);
-      showToast({
-        icon: '❌',
-        title: 'PATCH Test Failed',
-        message: 'PATCH method failed'
-      });
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -425,21 +369,6 @@ const ScanHistoryPage: React.FC = () => {
               </p>
             </div>
             
-            {/* Debug buttons - temporary for testing */}
-            <div className="ml-auto flex space-x-2">
-              <button
-                onClick={testAtsEndpoint}
-                className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200"
-              >
-                Test GET
-              </button>
-              <button
-                onClick={testPatchEndpoint}
-                className="px-3 py-1 bg-purple-100 text-purple-800 rounded text-sm hover:bg-purple-200"
-              >
-                Test PATCH
-              </button>
-            </div>
           </div>
         </div>
       </div>

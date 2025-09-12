@@ -1869,13 +1869,20 @@ export default function atsRouter(prisma: PrismaClient): Router {
         // Basic scans (already in correct format)
         ...basicScans,
         
-        // Advanced scans (v1) - extract job title and company from JSON or text
+        // Advanced scans (v1) - extract job title from custom field or fallback
         ...advancedScans.map(scan => {
-          // Try to extract job title from job description
-          const jobTitleMatch = scan.jobDescription?.match(/(?:job title|position|role):\s*([^\n]+)/i);
-          const jobTitle = jobTitleMatch?.[1]?.trim() || 
-                          scan.jobDescription?.split('\n')[0]?.trim().slice(0, 50) || 
-                          'Advanced Scan';
+          // First try to get custom title, then fallback to extraction
+          const detailedAnalysis = scan.detailedAnalysis as any;
+          const customTitle = detailedAnalysis?.customTitle;
+          
+          let jobTitle = customTitle;
+          if (!jobTitle) {
+            // Try to extract job title from job description as fallback
+            const jobTitleMatch = scan.jobDescription?.match(/(?:job title|position|role):\s*([^\n]+)/i);
+            jobTitle = jobTitleMatch?.[1]?.trim() || 
+                      scan.jobDescription?.split('\n')[0]?.trim().slice(0, 50) || 
+                      'Advanced Scan';
+          }
           
           return {
             id: scan.id,
@@ -1887,16 +1894,22 @@ export default function atsRouter(prisma: PrismaClient): Router {
           };
         }),
         
-        // V2 scans - extract data from JSON fields
+        // V2 scans - extract data from JSON fields with custom title priority
         ...v2Scans.map(scan => {
           const overallScore = (scan.overallScoreV2 as any)?.overall || 75;
           const atsChecks = scan.atsChecks as any;
           const industry = scan.industryJson as any;
           
-          // Extract job title from atsChecks or industry data
-          const jobTitle = atsChecks?.jobTitleMatch?.title || 
-                          industry?.industryDetection?.detectedIndustry || 
-                          'Enhanced AI Scan';
+          // First try custom title, then fallback to extracted data
+          const customTitle = atsChecks?.customTitle;
+          let jobTitle = customTitle;
+          
+          if (!jobTitle) {
+            // Extract job title from atsChecks or industry data as fallback
+            jobTitle = atsChecks?.jobTitleMatch?.title || 
+                      industry?.industryDetection?.detectedIndustry || 
+                      'Enhanced AI Scan';
+          }
           
           // Extract company name if available
           const companyName = atsChecks?.companyName || null;
@@ -1927,27 +1940,6 @@ export default function atsRouter(prisma: PrismaClient): Router {
     }
   });
 
-  // Test endpoint for debugging
-  router.get('/test-endpoint', authenticateToken, async (req: any, res) => {
-    res.status(200).json({ 
-      success: true,
-      message: 'ATS endpoints are working',
-      timestamp: new Date().toISOString(),
-      userId: req.user?.uid || req.user?.id
-    });
-  });
-
-  // Test PATCH method specifically
-  router.patch('/test-patch', authenticateToken, async (req: any, res) => {
-    res.status(200).json({ 
-      success: true,
-      message: 'PATCH method is working',
-      timestamp: new Date().toISOString(),
-      userId: req.user?.uid || req.user?.id,
-      body: req.body
-    });
-  });
-
   // Generate AI title for scan
   router.post('/scan/:id/generate-title', authenticateToken, async (req: any, res) => {
     try {
@@ -1970,7 +1962,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
         prisma.atsScan.findFirst({ where: { id, userId } }),
         prisma.atsScanAdvanced.findFirst({ 
           where: { id, userId },
-          select: { id: true, jobDescription: true, resumeText: true, companyName: true }
+          select: { id: true, jobDescription: true, resumeText: true, companyName: true, detailedAnalysis: true }
         }),
         prisma.atsScanV2.findFirst({ 
           where: { id, userId },
@@ -2134,15 +2126,16 @@ Return only the title, nothing else.`;
         });
       } else if (advancedScan) {
         console.log('Updating advanced scan...');
-        // For advanced scans, we'll update the jobDescription field to start with the new title
-        const existingDescription = advancedScan.jobDescription || '';
-        const lines = existingDescription.split('\n');
-        // Replace the first line with our new title, or prepend it
-        const updatedDescription = [trimmedTitle, ...lines.slice(1)].join('\n');
+        // For advanced scans, we'll store the title in the detailedAnalysis JSON field
+        const existingAnalysis = (advancedScan.detailedAnalysis as any) || {};
+        const updatedAnalysis = {
+          ...existingAnalysis,
+          customTitle: trimmedTitle  // Store custom title here
+        };
         
         updateResult = await prisma.atsScanAdvanced.update({
           where: { id },
-          data: { jobDescription: updatedDescription }
+          data: { detailedAnalysis: updatedAnalysis }
         });
       } else if (v2Scan) {
         console.log('Updating V2 scan...');
@@ -2150,6 +2143,7 @@ Return only the title, nothing else.`;
         const atsChecks = v2Scan.atsChecks as any;
         const updatedAtsChecks = {
           ...atsChecks,
+          customTitle: trimmedTitle,  // Store custom title at root level
           jobTitleMatch: {
             ...atsChecks?.jobTitleMatch,
             title: trimmedTitle
