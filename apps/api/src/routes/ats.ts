@@ -1951,10 +1951,17 @@ export default function atsRouter(prisma: PrismaClient): Router {
   // Generate AI title for scan
   router.post('/scan/:id/generate-title', authenticateToken, async (req: any, res) => {
     try {
+      console.log('POST /scan/:id/generate-title - Request received');
+      console.log('Request params:', req.params);
+      console.log('Auth user:', req.user);
+
       const userId = req.user?.uid || req.user?.id;
       const { id } = req.params;
 
+      console.log('Extracted data:', { userId, id });
+
       if (!userId) {
+        console.log('Authentication failed - no userId');
         return res.status(401).json({ error: 'User authentication required' });
       }
 
@@ -2074,39 +2081,59 @@ Return only the title, nothing else.`;
   // Update scan title
   router.patch('/scan/:id/title', authenticateToken, async (req: any, res) => {
     try {
+      console.log('PATCH /scan/:id/title - Request received');
+      console.log('Request params:', req.params);
+      console.log('Request body:', req.body);
+      console.log('Auth user:', req.user);
+
       const userId = req.user?.uid || req.user?.id;
       const { id } = req.params;
       const { title } = req.body;
 
+      console.log('Extracted data:', { userId, id, title });
+
       if (!userId) {
+        console.log('Authentication failed - no userId');
         return res.status(401).json({ error: 'User authentication required' });
       }
 
       if (!title || typeof title !== 'string' || title.trim().length === 0) {
+        console.log('Validation failed - invalid title');
         return res.status(400).json({ error: 'Title is required and must be a non-empty string' });
       }
 
       if (title.length > 100) {
+        console.log('Validation failed - title too long');
         return res.status(400).json({ error: 'Title must be 100 characters or less' });
       }
 
       const trimmedTitle = title.trim();
+      console.log('Processing title update for scan:', id, 'with title:', trimmedTitle);
 
       // Find which table contains the scan and update accordingly
+      console.log('Searching for scan in all tables...');
       const [basicScan, advancedScan, v2Scan] = await Promise.all([
         prisma.atsScan.findFirst({ where: { id, userId } }),
         prisma.atsScanAdvanced.findFirst({ where: { id, userId } }),
         prisma.atsScanV2.findFirst({ where: { id, userId } })
       ]);
 
+      console.log('Scan lookup results:', {
+        basicScan: !!basicScan,
+        advancedScan: !!advancedScan,
+        v2Scan: !!v2Scan
+      });
+
       let updateResult = null;
 
       if (basicScan) {
+        console.log('Updating basic scan...');
         updateResult = await prisma.atsScan.update({
           where: { id },
           data: { jobTitle: trimmedTitle }
         });
       } else if (advancedScan) {
+        console.log('Updating advanced scan...');
         // For advanced scans, we'll update the jobDescription field to start with the new title
         const existingDescription = advancedScan.jobDescription || '';
         const lines = existingDescription.split('\n');
@@ -2118,6 +2145,7 @@ Return only the title, nothing else.`;
           data: { jobDescription: updatedDescription }
         });
       } else if (v2Scan) {
+        console.log('Updating V2 scan...');
         // For V2 scans, we need to update the atsChecks JSON field
         const atsChecks = v2Scan.atsChecks as any;
         const updatedAtsChecks = {
@@ -2133,10 +2161,11 @@ Return only the title, nothing else.`;
           data: { atsChecks: updatedAtsChecks }
         });
       } else {
+        console.log('No scan found for user');
         return res.status(404).json({ error: 'Scan not found' });
       }
 
-      console.log(`Updated scan title for ${id}: "${trimmedTitle}"`);
+      console.log(`Successfully updated scan title for ${id}: "${trimmedTitle}"`);
       
       res.status(200).json({ 
         success: true, 
@@ -2145,8 +2174,9 @@ Return only the title, nothing else.`;
       });
 
     } catch (error) {
+      console.error('Error updating scan title:', error);
       logger.error('Error updating scan title: ' + (error as Error).message);
-      res.status(500).json({ error: 'Failed to update scan title' });
+      res.status(500).json({ error: 'Failed to update scan title', details: error.message });
     }
   });
 
