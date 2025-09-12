@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { Printer, Loader2 } from 'lucide-react';
 import { printElementToPdf } from '@/lib/printReport';
+import { printElementToPdfSimple } from '@/lib/printReportSimple';
 
 interface PrintButtonProps {
   scanId: string;
@@ -31,10 +32,22 @@ export const PrintButton: React.FC<PrintButtonProps> = ({ scanId }) => {
       
       // Generate PDF with the scan ID in filename
       const fileName = `ats-report-${scanId}.pdf`;
-      const success = await printElementToPdf(printArea, fileName);
+      
+      console.log('Attempting advanced PDF generation...');
+      let success = await printElementToPdf(printArea, fileName);
       
       if (!success) {
-        console.warn('PDF generation failed, but fallback was used');
+        console.log('Advanced PDF generation failed, trying simple approach...');
+        success = await printElementToPdfSimple(printArea, fileName);
+        
+        if (!success) {
+          console.warn('Both PDF generation methods failed');
+          alert('PDF generation failed. Please check the browser console for details and try again. You can also try refreshing the page.');
+        } else {
+          console.log('Simple PDF generation succeeded');
+        }
+      } else {
+        console.log('Advanced PDF generation succeeded');
       }
     } catch (error) {
       console.error('Error during print operation:', error);
