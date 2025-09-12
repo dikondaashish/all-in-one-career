@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Import all v2 services
 import { runAtsChecks } from '../services/atsChecks.service';
@@ -25,7 +26,89 @@ import { authenticateToken } from '../middleware/auth';
 const router: Router = Router();
 const prisma = new PrismaClient();
 
+// Initialize Gemini AI for title generation
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
 // OPTIONS requests are handled by the main CORS middleware in index.ts
+
+// Helper function to generate AI title for a scan
+async function generateAITitleForScan(scanData: any): Promise<string> {
+  try {
+    const { atsChecks, industryJson, companyOpt } = scanData;
+    
+    // Extract data for title generation
+    let jobTitle = '';
+    let companyName = '';
+    let detectedIndustry = '';
+    let jobDescription = '';
+
+    // Extract from atsChecks
+    if (atsChecks) {
+      jobTitle = atsChecks.originalJobTitle || atsChecks.jobTitleMatch?.title || '';
+      companyName = atsChecks.originalCompanyHint || '';
+      jobDescription = atsChecks.originalJobDescription || '';
+    }
+
+    // Extract from industryJson
+    if (industryJson?.detected?.primary) {
+      detectedIndustry = industryJson.detected.primary;
+    }
+
+    // Extract from companyOpt if available
+    if (companyOpt?.companyName) {
+      companyName = companyOpt.companyName;
+    }
+
+    console.log('Title generation data:', { jobTitle, companyName, detectedIndustry, hasJobDescription: !!jobDescription });
+
+    // If we have sufficient data, use AI
+    if (jobTitle || companyName || (jobDescription && jobDescription.length > 50)) {
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.0-flash-exp',
+        systemInstruction: 'You are a professional title generator for job applications. Create a concise, professional title based on the job role and company information provided.'
+      });
+
+      const prompt = `Generate a concise professional title for this job application:
+Job Title: ${jobTitle || 'Not specified'}
+Company Name: ${companyName || 'Not specified'}
+Industry: ${detectedIndustry || 'Not specified'}
+Job Details: ${jobDescription ? jobDescription.slice(0, 500) : 'Not provided'}
+
+Requirements:
+- Keep it under 60 characters
+- Format: "Job Title at Company" or "Job Title - Company" or just "Job Title" if no company
+- Use the actual job title and company name from the data
+- Be professional and clear
+- If no clear job title, use the industry or a descriptive term
+
+Return only the title, no extra text.`;
+
+      const result = await model.generateContent(prompt);
+      const generatedText = result.response.text();
+      const cleanTitle = generatedText.replace(/['"]/g, '').trim();
+      
+      if (cleanTitle && cleanTitle.length > 0 && cleanTitle.length <= 100) {
+        return cleanTitle.slice(0, 60); // Ensure max 60 chars
+      }
+    }
+
+    // Fallback title generation
+    if (jobTitle && companyName) {
+      return `${jobTitle} at ${companyName}`.slice(0, 60);
+    } else if (jobTitle) {
+      return jobTitle.slice(0, 60);
+    } else if (companyName) {
+      return `Application at ${companyName}`.slice(0, 60);
+    } else if (detectedIndustry) {
+      return `Position - ${detectedIndustry}`.slice(0, 60);
+    }
+    
+    return `Enhanced AI Scan - ${new Date().toLocaleDateString()}`;
+  } catch (error) {
+    console.error('AI title generation failed:', error);
+    return `Enhanced AI Scan - ${new Date().toLocaleDateString()}`;
+  }
+}
 
 /**
  * POST /api/ats/advanced-scan/v2
@@ -133,6 +216,38 @@ router.post('/advanced-scan/v2', authenticateToken, async (req: Request, res: Re
       }
     });
     console.log('✅ V2 scan saved with ID:', scanId);
+    
+    // === PHASE 7.5: GENERATE AI TITLE FOR SCAN ===
+    console.log('🤖 Generating AI title for scan...');
+    try {
+      const generatedTitle = await generateAITitleForScan({
+        atsChecks: enhancedAtsChecks,
+        industryJson: industryMarket,
+        companyOpt: companyOptimization
+      });
+      
+      console.log('✅ Generated title:', generatedTitle);
+      
+      // Update the scan with the generated title
+      const updatedAtsChecks = {
+        ...enhancedAtsChecks,
+        customTitle: generatedTitle,
+        jobTitleMatch: {
+          ...enhancedAtsChecks.jobTitleMatch,
+          title: generatedTitle
+        }
+      };
+      
+      await prisma.atsScanV2.update({
+        where: { id: scanId },
+        data: { atsChecks: JSON.parse(JSON.stringify(updatedAtsChecks)) }
+      });
+      
+      console.log('✅ Title saved to scan record');
+    } catch (titleError) {
+      console.error('❌ Failed to generate or save title:', titleError);
+      // Continue with scan creation even if title generation fails
+    }
     
     // === PHASE 8: CALCULATE OVERALL SCORE V2 ===
     const { available, total } = calculateSignalAvailability({
