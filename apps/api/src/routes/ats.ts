@@ -1470,7 +1470,15 @@ export default function atsRouter(prisma: PrismaClient): Router {
       // Find the scan in V2 table only
       const v2Scan = await prisma.atsScanV2.findFirst({ 
         where: { id, userId },
-        select: { id: true, atsChecks: true, industryJson: true }
+        select: { 
+          id: true, 
+          atsChecks: true, 
+          industryJson: true,
+          skillsSplit: true,
+          recruiterPsych: true,
+          marketJson: true,
+          companyOpt: true
+        }
       });
 
       if (!v2Scan) {
@@ -1479,35 +1487,102 @@ export default function atsRouter(prisma: PrismaClient): Router {
 
       const atsChecks = v2Scan.atsChecks as any;
       const industry = v2Scan.industryJson as any;
+      const companyOpt = v2Scan.companyOpt as any;
       
-      // Extract job info from V2 scan JSON data
-      let jobDescription = atsChecks?.originalJobDescription || '';
-      const companyName = atsChecks?.companyName || '';
+      console.log('V2 Scan data for title generation:', {
+        hasAtsChecks: !!atsChecks,
+        hasIndustry: !!industry,
+        hasCompanyOpt: !!companyOpt,
+        atsChecksKeys: atsChecks ? Object.keys(atsChecks) : [],
+        industryKeys: industry ? Object.keys(industry) : [],
+        companyOptKeys: companyOpt ? Object.keys(companyOpt) : []
+      });
       
-      // If no direct job description, build from available data
-      if (!jobDescription && industry?.industryDetection) {
-        jobDescription = `${industry.industryDetection.detectedIndustry} position`;
+      // Extract job info from V2 JSON structure
+      let jobDescription = '';
+      let companyName = '';
+      let jobTitle = '';
+      
+      // Extract job title from atsChecks
+      if (atsChecks?.jobTitleMatch?.title) {
+        jobTitle = atsChecks.jobTitleMatch.title;
+      }
+      
+      // Extract company name from multiple sources
+      if (companyOpt?.companyName) {
+        companyName = companyOpt.companyName;
+      } else if (atsChecks?.companyName) {
+        companyName = atsChecks.companyName;
+      } else if (industry?.companyName) {
+        companyName = industry.companyName;
+      }
+      
+      // For job description, try to reconstruct from available data
+      if (jobTitle && industry?.industryDetection?.detectedIndustry) {
+        jobDescription = `${jobTitle} position in ${industry.industryDetection.detectedIndustry} industry`;
+        if (companyName) {
+          jobDescription += ` at ${companyName}`;
+        }
+      } else if (jobTitle) {
+        jobDescription = `${jobTitle} position`;
+        if (companyName) {
+          jobDescription += ` at ${companyName}`;
+        }
+      } else if (industry?.industryDetection?.detectedIndustry) {
+        jobDescription = `Position in ${industry.industryDetection.detectedIndustry} industry`;
+        if (companyName) {
+          jobDescription += ` at ${companyName}`;
+        }
+      }
+      
+      console.log('Extracted data for AI title generation:', {
+        jobTitle,
+        jobDescriptionLength: jobDescription.length,
+        jobDescriptionPreview: jobDescription.slice(0, 100),
+        companyName,
+        detectedIndustry: industry?.industryDetection?.detectedIndustry,
+        hasJobTitle: !!jobTitle,
+        hasJobDescription: !!jobDescription,
+        hasCompanyName: !!companyName
+      });
+      
+      // If we have a job title, we can generate a good title even without full job description
+      if (!jobTitle && !jobDescription && !companyName) {
+        console.warn('No job title, description, or company name found for title generation');
+        return res.status(400).json({ 
+          error: 'Insufficient data for title generation',
+          details: 'No job title, description, or company information found in scan data'
+        });
       }
 
       // Generate AI title using Gemini
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.0-flash-exp',
-        systemInstruction: 'You are a professional title generator. Create concise, professional job application titles.'
+        systemInstruction: 'You are a professional title generator for job applications. Extract the job role and company name from the provided information and create a concise title.'
       });
 
-      const prompt = `Based on this job application data, generate a concise, professional title (max 60 characters) that includes the job role and company if available.
+      const prompt = `Create a professional job application title based on the following information:
 
-Job Description: ${jobDescription.slice(0, 1000)}
-${companyName ? `Company: ${companyName}` : ''}
+${jobTitle ? `Job Title: ${jobTitle}` : ''}
+${companyName ? `Company Name: ${companyName}` : ''}
+${industry?.industryDetection?.detectedIndustry ? `Industry: ${industry.industryDetection.detectedIndustry}` : ''}
+${jobDescription ? `Additional Context: ${jobDescription.slice(0, 500)}` : ''}
 
-Generate a title in this format: "[Job Role] at [Company]" or "[Job Role] - [Industry/Field]" if no company.
+REQUIREMENTS:
+1. Use the provided job title as the main role
+2. Include the company name if provided
+3. Format: "[Job Role] at [Company]" or "[Job Role] - [Industry]" if no company
+4. Maximum 60 characters
+5. Return ONLY the title, no quotes, no explanations
+
 Examples:
 - "Software Engineer at Google"
 - "Marketing Manager at Tesla" 
 - "Data Scientist - Healthcare"
 - "Frontend Developer - Fintech"
+- "Product Manager at Microsoft"
 
-Return only the title, nothing else.`;
+Title:`;
 
       try {
         const result = await model.generateContent(prompt);
@@ -1534,16 +1609,25 @@ Return only the title, nothing else.`;
       } catch (aiError) {
         console.error('AI title generation failed:', aiError);
         
-        // Fallback title generation
+        // Fallback title generation using extracted data
         let fallbackTitle = 'Job Application';
         
-        if (companyName) {
-          fallbackTitle = `Application at ${companyName}`;
-        } else if (jobDescription) {
-          const firstLine = jobDescription.split('\n')[0]?.trim();
-          if (firstLine && firstLine.length > 0) {
-            fallbackTitle = firstLine.slice(0, 50) + (firstLine.length > 50 ? '...' : '');
+        if (jobTitle && companyName) {
+          fallbackTitle = `${jobTitle} at ${companyName}`;
+        } else if (jobTitle) {
+          fallbackTitle = jobTitle;
+          if (industry?.industryDetection?.detectedIndustry) {
+            fallbackTitle += ` - ${industry.industryDetection.detectedIndustry}`;
           }
+        } else if (companyName) {
+          fallbackTitle = `Application at ${companyName}`;
+        } else if (industry?.industryDetection?.detectedIndustry) {
+          fallbackTitle = `Position - ${industry.industryDetection.detectedIndustry}`;
+        }
+        
+        // Ensure title is within 60 characters
+        if (fallbackTitle.length > 60) {
+          fallbackTitle = fallbackTitle.slice(0, 57) + '...';
         }
         
         res.status(200).json({
