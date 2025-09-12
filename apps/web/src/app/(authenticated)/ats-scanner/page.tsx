@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, Link, Zap, Search, AlertCircle, FileText, Loader2, History, Clock } from 'lucide-react';
 import { useToast } from '../../../components/notifications/ToastContainer';
@@ -40,6 +40,27 @@ const ATSScanner: React.FC = () => {
     resume?: { show: boolean; running: boolean; jobId?: string; s3Key?: string; filename?: string; fileBuffer?: string };
     job?: { show: boolean; running: boolean; jobId?: string; s3Key?: string; filename?: string; fileBuffer?: string };
   }>({});
+
+  // Check for saved resume data on component mount
+  useEffect(() => {
+    const savedResumeData = localStorage.getItem('selectedResumeData');
+    if (savedResumeData) {
+      try {
+        const resumeData = JSON.parse(savedResumeData);
+        setResumeData(resumeData);
+        showToast({
+          icon: '✅',
+          title: 'Resume Loaded',
+          message: `Resume "${resumeData.filename}" has been loaded`
+        });
+        // Clear the localStorage after using it
+        localStorage.removeItem('selectedResumeData');
+      } catch (error) {
+        console.error('Failed to parse saved resume data:', error);
+        localStorage.removeItem('selectedResumeData'); // Clean up invalid data
+      }
+    }
+  }, [showToast]);
 
   const handleFileUpload = async (file: File, type: 'resume' | 'job') => {
     setIsUploading(true);

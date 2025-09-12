@@ -1380,7 +1380,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
     }
   });
 
-
+      
 
   // Get user's scan history
   router.get('/history', authenticateToken, async (req: any, res) => {
@@ -1974,6 +1974,7 @@ Title:`;
         select: {
           id: true,
           resumeName: true,
+          resumeText: true,
           createdAt: true
         }
       });

@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileText, Calendar, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileText, Calendar, Loader2, Trash2, X, Eye, Upload } from 'lucide-react';
 import { useToast } from '../../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface SavedResume {
   id: string;
   resumeName: string;
+  resumeText: string;
   createdAt: string;
 }
 
@@ -20,6 +21,8 @@ const SavedResumesPage: React.FC = () => {
   const { user } = useAuth();
   const [resumes, setResumes] = useState<SavedResume[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [selectedResume, setSelectedResume] = useState<SavedResume | null>(null);
 
   useEffect(() => {
     fetchSavedResumes();
@@ -76,6 +79,34 @@ const SavedResumesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUseResume = (resume: SavedResume) => {
+    // Store the resume data in localStorage to be picked up by the ATS scanner
+    localStorage.setItem('selectedResumeData', JSON.stringify({
+      text: resume.resumeText,
+      filename: `${resume.resumeName}.txt`,
+      source: 'saved' as const
+    }));
+    
+    showToast({
+      icon: '✅',
+      title: 'Resume Selected',
+      message: `"${resume.resumeName}" is ready to use`
+    });
+    
+    // Navigate to ATS scanner
+    router.push('/ats-scanner');
+  };
+
+  const handleViewResume = (resume: SavedResume) => {
+    setSelectedResume(resume);
+    setViewModalOpen(true);
+  };
+
+  const closeViewModal = () => {
+    setViewModalOpen(false);
+    setSelectedResume(null);
   };
 
   if (loading) {
@@ -158,23 +189,17 @@ const SavedResumesPage: React.FC = () => {
                 
                 <div className="mt-4 flex space-x-2">
                   <button
-                    onClick={() => showToast({ 
-                      icon: '📄', 
-                      title: 'Coming Soon', 
-                      message: 'Use resume feature coming soon!' 
-                    })}
-                    className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    onClick={() => handleUseResume(resume)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
                   >
+                    <Upload className="w-4 h-4" />
                     Use Resume
                   </button>
                   <button
-                    onClick={() => showToast({ 
-                      icon: '👁️', 
-                      title: 'Coming Soon', 
-                      message: 'View resume feature coming soon!' 
-                    })}
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                    onClick={() => handleViewResume(resume)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium"
                   >
+                    <Eye className="w-4 h-4" />
                     View
                   </button>
                 </div>
@@ -183,6 +208,63 @@ const SavedResumesPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* View Resume Modal */}
+      {viewModalOpen && selectedResume && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">{selectedResume.resumeName}</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Saved on {new Date(selectedResume.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <button
+                onClick={closeViewModal}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 p-6 overflow-y-auto">
+              <div className="bg-gray-50 rounded-lg p-4 border">
+                <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono leading-relaxed">
+                  {selectedResume.resumeText}
+                </pre>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between p-6 border-t bg-gray-50">
+              <div className="text-sm text-gray-500">
+                {selectedResume.resumeText.length} characters
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={closeViewModal}
+                  className="px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    handleUseResume(selectedResume);
+                    closeViewModal();
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  Use This Resume
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
