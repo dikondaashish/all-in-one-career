@@ -1575,7 +1575,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
       // Try to extract job title from any text fields if still not found
       if (!jobTitle && atsChecks?.originalJobDescription) {
         // Extract job title from original job description using same logic as V2 scan
-        const lines = atsChecks.originalJobDescription.split('\n').filter(line => line.trim().length > 0);
+        const lines = atsChecks.originalJobDescription.split('\n').filter((line: string) => line.trim().length > 0);
         
         for (const line of lines.slice(0, 5)) {
           const cleaned = line.trim();
@@ -1666,7 +1666,7 @@ export default function atsRouter(prisma: PrismaClient): Router {
         if (atsChecks) {
           const allValues = Object.values(atsChecks).filter(v => typeof v === 'string' && v.length > 0);
           if (allValues.length > 0) {
-            const firstText = allValues[0];
+            const firstText = allValues[0] as string;
             if (firstText.length > 3 && firstText.length < 100) {
               emergencyTitle = firstText.slice(0, 50);
             }
@@ -1898,7 +1898,7 @@ Title:`;
     } catch (error) {
       console.error('Error updating scan title:', error);
       logger.error('Error updating scan title: ' + (error as Error).message);
-      res.status(500).json({ error: 'Failed to update scan title', details: error.message });
+      res.status(500).json({ error: 'Failed to update scan title', details: (error as Error).message });
     }
   });
 
