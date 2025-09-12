@@ -562,13 +562,24 @@ const ATSScanner: React.FC = () => {
               message: `"${resumeName}" has been saved for future use`
             });
           } else {
-            const saveError = await saveResumeResponse.json();
-            console.warn('Failed to save resume:', saveError);
-            showToast({
-              icon: '⚠️',
-              title: 'Resume Save Failed',
-              message: saveError.error || 'Failed to save resume, but continuing with scan...'
-            });
+            // Check if response is HTML (404 error) or JSON
+            const contentType = saveResumeResponse.headers.get('content-type');
+            if (contentType && contentType.includes('text/html')) {
+              console.warn('Resume save endpoint not found (404 HTML response)');
+              showToast({
+                icon: '⚠️',
+                title: 'Resume Save Unavailable',
+                message: 'Resume save feature is temporarily unavailable. Continuing with scan...'
+              });
+            } else {
+              const saveError = await saveResumeResponse.json();
+              console.warn('Failed to save resume:', saveError);
+              showToast({
+                icon: '⚠️',
+                title: 'Resume Save Failed',
+                message: saveError.error || 'Failed to save resume, but continuing with scan...'
+              });
+            }
           }
         } catch (saveError) {
           console.error('Error saving resume:', saveError);
