@@ -36,6 +36,36 @@ interface ParsedResumeData {
     linkedin?: string;
     portfolio?: string;
   };
+  bioGenerated?: string; // AI-generated "About Me" section
+}
+
+// Generate AI bio from structured resume data
+async function generateAIBio(parsedData: ParsedResumeData): Promise<string> {
+  const systemPrompt = `You are creating a personal bio for a professional portfolio website. Write warm, engaging, and concise About Me sections that sound natural and professional.`;
+  
+  const userPrompt = `Based on the following resume data, write a warm and concise "About Me" paragraph (2-3 sentences) for a personal portfolio website. Make it engaging and professional:
+
+RESUME DATA:
+Name: ${parsedData.name}
+${parsedData.headline ? `Title: ${parsedData.headline}` : ''}
+${parsedData.summary ? `Summary: ${parsedData.summary}` : ''}
+
+Experience: ${parsedData.experience.map(exp => `${exp.title} at ${exp.company}`).join(', ')}
+
+Skills: ${parsedData.skills.join(', ')}
+
+${parsedData.education.length > 0 ? `Education: ${parsedData.education.map(edu => `${edu.degree} from ${edu.school}`).join(', ')}` : ''}
+
+Write a compelling About Me that introduces them professionally but warmly. Return ONLY the bio text, no quotes or formatting.`;
+
+  try {
+    const generatedBio = await geminiGenerate('gemini-2.0-flash-exp', systemPrompt, userPrompt);
+    return generatedBio.trim();
+  } catch (error) {
+    console.error('Failed to generate AI bio:', error);
+    // Return a fallback bio
+    return `${parsedData.name} is a dedicated professional with experience in ${parsedData.experience.length > 0 ? parsedData.experience[0]?.title || 'their field' : 'their field'}. ${parsedData.skills.length > 0 ? `Skilled in ${parsedData.skills.slice(0, 3).join(', ')}.` : ''} Passionate about delivering excellent results and continuous learning.`;
+  }
 }
 
 // Parse resume text into structured JSON using AI
@@ -224,6 +254,13 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
       
       console.log(`✅ Parsed resume data for: ${parsedResumeData.name}`);
 
+      // Generate AI bio for portfolio
+      console.log('✍️ Generating AI bio...');
+      const generatedBio = await generateAIBio(parsedResumeData);
+      parsedResumeData.bioGenerated = generatedBio;
+      
+      console.log(`✅ Generated bio: ${generatedBio.substring(0, 50)}...`);
+
       // Clean up temporary file
       try {
         fs.unlinkSync(req.file.path);
@@ -303,6 +340,7 @@ Requirements:
 8. Format experience and education chronologically
 9. Display skills as badges or organized lists
 10. Include contact information in a professional manner
+11. Use the bioGenerated field for the About/Bio section if available
 
 Return ONLY the complete HTML document with embedded CSS - no explanations, no markdown formatting, no code blocks.`;
 

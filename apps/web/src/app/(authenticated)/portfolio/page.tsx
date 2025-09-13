@@ -45,6 +45,7 @@ interface ParsedResumeData {
     linkedin?: string;
     portfolio?: string;
   };
+  bioGenerated?: string;
 }
 
 interface Template {
@@ -203,12 +204,16 @@ function PortfolioContent() {
         parsedData: result.data.parsedData
       });
 
-      // Show success message with extracted name
+      // Show success message with extracted name and bio
       const extractedName = result.data.parsedData?.name || 'resume';
+      const bioPreview = result.data.parsedData?.bioGenerated 
+        ? result.data.parsedData.bioGenerated.substring(0, 60) + '...'
+        : '';
+      
       showToast({
         icon: '✅',
         title: 'Resume Parsed Successfully',
-        message: `${extractedName}'s resume uploaded and parsed (${result.data.wordCount} words extracted)`
+        message: `${extractedName}'s resume uploaded and parsed with AI bio generated! ${bioPreview}`
       });
 
     } catch (error) {
