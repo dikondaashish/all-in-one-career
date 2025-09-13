@@ -128,6 +128,8 @@ function PortfolioContent() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [editableContent, setEditableContent] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
 
   // File upload handlers
   const handleFileSelect = async (file: File) => {
@@ -166,6 +168,9 @@ function PortfolioContent() {
     }
 
     try {
+      setIsUploading(true);
+      setUploadProgress('Uploading file...');
+
       // Create form data for file upload
       const formData = new FormData();
       formData.append('resume', file);
@@ -173,6 +178,8 @@ function PortfolioContent() {
       const authToken = await user.getIdToken();
       
       console.log('📤 Uploading file:', file.name, 'Size:', file.size, 'Type:', file.type);
+      
+      setUploadProgress('Processing file...');
       
       const response = await fetch(`${API_BASE_URL}/api/portfolio/upload-resume`, {
         method: 'POST',
@@ -184,6 +191,8 @@ function PortfolioContent() {
 
       console.log('📥 Response status:', response.status);
       console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+
+      setUploadProgress('Extracting text from file...');
 
       if (!response.ok) {
         // Check if response is HTML (404 page) instead of JSON
@@ -207,7 +216,11 @@ function PortfolioContent() {
         }
       }
 
+      setUploadProgress('Parsing resume with AI...');
+      
       const result = await response.json();
+      
+      setUploadProgress('Generating AI bio...');
       
       setUploadedFile({
         file,
@@ -222,6 +235,8 @@ function PortfolioContent() {
         ? result.data.parsedData.bioGenerated.substring(0, 60) + '...'
         : '';
       
+      setUploadProgress('Complete!');
+      
       showToast({
         icon: '✅',
         title: 'Resume Parsed Successfully',
@@ -235,12 +250,17 @@ function PortfolioContent() {
         title: 'Upload Failed',
         message: error instanceof Error ? error.message : 'Failed to upload file'
       });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress('');
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+    
+    if (isUploading) return;
     
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
@@ -250,7 +270,9 @@ function PortfolioContent() {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragOver(true);
+    if (!isUploading) {
+      setIsDragOver(true);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -259,6 +281,8 @@ function PortfolioContent() {
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isUploading) return;
+    
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
       handleFileSelect(files[0]);
@@ -478,13 +502,55 @@ function PortfolioContent() {
                 
                 <div
                   className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
-                    isDragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                    isUploading 
+                      ? 'border-blue-300 bg-blue-50 cursor-not-allowed' 
+                      : isDragOver 
+                        ? 'border-blue-500 bg-blue-50' 
+                        : 'border-gray-300 hover:border-gray-400'
                   }`}
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
+                  onDrop={isUploading ? undefined : handleDrop}
+                  onDragOver={isUploading ? undefined : handleDragOver}
+                  onDragLeave={isUploading ? undefined : handleDragLeave}
                 >
-                  {uploadedFile ? (
+                  {isUploading ? (
+                    <div className="space-y-6">
+                      <div className="text-blue-600">
+                        <div className="relative w-16 h-16 mx-auto mb-4">
+                          <div className="absolute inset-0 rounded-full border-4 border-blue-200"></div>
+                          <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
+                        </div>
+                        <h3 className="font-medium text-lg">Processing Your Resume</h3>
+                        <p className="text-sm text-gray-600 mt-2">{uploadProgress}</p>
+                      </div>
+                      
+                      <div className="bg-blue-50 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-sm text-blue-700">
+                          <FileText className="w-4 h-4" />
+                          <span>Processing file...</span>
+                        </div>
+                        <div className="mt-2">
+                          <div className="w-full bg-blue-200 rounded-full h-1.5">
+                            <div className="bg-blue-600 h-1.5 rounded-full animate-pulse" style={{width: '60%'}}></div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span>Extracting text content</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                          <span>AI parsing resume data</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                          <span>Generating professional bio</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : uploadedFile ? (
                     <div className="space-y-4">
                       <div className="text-green-600">
                         <CheckCircle className="w-12 h-12 mx-auto mb-2" />
@@ -519,15 +585,21 @@ function PortfolioContent() {
                       </div>
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                        disabled={isUploading}
+                        className={`px-6 py-2 rounded-lg transition-colors ${
+                          isUploading 
+                            ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
                       >
-                        Choose File
+                        {isUploading ? 'Processing...' : 'Choose File'}
                       </button>
                       <input
                         ref={fileInputRef}
                         type="file"
                         accept=".pdf,.doc,.docx,.txt"
                         onChange={handleFileInputChange}
+                        disabled={isUploading}
                         className="hidden"
                       />
                     </div>

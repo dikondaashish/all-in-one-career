@@ -285,17 +285,10 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
           extractedText = fs.readFileSync(req.file.path, 'utf-8');
         } else if (req.file.mimetype === 'application/pdf') {
           console.log('📄 Processing PDF file');
-          // Read file as buffer and convert to Uint8Array for pdf-parse compatibility
+          // Read file as buffer and use the direct buffer function
           const pdfBuffer = fs.readFileSync(req.file.path);
-          console.log('📊 PDF buffer size:', pdfBuffer.length);
-          
-          // Convert Buffer to Uint8Array as required by pdf-parse
-          const pdfUint8Array = new Uint8Array(pdfBuffer);
-          console.log('📊 PDF Uint8Array size:', pdfUint8Array.length);
-          
-          const result = await extractPdfText(pdfUint8Array);
+          const result = await extractPdfText(pdfBuffer);
           extractedText = result.text;
-          console.log('✅ PDF text extracted, length:', extractedText.length);
         } else if (req.file.mimetype === 'application/msword' || 
                    req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
           console.log('📄 Processing DOC/DOCX file');
