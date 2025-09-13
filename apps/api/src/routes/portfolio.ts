@@ -3,7 +3,7 @@ import multer from 'multer';
 import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
 import { authenticateToken } from '../middleware/auth';
-import { generatePortfolioWithGemini } from '../lib/gemini';
+import { geminiGenerate } from '../lib/gemini';
 import { extractTextFromPDF } from '../lib/pdf-parser';
 import fs from 'fs';
 
@@ -97,26 +97,26 @@ export default function portfolioRouter(prisma: PrismaClient, logger: pino.Logge
       console.log(`Generating portfolio for user ${userId} with template ${templateId}`);
 
       // Generate portfolio content using Gemini AI
-      const portfolioPrompt = `
-Create a professional portfolio website in HTML and CSS format based on the following resume:
+      const systemPrompt = `You are a professional web developer specializing in creating beautiful portfolio websites. Generate complete HTML pages with embedded CSS that are responsive, modern, and professional.`;
+      
+      const userPrompt = `Create a professional portfolio website in HTML and CSS format based on the following resume:
 
 RESUME:
 ${resumeText}
 
 TEMPLATE STYLE: ${templateStyle || 'modern'}
 
-Please generate:
-1. Clean, semantic HTML structure
-2. Embedded CSS styles
-3. Professional design that matches the ${templateStyle || 'modern'} aesthetic
-4. Responsive layout
-5. Include sections for: Header/Hero, About, Experience, Skills, Education (if applicable), Contact
+Requirements:
+1. Complete HTML document with embedded <style> section
+2. Professional design matching the ${templateStyle || 'modern'} aesthetic
+3. Responsive layout that works on mobile and desktop
+4. Include sections for: Header/Hero, About, Experience, Skills, Education (if applicable), Contact
+5. Use appropriate colors, typography, and spacing
+6. Make it visually appealing and modern
 
-Make the design visually appealing, modern, and professional. Use appropriate colors, typography, and spacing.
-Return only the complete HTML with embedded CSS - no explanations or markdown formatting.
-`;
+Return ONLY the complete HTML document with embedded CSS - no explanations, no markdown formatting, no code blocks.`;
 
-      const generatedContent = await generatePortfolioWithGemini(portfolioPrompt);
+      const generatedContent = await geminiGenerate('gemini-2.0-flash-exp', systemPrompt, userPrompt);
       
       if (!generatedContent) {
         return res.status(500).json({ error: 'Failed to generate portfolio content' });
