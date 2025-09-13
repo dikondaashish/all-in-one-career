@@ -5,6 +5,7 @@ import { authenticateToken } from '../middleware/auth';
 import { geminiGenerate } from '../lib/gemini';
 import { extractTextFromPDF } from '../lib/pdf-parser';
 import fs from 'fs';
+import os from 'os';
 
 // Interface for parsed resume data
 interface ParsedResumeData {
@@ -145,7 +146,7 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
 
   // Configure multer for file uploads
   const upload = multer({
-    dest: 'temp/',
+    dest: os.tmpdir(), // Use system temp directory
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit as per specification
     fileFilter: (req, file, cb) => {
       const allowedTypes = [
@@ -166,13 +167,17 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
   // Upload and extract text from resume/LinkedIn PDF
   router.post('/upload-resume', authenticateToken, upload.single('resume'), async (req: any, res) => {
     try {
+      console.log('📁 Portfolio upload request received');
+      
       const userId = req.user?.uid || req.user?.id;
       
       if (!userId) {
+        console.log('❌ No user ID found in request');
         return res.status(401).json({ error: 'User authentication required' });
       }
 
       if (!req.file) {
+        console.log('❌ No file found in request');
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
@@ -181,18 +186,29 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
       let extractedText = '';
 
       // Handle different file types
-      if (req.file.mimetype === 'text/plain') {
-        // Read TXT file directly
-        extractedText = fs.readFileSync(req.file.path, 'utf-8');
-      } else if (req.file.mimetype === 'application/pdf') {
-        // Extract text from PDF
-        extractedText = await extractTextFromPDF(req.file.path);
-      } else if (req.file.mimetype === 'application/msword' || 
-                 req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        // For DOC/DOCX files, we'll use a simple fallback for now
-        // In a production environment, you'd want to use a proper DOC/DOCX parser
-        return res.status(400).json({ 
-          error: 'DOC/DOCX file processing is not yet supported. Please convert to PDF or TXT format.' 
+      try {
+        if (req.file.mimetype === 'text/plain') {
+          console.log('📄 Processing TXT file');
+          // Read TXT file directly
+          extractedText = fs.readFileSync(req.file.path, 'utf-8');
+        } else if (req.file.mimetype === 'application/pdf') {
+          console.log('📄 Processing PDF file');
+          // Extract text from PDF
+          extractedText = await extractTextFromPDF(req.file.path);
+        } else if (req.file.mimetype === 'application/msword' || 
+                   req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+          console.log('📄 DOC/DOCX file detected - not supported yet');
+          // For DOC/DOCX files, we'll use a simple fallback for now
+          // In a production environment, you'd want to use a proper DOC/DOCX parser
+          return res.status(400).json({ 
+            error: 'DOC/DOCX file processing is not yet supported. Please convert to PDF or TXT format.' 
+          });
+        }
+      } catch (fileProcessingError) {
+        console.error('❌ File processing error:', fileProcessingError);
+        return res.status(500).json({ 
+          error: 'Failed to process file. Please ensure the file is not corrupted.',
+          details: fileProcessingError instanceof Error ? fileProcessingError.message : 'Unknown file processing error'
         });
       }
       
@@ -200,12 +216,13 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
         return res.status(400).json({ error: 'Could not extract text from file. Please ensure the file contains readable text.' });
       }
 
-      console.log(`Extracted ${extractedText.length} characters from ${req.file.originalname}`);
+      console.log(`✅ Extracted ${extractedText.length} characters from ${req.file.originalname}`);
 
       // Parse the extracted text into structured data
+      console.log('🧠 Starting AI parsing of resume text...');
       const parsedResumeData = await parseResumeText(extractedText);
       
-      console.log(`Parsed resume data for: ${parsedResumeData.name}`);
+      console.log(`✅ Parsed resume data for: ${parsedResumeData.name}`);
 
       // Clean up temporary file
       try {
@@ -225,20 +242,26 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
       });
 
     } catch (error) {
-      console.error('Error processing resume upload:', error);
+      console.error('❌ Error processing resume upload:', error);
       
       // Clean up temporary file on error
       if (req.file?.path) {
         try {
           fs.unlinkSync(req.file.path);
+          console.log('🧹 Cleaned up temporary file after error');
         } catch (cleanupError) {
-          console.warn('Could not delete temporary file after error:', cleanupError);
+          console.warn('⚠️ Could not delete temporary file after error:', cleanupError);
         }
       }
       
+      // More detailed error response
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('📊 Error details:', errorMessage);
+      
       res.status(500).json({ 
-        error: 'Failed to process resume',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Failed to process resume upload',
+        details: errorMessage,
+        timestamp: new Date().toISOString()
       });
     }
   });
