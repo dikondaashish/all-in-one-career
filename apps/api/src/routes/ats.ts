@@ -1936,7 +1936,7 @@ Title:`;
 
       // Check if resume name already exists for this user
       const existingResume = await prisma.savedResume.findFirst({
-        where: { 
+        where: {
           userId, 
           resumeName: resumeName.trim() 
         }

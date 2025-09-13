@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
 import type { PrismaClient } from '@prisma/client';
-import type pino from 'pino';
 import { authenticateToken } from '../middleware/auth';
 import { geminiGenerate } from '../lib/gemini';
 import { extractTextFromPDF } from '../lib/pdf-parser';
@@ -141,7 +140,7 @@ Return only the JSON object, no explanations or markdown formatting.`;
   }
 }
 
-export default function portfolioRouter(prisma: PrismaClient, logger: pino.Logger): Router {
+export default function portfolioRouter(prisma: PrismaClient): Router {
   const router = Router();
 
   // Configure multer for file uploads
