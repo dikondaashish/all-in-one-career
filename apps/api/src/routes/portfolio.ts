@@ -194,8 +194,46 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
     },
   });
 
+  // Test endpoint without file processing
+  router.post('/test-upload', authenticateToken, async (req: any, res) => {
+    try {
+      console.log('📁 Test upload request received');
+      const userId = req.user?.uid || req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ error: 'User authentication required' });
+      }
+
+      res.json({
+        success: true,
+        message: 'Test endpoint working',
+        userId: userId,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('❌ Test endpoint error:', error);
+      res.status(500).json({ 
+        error: 'Test endpoint failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Upload and extract text from resume/LinkedIn PDF
-  router.post('/upload-resume', authenticateToken, upload.single('resume'), async (req: any, res) => {
+  router.post('/upload-resume', authenticateToken, (req, res, next) => {
+    // Wrap multer in error handling
+    upload.single('resume')(req, res, (uploadError) => {
+      if (uploadError) {
+        console.error('❌ Multer upload error:', uploadError);
+        return res.status(500).json({
+          error: 'File upload failed',
+          details: uploadError.message,
+          code: uploadError.code || 'UPLOAD_ERROR'
+        });
+      }
+      next();
+    });
+  }, async (req: any, res) => {
     try {
       console.log('📁 Portfolio upload request received');
       
@@ -248,18 +286,19 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
 
       console.log(`✅ Extracted ${extractedText.length} characters from ${req.file.originalname}`);
 
-      // Parse the extracted text into structured data
-      console.log('🧠 Starting AI parsing of resume text...');
-      const parsedResumeData = await parseResumeText(extractedText);
+      // Create basic parsed data for now (skip AI parsing to isolate issues)
+      console.log('📝 Creating basic parsed data structure...');
+      const parsedResumeData: ParsedResumeData = {
+        name: 'Extracted Name',
+        experience: [],
+        education: [],
+        skills: [],
+        projects: [],
+        contact: {},
+        bioGenerated: 'Basic bio will be generated here'
+      };
       
-      console.log(`✅ Parsed resume data for: ${parsedResumeData.name}`);
-
-      // Generate AI bio for portfolio
-      console.log('✍️ Generating AI bio...');
-      const generatedBio = await generateAIBio(parsedResumeData);
-      parsedResumeData.bioGenerated = generatedBio;
-      
-      console.log(`✅ Generated bio: ${generatedBio.substring(0, 50)}...`);
+      console.log(`✅ Basic parsed data created`);
 
       // Clean up temporary file
       try {
