@@ -23,6 +23,9 @@ const SavedResumesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedResume, setSelectedResume] = useState<SavedResume | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [resumeToDelete, setResumeToDelete] = useState<SavedResume | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchSavedResumes();
@@ -139,6 +142,60 @@ const SavedResumesPage: React.FC = () => {
     setSelectedResume(null);
   };
 
+  const handleDeleteClick = (resume: SavedResume) => {
+    setResumeToDelete(resume);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!resumeToDelete || !user) return;
+
+    setIsDeleting(true);
+    try {
+      const authToken = await user.getIdToken();
+      
+      const response = await fetch(`${API_BASE_URL}/api/ats/saved-resumes/${resumeToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Remove the deleted resume from the local state
+        setResumes(prevResumes => 
+          prevResumes.filter(resume => resume.id !== resumeToDelete.id)
+        );
+        
+        showToast({
+          icon: '✅',
+          title: 'Resume Deleted',
+          message: `"${resumeToDelete.resumeName}" has been deleted successfully`
+        });
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete resume');
+      }
+    } catch (error) {
+      console.error('Error deleting resume:', error);
+      showToast({
+        icon: '❌',
+        title: 'Delete Failed',
+        message: error instanceof Error ? error.message : 'Failed to delete resume'
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmOpen(false);
+      setResumeToDelete(null);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirmOpen(false);
+    setResumeToDelete(null);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -207,11 +264,8 @@ const SavedResumesPage: React.FC = () => {
                   </div>
                   <button
                     className="text-gray-400 hover:text-red-600 transition-colors"
-                    onClick={() => showToast({ 
-                      icon: '🗑️', 
-                      title: 'Coming Soon', 
-                      message: 'Delete feature coming soon!' 
-                    })}
+                    onClick={() => handleDeleteClick(resume)}
+                    title="Delete resume"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -291,6 +345,57 @@ const SavedResumesPage: React.FC = () => {
                   Use This Resume
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmOpen && resumeToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            {/* Modal Header */}
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-semibold text-gray-900">Delete Resume</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                This action cannot be undone
+              </p>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              <p className="text-gray-700">
+                Are you sure you want to delete <span className="font-medium">"{resumeToDelete.resumeName}"</span>? 
+                This will permanently remove the resume from your saved resumes.
+              </p>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
+              <button
+                onClick={handleDeleteCancel}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Resume
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

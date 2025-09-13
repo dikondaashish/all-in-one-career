@@ -1986,6 +1986,50 @@ Title:`;
     }
   });
 
+  // Delete saved resume
+  router.delete('/saved-resumes/:id', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user?.uid || req.user?.id;
+      const { id } = req.params;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User authentication required' });
+      }
+
+      if (!id) {
+        return res.status(400).json({ error: 'Resume ID is required' });
+      }
+
+      // Find the resume to ensure it belongs to the user
+      const existingResume = await prisma.savedResume.findFirst({
+        where: { 
+          id, 
+          userId 
+        }
+      });
+
+      if (!existingResume) {
+        return res.status(404).json({ error: 'Resume not found or you do not have permission to delete it' });
+      }
+
+      // Delete the resume
+      await prisma.savedResume.delete({
+        where: { id }
+      });
+
+      console.log(`Resume deleted: ${id} by user ${userId}`);
+      res.status(200).json({
+        success: true,
+        message: 'Resume deleted successfully',
+        deletedId: id
+      });
+
+    } catch (error) {
+      console.error('Error deleting saved resume:', error);
+      res.status(500).json({ error: 'Failed to delete resume' });
+    }
+  });
+
   // Get saved resumes
   router.get('/saved-resumes', authenticateToken, async (req: any, res) => {
     try {
