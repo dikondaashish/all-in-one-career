@@ -14,6 +14,37 @@ interface UploadedFile {
   file: File;
   text: string;
   filename: string;
+  parsedData?: ParsedResumeData;
+}
+
+interface ParsedResumeData {
+  name: string;
+  summary?: string;
+  headline?: string;
+  experience: Array<{
+    title: string;
+    company: string;
+    duration: string;
+    description?: string;
+  }>;
+  education: Array<{
+    degree: string;
+    school: string;
+    year?: string;
+  }>;
+  skills: string[];
+  projects: Array<{
+    name: string;
+    description: string;
+    technologies?: string[];
+  }>;
+  contact: {
+    email?: string;
+    phone?: string;
+    location?: string;
+    linkedin?: string;
+    portfolio?: string;
+  };
 }
 
 interface Template {
@@ -115,11 +146,11 @@ function PortfolioContent() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit as per specification
       showToast({
         icon: '❌',
         title: 'File Too Large',
-        message: 'Please upload files smaller than 10MB'
+        message: 'Please upload files smaller than 5MB'
       });
       return;
     }
@@ -168,13 +199,16 @@ function PortfolioContent() {
       setUploadedFile({
         file,
         text: result.data.extractedText,
-        filename: result.data.filename
+        filename: result.data.filename,
+        parsedData: result.data.parsedData
       });
 
+      // Show success message with extracted name
+      const extractedName = result.data.parsedData?.name || 'resume';
       showToast({
         icon: '✅',
-        title: 'File Uploaded',
-        message: `${result.data.filename} uploaded successfully (${result.data.wordCount} words extracted)`
+        title: 'Resume Parsed Successfully',
+        message: `${extractedName}'s resume uploaded and parsed (${result.data.wordCount} words extracted)`
       });
 
     } catch (error) {
@@ -241,6 +275,7 @@ function PortfolioContent() {
         },
         body: JSON.stringify({
           resumeText: uploadedFile.text,
+          parsedData: uploadedFile.parsedData,
           templateId: selectedTemplate.id,
           templateStyle: selectedTemplate.style
         })
@@ -462,7 +497,7 @@ function PortfolioContent() {
                           Drop your resume here, or click to browse
                         </h3>
                         <p className="text-sm text-gray-500">
-                          PDF, DOC, DOCX, TXT files only (max 10MB)
+                          PDF, DOC, DOCX, TXT files only (max 5MB)
                         </p>
                       </div>
                       <button

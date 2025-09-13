@@ -7,13 +7,147 @@ import { geminiGenerate } from '../lib/gemini';
 import { extractTextFromPDF } from '../lib/pdf-parser';
 import fs from 'fs';
 
+// Interface for parsed resume data
+interface ParsedResumeData {
+  name: string;
+  summary?: string;
+  headline?: string;
+  experience: Array<{
+    title: string;
+    company: string;
+    duration: string;
+    description?: string;
+  }>;
+  education: Array<{
+    degree: string;
+    school: string;
+    year?: string;
+  }>;
+  skills: string[];
+  projects: Array<{
+    name: string;
+    description: string;
+    technologies?: string[];
+  }>;
+  contact: {
+    email?: string;
+    phone?: string;
+    location?: string;
+    linkedin?: string;
+    portfolio?: string;
+  };
+}
+
+// Parse resume text into structured JSON using AI
+async function parseResumeText(resumeText: string): Promise<ParsedResumeData> {
+  const systemPrompt = `You are a professional resume parser. Extract structured information from resume text and return it as valid JSON. Always return complete, valid JSON even if some information is missing.`;
+  
+  const userPrompt = `Parse the following resume text and extract structured information. Return ONLY valid JSON with this exact structure:
+
+{
+  "name": "Full Name",
+  "summary": "Professional summary or objective (if present)",
+  "headline": "Professional title or headline (if present)",
+  "experience": [
+    {
+      "title": "Job Title",
+      "company": "Company Name",
+      "duration": "Date range (e.g., 2020-2023, Jan 2020 - Present)",
+      "description": "Job description or key achievements"
+    }
+  ],
+  "education": [
+    {
+      "degree": "Degree Name",
+      "school": "Institution Name", 
+      "year": "Graduation year or date range"
+    }
+  ],
+  "skills": ["skill1", "skill2", "skill3"],
+  "projects": [
+    {
+      "name": "Project Name",
+      "description": "Project description",
+      "technologies": ["tech1", "tech2"]
+    }
+  ],
+  "contact": {
+    "email": "email@example.com",
+    "phone": "+1234567890",
+    "location": "City, State",
+    "linkedin": "linkedin.com/in/username",
+    "portfolio": "portfolio-url.com"
+  }
+}
+
+Resume Text:
+${resumeText}
+
+Return only the JSON object, no explanations or markdown formatting.`;
+
+  try {
+    const aiResponse = await geminiGenerate('gemini-2.0-flash-exp', systemPrompt, userPrompt);
+    
+    // Clean the response and try to parse JSON
+    let cleanResponse = aiResponse.trim();
+    
+    // Remove markdown code blocks if present
+    if (cleanResponse.startsWith('```')) {
+      cleanResponse = cleanResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    }
+    
+    // Find JSON object in response
+    const jsonStart = cleanResponse.indexOf('{');
+    const jsonEnd = cleanResponse.lastIndexOf('}') + 1;
+    
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      cleanResponse = cleanResponse.substring(jsonStart, jsonEnd);
+    }
+    
+    const parsedData = JSON.parse(cleanResponse);
+    
+    // Validate and ensure required fields exist
+    const validatedData: ParsedResumeData = {
+      name: parsedData.name || 'Name Not Found',
+      summary: parsedData.summary || undefined,
+      headline: parsedData.headline || undefined,
+      experience: Array.isArray(parsedData.experience) ? parsedData.experience : [],
+      education: Array.isArray(parsedData.education) ? parsedData.education : [],
+      skills: Array.isArray(parsedData.skills) ? parsedData.skills : [],
+      projects: Array.isArray(parsedData.projects) ? parsedData.projects : [],
+      contact: {
+        email: parsedData.contact?.email || undefined,
+        phone: parsedData.contact?.phone || undefined,
+        location: parsedData.contact?.location || undefined,
+        linkedin: parsedData.contact?.linkedin || undefined,
+        portfolio: parsedData.contact?.portfolio || undefined,
+      }
+    };
+    
+    return validatedData;
+    
+  } catch (error) {
+    console.error('Failed to parse resume with AI:', error);
+    
+    // Return a basic fallback structure
+    return {
+      name: 'Name Not Found',
+      experience: [],
+      education: [],
+      skills: [],
+      projects: [],
+      contact: {}
+    } as ParsedResumeData;
+  }
+}
+
 export default function portfolioRouter(prisma: PrismaClient, logger: pino.Logger): Router {
   const router = Router();
 
   // Configure multer for file uploads
   const upload = multer({
     dest: 'temp/',
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit as per specification
     fileFilter: (req, file, cb) => {
       const allowedTypes = [
         'application/pdf',
@@ -67,6 +201,13 @@ export default function portfolioRouter(prisma: PrismaClient, logger: pino.Logge
         return res.status(400).json({ error: 'Could not extract text from file. Please ensure the file contains readable text.' });
       }
 
+      console.log(`Extracted ${extractedText.length} characters from ${req.file.originalname}`);
+
+      // Parse the extracted text into structured data
+      const parsedResumeData = await parseResumeText(extractedText);
+      
+      console.log(`Parsed resume data for: ${parsedResumeData.name}`);
+
       // Clean up temporary file
       try {
         fs.unlinkSync(req.file.path);
@@ -79,7 +220,8 @@ export default function portfolioRouter(prisma: PrismaClient, logger: pino.Logge
         data: {
           filename: req.file.originalname,
           extractedText: extractedText.trim(),
-          wordCount: extractedText.trim().split(/\s+/).length
+          wordCount: extractedText.trim().split(/\s+/).length,
+          parsedData: parsedResumeData
         }
       });
 
@@ -106,7 +248,7 @@ export default function portfolioRouter(prisma: PrismaClient, logger: pino.Logge
   router.post('/generate', authenticateToken, async (req: any, res) => {
     try {
       const userId = req.user?.uid || req.user?.id;
-      const { resumeText, templateId, templateStyle } = req.body;
+      const { resumeText, parsedData, templateId, templateStyle } = req.body;
 
       if (!userId) {
         return res.status(401).json({ error: 'User authentication required' });
@@ -121,10 +263,10 @@ export default function portfolioRouter(prisma: PrismaClient, logger: pino.Logge
       // Generate portfolio content using Gemini AI
       const systemPrompt = `You are a professional web developer specializing in creating beautiful portfolio websites. Generate complete HTML pages with embedded CSS that are responsive, modern, and professional.`;
       
-      const userPrompt = `Create a professional portfolio website in HTML and CSS format based on the following resume:
+      const userPrompt = `Create a professional portfolio website in HTML and CSS format using the following structured resume data:
 
-RESUME:
-${resumeText}
+STRUCTURED RESUME DATA:
+${JSON.stringify(parsedData, null, 2)}
 
 TEMPLATE STYLE: ${templateStyle || 'modern'}
 
@@ -132,9 +274,13 @@ Requirements:
 1. Complete HTML document with embedded <style> section
 2. Professional design matching the ${templateStyle || 'modern'} aesthetic
 3. Responsive layout that works on mobile and desktop
-4. Include sections for: Header/Hero, About, Experience, Skills, Education (if applicable), Contact
-5. Use appropriate colors, typography, and spacing
+4. Use the structured data to create sections for: Header/Hero, About, Experience, Skills, Education, Projects, Contact
+5. Use appropriate colors, typography, and spacing for ${templateStyle || 'modern'} style
 6. Make it visually appealing and modern
+7. Include all available information from the structured data
+8. Format experience and education chronologically
+9. Display skills as badges or organized lists
+10. Include contact information in a professional manner
 
 Return ONLY the complete HTML document with embedded CSS - no explanations, no markdown formatting, no code blocks.`;
 
