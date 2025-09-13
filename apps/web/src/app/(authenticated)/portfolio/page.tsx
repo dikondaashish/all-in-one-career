@@ -54,6 +54,10 @@ interface Template {
   preview: string;
   description: string;
   style: 'modern' | 'classic' | 'creative' | 'minimal';
+  features: string[];
+  idealFor: string;
+  color: string;
+  recommended?: boolean;
 }
 
 interface GeneratedPortfolio {
@@ -70,28 +74,44 @@ const PORTFOLIO_TEMPLATES: Template[] = [
     name: 'Modern Professional',
     preview: '/templates/modern.png',
     description: 'Clean and contemporary design with bold typography and geometric elements',
-    style: 'modern'
+    style: 'modern',
+    features: ['Responsive Design', 'Bold Typography', 'Clean Layout', 'Professional Colors'],
+    idealFor: 'Tech professionals, developers, and modern industries',
+    color: 'bg-gradient-to-br from-blue-500 to-purple-600',
+    recommended: false
   },
   {
     id: 'classic',
     name: 'Classic Business',
     preview: '/templates/classic.png', 
     description: 'Traditional and elegant layout perfect for corporate professionals',
-    style: 'classic'
+    style: 'classic',
+    features: ['Timeless Design', 'Professional Layout', 'Corporate Colors', 'Traditional Fonts'],
+    idealFor: 'Business executives, consultants, and corporate roles',
+    color: 'bg-gradient-to-br from-gray-600 to-gray-800',
+    recommended: false
   },
   {
     id: 'creative',
     name: 'Creative Showcase',
     preview: '/templates/creative.png',
     description: 'Vibrant and artistic design ideal for designers and creative professionals',
-    style: 'creative'
+    style: 'creative',
+    features: ['Artistic Layout', 'Vibrant Colors', 'Creative Typography', 'Visual Impact'],
+    idealFor: 'Designers, artists, marketers, and creative professionals',
+    color: 'bg-gradient-to-br from-pink-500 to-orange-500',
+    recommended: false
   },
   {
     id: 'minimal',
     name: 'Minimal Clean',
     preview: '/templates/minimal.png',
     description: 'Simple and focused design that lets your content shine',
-    style: 'minimal'
+    style: 'minimal',
+    features: ['Clean Lines', 'White Space', 'Focus on Content', 'Elegant Simplicity'],
+    idealFor: 'Any profession seeking clean, distraction-free presentation',
+    color: 'bg-gradient-to-br from-green-500 to-teal-600',
+    recommended: false
   }
 ];
 
@@ -287,6 +307,45 @@ function PortfolioContent() {
     if (files.length > 0) {
       handleFileSelect(files[0]);
     }
+  };
+
+  // Smart template recommendation based on resume content
+  const getRecommendedTemplate = (parsedData: ParsedResumeData): string => {
+    if (!parsedData) return 'modern';
+    
+    const resumeText = JSON.stringify(parsedData).toLowerCase();
+    const experience = parsedData.experience || [];
+    const skills = parsedData.skills || [];
+    
+    // Check for creative/design keywords
+    const creativeKeywords = ['design', 'creative', 'artist', 'graphic', 'ui/ux', 'visual', 'marketing', 'brand'];
+    if (creativeKeywords.some(keyword => 
+      resumeText.includes(keyword) || 
+      skills.some(skill => skill.toLowerCase().includes(keyword))
+    )) {
+      return 'creative';
+    }
+    
+    // Check for corporate/business keywords
+    const businessKeywords = ['executive', 'manager', 'director', 'consultant', 'finance', 'banking', 'corporate'];
+    if (businessKeywords.some(keyword => 
+      resumeText.includes(keyword) || 
+      experience.some(exp => exp.title?.toLowerCase().includes(keyword))
+    )) {
+      return 'classic';
+    }
+    
+    // Check for tech keywords
+    const techKeywords = ['developer', 'engineer', 'programmer', 'software', 'web', 'app', 'tech', 'react', 'javascript', 'python'];
+    if (techKeywords.some(keyword => 
+      resumeText.includes(keyword) || 
+      skills.some(skill => skill.toLowerCase().includes(keyword))
+    )) {
+      return 'modern';
+    }
+    
+    // Default to minimal for clean presentation
+    return 'minimal';
   };
 
   // Template selection
@@ -613,33 +672,145 @@ function PortfolioContent() {
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="flex items-center gap-3 mb-6">
                   <Palette className="w-6 h-6 text-blue-600" />
-                  <h2 className="text-xl font-semibold text-gray-900">Choose Your Template</h2>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">Choose Your Template</h2>
+                    <p className="text-sm text-gray-600 mt-1">Select a design that reflects your professional style</p>
+                  </div>
                 </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {PORTFOLIO_TEMPLATES.map((template) => (
-                    <div
-                      key={template.id}
-                      className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                        selectedTemplate?.id === template.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => handleTemplateSelect(template)}
-                    >
-                      <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg mb-3 flex items-center justify-center">
-                        <div className="text-gray-400 text-sm">Preview</div>
+
+                {/* Recommendation Banner */}
+                {uploadedFile?.parsedData && (
+                  <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <Wand2 className="w-4 h-4 text-blue-600" />
                       </div>
-                      <h3 className="font-medium text-gray-900 mb-1">{template.name}</h3>
-                      <p className="text-xs text-gray-500">{template.description}</p>
-                      {selectedTemplate?.id === template.id && (
-                        <div className="mt-2 flex items-center text-blue-600 text-sm">
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Selected
-                        </div>
-                      )}
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          Based on your resume, we recommend the <span className="text-blue-600">{PORTFOLIO_TEMPLATES.find(t => t.id === getRecommendedTemplate(uploadedFile.parsedData!))?.name}</span> template
+                        </p>
+                        <p className="text-xs text-gray-600">Perfect for your professional background</p>
+                      </div>
                     </div>
-                  ))}
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {PORTFOLIO_TEMPLATES.map((template) => {
+                    const isRecommended = uploadedFile?.parsedData && template.id === getRecommendedTemplate(uploadedFile.parsedData);
+                    const isSelected = selectedTemplate?.id === template.id;
+                    
+                    return (
+                      <div
+                        key={template.id}
+                        className={`relative group border-2 rounded-xl p-5 cursor-pointer transition-all duration-300 hover:shadow-lg ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50 shadow-lg transform scale-[1.02]'
+                            : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
+                        }`}
+                        onClick={() => handleTemplateSelect(template)}
+                      >
+                        {/* Recommended Badge */}
+                        {isRecommended && (
+                          <div className="absolute -top-2 -right-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg z-10">
+                            ⭐ Recommended
+                          </div>
+                        )}
+
+                        {/* Template Preview */}
+                        <div className={`aspect-video rounded-lg mb-4 flex items-center justify-center text-white font-medium text-sm relative overflow-hidden ${template.color}`}>
+                          <div className="absolute inset-0 bg-black bg-opacity-20"></div>
+                          <div className="relative z-10 text-center">
+                            <div className="text-lg font-bold mb-1">Portfolio Preview</div>
+                            <div className="text-xs opacity-90">{template.name} Style</div>
+                          </div>
+                          
+                          {/* Mock portfolio elements */}
+                          <div className="absolute top-3 left-3 w-12 h-2 bg-white bg-opacity-30 rounded"></div>
+                          <div className="absolute top-6 left-3 w-8 h-1 bg-white bg-opacity-30 rounded"></div>
+                          <div className="absolute bottom-3 right-3 grid grid-cols-2 gap-1">
+                            <div className="w-3 h-3 bg-white bg-opacity-30 rounded"></div>
+                            <div className="w-3 h-3 bg-white bg-opacity-30 rounded"></div>
+                            <div className="w-3 h-3 bg-white bg-opacity-30 rounded"></div>
+                            <div className="w-3 h-3 bg-white bg-opacity-30 rounded"></div>
+                          </div>
+                        </div>
+
+                        {/* Template Info */}
+                        <div className="space-y-3">
+                          <div>
+                            <h3 className="font-semibold text-gray-900 text-lg mb-1">{template.name}</h3>
+                            <p className="text-sm text-gray-600">{template.description}</p>
+                          </div>
+
+                          {/* Features */}
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap gap-1">
+                              {template.features.slice(0, 2).map((feature, index) => (
+                                <span key={index} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                                  {feature}
+                                </span>
+                              ))}
+                              {template.features.length > 2 && (
+                                <span className="text-xs text-gray-500">+{template.features.length - 2} more</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              <span className="font-medium">Ideal for:</span> {template.idealFor}
+                            </p>
+                          </div>
+
+                          {/* Selection Indicator */}
+                          <div className={`flex items-center justify-between pt-3 border-t ${
+                            isSelected ? 'border-blue-200' : 'border-gray-200'
+                          }`}>
+                            {isSelected ? (
+                              <div className="flex items-center text-blue-600 text-sm font-medium">
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Selected
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-500">Click to select</div>
+                            )}
+                            
+                            <div className={`w-5 h-5 rounded-full border-2 transition-all ${
+                              isSelected 
+                                ? 'border-blue-500 bg-blue-500' 
+                                : 'border-gray-300 group-hover:border-gray-400'
+                            }`}>
+                              {isSelected && (
+                                <CheckCircle className="w-full h-full text-white" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
+                  <button
+                    onClick={() => setCurrentStep(1)}
+                    className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  >
+                    <ArrowLeftIcon className="w-4 h-4" />
+                    Back to Upload
+                  </button>
+                  
+                  <button
+                    onClick={() => setCurrentStep(3)}
+                    disabled={!selectedTemplate}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+                      selectedTemplate
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    Continue to Generate
+                    <ArrowRightIcon className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             )}
