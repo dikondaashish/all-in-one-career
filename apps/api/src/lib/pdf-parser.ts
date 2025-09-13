@@ -15,8 +15,10 @@ export async function extractPdfText(buffer: Buffer) {
     }
     
     // Load the PDF from in-memory buffer with additional options
+    // Convert Buffer to Uint8Array as required by pdf.js
+    const uint8Array = new Uint8Array(buffer);
     const loadingTask = pdfjsLib.getDocument({ 
-      data: buffer,
+      data: uint8Array,
       disableFontFace: true,
       verbosity: 0, // Reduce console noise
       useSystemFonts: true
