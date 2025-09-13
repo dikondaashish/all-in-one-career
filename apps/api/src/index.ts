@@ -415,7 +415,7 @@ IMPORTANT:
 
 
 app.use('/referrals', authenticateToken, referralsRouter(prisma, logger));
-app.use('/portfolio', authenticateToken, portfolioRouter(prisma, logger));
+app.use('/api/portfolio', authenticateToken, portfolioRouter(prisma, logger));
 app.use('/emails', authenticateToken, emailsRouter(prisma, logger));
 app.use('/applications', authenticateToken, applicationsRouter(prisma, logger));
 
