@@ -179,6 +179,8 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
     dest: os.tmpdir(),
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
     fileFilter: (req, file, cb) => {
+      console.log('🔍 File filter check:', file.originalname, 'Type:', file.mimetype);
+      
       const allowedTypes = [
         'application/pdf',
         'application/msword',
@@ -187,8 +189,10 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
       ];
       
       if (allowedTypes.includes(file.mimetype)) {
+        console.log('✅ File type accepted:', file.mimetype);
         cb(null, true);
       } else {
+        console.log('❌ File type rejected:', file.mimetype);
         cb(new Error('Only PDF, DOC, DOCX, and TXT files are allowed'));
       }
     },
@@ -221,14 +225,36 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
 
   // Upload and extract text from resume/LinkedIn PDF
   router.post('/upload-resume', authenticateToken, (req, res, next) => {
+    console.log('📁 Upload request received, processing with multer...');
+    console.log('📊 Request headers:', req.headers['content-type']);
+    
     upload.single('resume')(req, res, (uploadError) => {
       if (uploadError) {
         console.error('❌ Multer upload error:', uploadError);
-        return res.status(400).json({
-          error: 'File upload failed',
-          details: uploadError.message
-        });
+        console.error('❌ Error code:', uploadError.code);
+        console.error('❌ Error field:', uploadError.field);
+        
+        // More specific error handling
+        if (uploadError.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            error: 'File too large',
+            details: 'File size exceeds 5MB limit'
+          });
+        } else if (uploadError.code === 'LIMIT_UNEXPECTED_FILE') {
+          return res.status(400).json({
+            error: 'Invalid file field',
+            details: 'Expected file field name: resume'
+          });
+        } else {
+          return res.status(400).json({
+            error: 'File upload failed',
+            details: uploadError.message,
+            code: uploadError.code || 'UNKNOWN_ERROR'
+          });
+        }
       }
+      
+      console.log('✅ Multer processing successful, proceeding to main handler...');
       next();
     });
   }, async (req: any, res) => {
