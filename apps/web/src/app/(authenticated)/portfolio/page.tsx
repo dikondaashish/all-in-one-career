@@ -790,29 +790,6 @@ function PortfolioContent() {
                   })}
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
-                  <button
-                    onClick={() => setCurrentStep(1)}
-                    className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                  >
-                    <ArrowLeftIcon className="w-4 h-4" />
-                    Back to Upload
-                  </button>
-                  
-                  <button
-                    onClick={() => setCurrentStep(3)}
-                    disabled={!selectedTemplate}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-                      selectedTemplate
-                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    Continue to Generate
-                    <ArrowRightIcon className="w-4 h-4" />
-                  </button>
-                </div>
               </div>
             )}
 
