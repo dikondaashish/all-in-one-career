@@ -3,7 +3,7 @@ import multer from 'multer';
 import type { PrismaClient } from '@prisma/client';
 import { authenticateToken } from '../middleware/auth';
 import { geminiGenerate } from '../lib/gemini';
-import { extractTextFromPDF } from '../lib/pdf-parser';
+import { extractTextFromPDF, extractPdfText } from '../lib/pdf-parser';
 import fs from 'fs';
 import os from 'os';
 import mammoth from 'mammoth';
@@ -285,7 +285,10 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
           extractedText = fs.readFileSync(req.file.path, 'utf-8');
         } else if (req.file.mimetype === 'application/pdf') {
           console.log('📄 Processing PDF file');
-          extractedText = await extractTextFromPDF(req.file.path);
+          // Read file as buffer and use the direct buffer function
+          const pdfBuffer = fs.readFileSync(req.file.path);
+          const result = await extractPdfText(pdfBuffer);
+          extractedText = result.text;
         } else if (req.file.mimetype === 'application/msword' || 
                    req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
           console.log('📄 Processing DOC/DOCX file');
