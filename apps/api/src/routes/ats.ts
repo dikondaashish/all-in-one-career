@@ -2034,33 +2034,50 @@ Title:`;
       });
 
       // Reassemble any split content
+      console.log('🔍 Starting reassembly process for resumes...');
       const reassembledResumes = resumes.map(resume => {
+        console.log(`\n📋 Processing resume ${resume.id} (${resume.resumeName}):`);
+        console.log(`   Current resumeText length: ${resume.resumeText?.length || 0}`);
+        console.log(`   Has fileUrl: ${!!resume.fileUrl}`);
+        
         if (resume.fileUrl) {
+          console.log(`   FileUrl content: ${resume.fileUrl.slice(0, 200)}...`);
           try {
             const urlData = JSON.parse(resume.fileUrl);
+            console.log(`   Parsed fileUrl successfully:`, { type: urlData.type, hasContent: !!urlData.content, contentLength: urlData.content?.length || 0 });
+            
             if (urlData.type === 'overflow' && urlData.content) {
               // Reassemble the full content
               const mainLength = resume.resumeText?.length || 0;
               const overflowLength = urlData.content.length;
               const fullContent = (resume.resumeText || '') + urlData.content;
-              console.log(`🔧 Reassembling resume ${resume.id}:`);
+              console.log(`🔧 REASSEMBLING resume ${resume.id}:`);
               console.log(`   Main part: ${mainLength} chars`);
               console.log(`   Overflow part: ${overflowLength} chars`);
               console.log(`   Total reassembled: ${fullContent.length} chars`);
-              console.log(`   Preview: "${fullContent.slice(0, 100)}...${fullContent.slice(-100)}"`);
+              console.log(`   ✅ Reassembly successful!`);
               
               return {
                 ...resume,
                 resumeText: fullContent,
                 fileUrl: urlData.originalUrl // Restore original file URL
               };
+            } else {
+              console.log(`   ❌ Not overflow type or missing content:`, { type: urlData.type, hasContent: !!urlData.content });
             }
           } catch (parseError) {
-            console.log(`Resume ${resume.id} has normal fileUrl, not overflow data`);
-            // Not overflow data, return as-is
+            console.log(`   ❌ Failed to parse fileUrl as JSON:`, parseError.message);
+            console.log(`   FileUrl appears to be a normal URL, not overflow data`);
           }
+        } else {
+          console.log(`   ℹ️ No fileUrl, returning as-is`);
         }
         return resume;
+      });
+      
+      console.log('\n🎯 Reassembly process complete. Final results:');
+      reassembledResumes.forEach(resume => {
+        console.log(`   ${resume.resumeName}: ${resume.resumeText?.length || 0} characters`);
       });
 
       console.log('Fetched saved resumes:', reassembledResumes.map(r => ({
