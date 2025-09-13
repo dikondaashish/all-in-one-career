@@ -195,9 +195,14 @@ function PortfolioContent() {
         try {
           const errorData = await response.json();
           console.error('❌ Server error response:', errorData);
+          // Use the specific error message from server
           throw new Error(errorData.details || errorData.error || 'Failed to upload file');
         } catch (parseError) {
           console.error('❌ Failed to parse error response:', parseError);
+          // If parseError is from the throw above, re-throw it
+          if (parseError instanceof Error && parseError.message !== 'Server error occurred. Please try again.') {
+            throw parseError;
+          }
           throw new Error('Server error occurred. Please try again.');
         }
       }

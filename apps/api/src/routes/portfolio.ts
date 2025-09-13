@@ -6,6 +6,7 @@ import { geminiGenerate } from '../lib/gemini';
 import { extractTextFromPDF } from '../lib/pdf-parser';
 import fs from 'fs';
 import os from 'os';
+import mammoth from 'mammoth';
 
 // Interface for parsed resume data
 interface ParsedResumeData {
@@ -287,9 +288,17 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
           extractedText = await extractTextFromPDF(req.file.path);
         } else if (req.file.mimetype === 'application/msword' || 
                    req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-          console.log('📄 DOC/DOCX file detected - not supported yet');
+          console.log('📄 Processing DOC/DOCX file');
+          const result = await mammoth.extractRawText({ path: req.file.path });
+          extractedText = result.value;
+          
+          if (result.messages && result.messages.length > 0) {
+            console.log('📝 Mammoth processing messages:', result.messages);
+          }
+        } else {
+          console.log('❌ Unsupported file type:', req.file.mimetype);
           return res.status(400).json({ 
-            error: 'DOC/DOCX file processing is not yet supported. Please convert to PDF or TXT format.' 
+            error: 'Unsupported file type. Please upload PDF, DOC, DOCX, or TXT files only.' 
           });
         }
       } catch (fileProcessingError) {
