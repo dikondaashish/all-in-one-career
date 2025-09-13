@@ -99,11 +99,27 @@ function PortfolioContent() {
 
   // File upload handlers
   const handleFileSelect = async (file: File) => {
-    if (file.type !== 'application/pdf') {
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain'
+    ];
+    
+    if (!allowedTypes.includes(file.type)) {
       showToast({
         icon: '❌',
         title: 'Invalid File Type',
-        message: 'Please upload a PDF file'
+        message: 'Please upload PDF, DOC, DOCX, or TXT files only'
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      showToast({
+        icon: '❌',
+        title: 'File Too Large',
+        message: 'Please upload files smaller than 10MB'
       });
       return;
     }
@@ -133,8 +149,18 @@ function PortfolioContent() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload file');
+        // Check if response is HTML (404 page) instead of JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('text/html')) {
+          throw new Error('Portfolio upload endpoint not available yet. Please try again in a few minutes.');
+        }
+        
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to upload file');
+        } catch (parseError) {
+          throw new Error('Server error occurred. Please try again.');
+        }
       }
 
       const result = await response.json();
@@ -387,7 +413,7 @@ function PortfolioContent() {
         </div>
 
         {/* Step Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className={`grid grid-cols-1 gap-8 ${(currentStep === 4 || currentStep === 5) ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
           {/* Left Column - Main Content */}
           <div className="space-y-6">
             {/* Step 1: Upload Resume */}
@@ -436,7 +462,7 @@ function PortfolioContent() {
                           Drop your resume here, or click to browse
                         </h3>
                         <p className="text-sm text-gray-500">
-                          Upload your resume or LinkedIn profile as a PDF
+                          PDF, DOC, DOCX, TXT files only (max 10MB)
                         </p>
                       </div>
                       <button
@@ -448,7 +474,7 @@ function PortfolioContent() {
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".pdf"
+                        accept=".pdf,.doc,.docx,.txt"
                         onChange={handleFileInputChange}
                         className="hidden"
                       />
@@ -643,48 +669,34 @@ function PortfolioContent() {
             )}
           </div>
 
-          {/* Right Column - Preview */}
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Eye className="w-6 h-6 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Live Preview</h3>
+          {/* Right Column - Preview (Only show for steps 4 & 5) */}
+          {(currentStep === 4 || currentStep === 5) && (
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Eye className="w-6 h-6 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Live Preview</h3>
+              </div>
+              
+              <div className="border border-gray-200 rounded-lg h-96 bg-gray-50 flex items-center justify-center">
+                {generatedPortfolio ? (
+                  <div className="w-full h-full p-4 overflow-auto">
+                    <div 
+                      className="text-sm"
+                      dangerouslySetInnerHTML={{ __html: editableContent || generatedPortfolio.html }}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center space-y-3">
+                    <div className="w-12 h-12 rounded-lg bg-gray-200 mx-auto"></div>
+                    <div>
+                      <p className="font-medium text-gray-700">Preview</p>
+                      <p className="text-sm text-gray-500">Generate your portfolio to see preview</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            
-            <div className="border border-gray-200 rounded-lg h-96 bg-gray-50 flex items-center justify-center">
-              {generatedPortfolio ? (
-                <div className="w-full h-full p-4 overflow-auto">
-                  <div 
-                    className="text-sm"
-                    dangerouslySetInnerHTML={{ __html: editableContent || generatedPortfolio.html }}
-                  />
-                </div>
-              ) : selectedTemplate ? (
-                <div className="text-center space-y-3">
-                  <Palette className="w-12 h-12 text-gray-400 mx-auto" />
-                  <div>
-                    <p className="font-medium text-gray-700">{selectedTemplate.name}</p>
-                    <p className="text-sm text-gray-500">Template selected</p>
-                  </div>
-                </div>
-              ) : uploadedFile ? (
-                <div className="text-center space-y-3">
-                  <FileText className="w-12 h-12 text-gray-400 mx-auto" />
-                  <div>
-                    <p className="font-medium text-gray-700">Resume uploaded</p>
-                    <p className="text-sm text-gray-500">Choose a template to continue</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center space-y-3">
-                  <div className="w-12 h-12 rounded-lg bg-gray-200 mx-auto"></div>
-                  <div>
-                    <p className="font-medium text-gray-700">Preview</p>
-                    <p className="text-sm text-gray-500">Upload your resume to get started</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Navigation Buttons */}

@@ -15,10 +15,17 @@ export default function portfolioRouter(prisma: PrismaClient, logger: pino.Logge
     dest: 'temp/',
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
     fileFilter: (req, file, cb) => {
-      if (file.mimetype === 'application/pdf') {
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain'
+      ];
+      
+      if (allowedTypes.includes(file.mimetype)) {
         cb(null, true);
       } else {
-        cb(new Error('Only PDF files are allowed'));
+        cb(new Error('Only PDF, DOC, DOCX, and TXT files are allowed'));
       }
     },
   });
@@ -36,13 +43,28 @@ export default function portfolioRouter(prisma: PrismaClient, logger: pino.Logge
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      console.log('Processing uploaded resume:', req.file.originalname);
+      console.log('Processing uploaded resume:', req.file.originalname, 'Type:', req.file.mimetype);
 
-      // Extract text from PDF
-      const extractedText = await extractTextFromPDF(req.file.path);
+      let extractedText = '';
+
+      // Handle different file types
+      if (req.file.mimetype === 'text/plain') {
+        // Read TXT file directly
+        extractedText = fs.readFileSync(req.file.path, 'utf-8');
+      } else if (req.file.mimetype === 'application/pdf') {
+        // Extract text from PDF
+        extractedText = await extractTextFromPDF(req.file.path);
+      } else if (req.file.mimetype === 'application/msword' || 
+                 req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        // For DOC/DOCX files, we'll use a simple fallback for now
+        // In a production environment, you'd want to use a proper DOC/DOCX parser
+        return res.status(400).json({ 
+          error: 'DOC/DOCX file processing is not yet supported. Please convert to PDF or TXT format.' 
+        });
+      }
       
       if (!extractedText || extractedText.trim().length === 0) {
-        return res.status(400).json({ error: 'Could not extract text from PDF. Please ensure the file contains readable text.' });
+        return res.status(400).json({ error: 'Could not extract text from file. Please ensure the file contains readable text.' });
       }
 
       // Clean up temporary file
