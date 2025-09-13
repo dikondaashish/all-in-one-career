@@ -484,7 +484,7 @@ function PortfolioContent() {
                           <span>{uploadedFile.filename}</span>
                         </div>
                         <div className="mt-2 text-xs text-gray-500">
-                          {uploadedFile.file.size} bytes • PDF
+                          {(uploadedFile.file.size / 1024).toFixed(1)} KB • {uploadedFile.file.type.split('/')[1]?.toUpperCase() || 'FILE'}
                         </div>
                       </div>
                       <button
