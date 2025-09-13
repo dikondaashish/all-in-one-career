@@ -1,7 +1,9 @@
-export { default as ModernTemplate } from './ModernTemplate';
-export { default as ClassicTemplate } from './ClassicTemplate';
-export { default as CreativeTemplate } from './CreativeTemplate';
-export { default as MinimalTemplate } from './MinimalTemplate';
+import ModernTemplate from './ModernTemplate';
+import ClassicTemplate from './ClassicTemplate';
+import CreativeTemplate from './CreativeTemplate';
+import MinimalTemplate from './MinimalTemplate';
+
+export { ModernTemplate, ClassicTemplate, CreativeTemplate, MinimalTemplate };
 
 // Template component mapping
 export const TEMPLATE_COMPONENTS = {

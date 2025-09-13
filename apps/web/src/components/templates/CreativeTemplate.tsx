@@ -38,7 +38,7 @@ interface CreativeTemplateProps {
   data: ParsedResumeData;
 }
 
-export const CreativeTemplate: React.FC<CreativeTemplateProps> = ({ data }) => {
+const CreativeTemplate: React.FC<CreativeTemplateProps> = ({ data }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-orange-50">
       {/* Animated Background Elements */}

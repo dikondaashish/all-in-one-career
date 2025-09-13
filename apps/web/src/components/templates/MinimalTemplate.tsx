@@ -38,7 +38,7 @@ interface MinimalTemplateProps {
   data: ParsedResumeData;
 }
 
-export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({ data }) => {
+const MinimalTemplate: React.FC<MinimalTemplateProps> = ({ data }) => {
   return (
     <div className="min-h-screen bg-white text-gray-900 font-light">
       {/* Header Section */}

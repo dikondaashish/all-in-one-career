@@ -38,7 +38,7 @@ interface ClassicTemplateProps {
   data: ParsedResumeData;
 }
 
-export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({ data }) => {
+const ClassicTemplate: React.FC<ClassicTemplateProps> = ({ data }) => {
   return (
     <div className="min-h-screen bg-gray-50 font-serif">
       {/* Header Section */}
