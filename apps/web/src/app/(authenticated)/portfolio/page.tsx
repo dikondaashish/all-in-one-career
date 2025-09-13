@@ -363,10 +363,25 @@ function PortfolioContent() {
   const handleGeneratePortfolio = async () => {
     if (!uploadedFile || !selectedTemplate || !user) return;
 
+    // Debug: Log the data being sent
+    console.log('🎯 DEBUG: Data being sent to generate endpoint:');
+    console.log('📄 Resume text length:', uploadedFile.text?.length || 0);
+    console.log('📊 Parsed data:', uploadedFile.parsedData);
+    console.log('🎨 Template:', selectedTemplate);
+
     setIsGenerating(true);
     
     try {
       const authToken = await user.getIdToken();
+      
+      const requestBody = {
+        resumeText: uploadedFile.text,
+        parsedData: uploadedFile.parsedData,
+        templateId: selectedTemplate.id,
+        templateStyle: selectedTemplate.style
+      };
+      
+      console.log('📤 Full request body:', JSON.stringify(requestBody, null, 2));
       
       const response = await fetch(`${API_BASE_URL}/api/portfolio/generate`, {
         method: 'POST',
@@ -374,12 +389,7 @@ function PortfolioContent() {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          resumeText: uploadedFile.text,
-          parsedData: uploadedFile.parsedData,
-          templateId: selectedTemplate.id,
-          templateStyle: selectedTemplate.style
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {

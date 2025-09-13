@@ -71,6 +71,10 @@ Write a compelling About Me that introduces them professionally but warmly. Retu
 
 // Parse resume text into structured JSON using AI
 async function parseResumeText(resumeText: string): Promise<ParsedResumeData> {
+  console.log('🤖 Starting AI resume parsing...');
+  console.log('📄 Resume text length:', resumeText.length);
+  console.log('📄 Resume preview (first 300 chars):', resumeText.substring(0, 300));
+  
   const systemPrompt = `You are a professional resume parser. Extract structured information from resume text and return it as valid JSON. Always return complete, valid JSON even if some information is missing.`;
   
   const userPrompt = `Parse the following resume text and extract structured information. Return ONLY valid JSON with this exact structure:
@@ -117,7 +121,10 @@ ${resumeText}
 Return only the JSON object, no explanations or markdown formatting.`;
 
   try {
+    console.log('🚀 Calling Gemini AI for resume parsing...');
     const aiResponse = await geminiGenerate('gemini-2.0-flash-exp', systemPrompt, userPrompt);
+    console.log('🤖 AI response received. Length:', aiResponse.length);
+    console.log('🤖 AI response preview:', aiResponse.substring(0, 500));
     
     // Clean the response and try to parse JSON
     let cleanResponse = aiResponse.trim();
@@ -135,7 +142,10 @@ Return only the JSON object, no explanations or markdown formatting.`;
       cleanResponse = cleanResponse.substring(jsonStart, jsonEnd);
     }
     
+    console.log('🧽 Cleaned JSON response:', cleanResponse.substring(0, 200) + '...');
+    
     const parsedData = JSON.parse(cleanResponse);
+    console.log('✅ Successfully parsed JSON from AI response:', parsedData);
     
     // Validate and ensure required fields exist
     const validatedData: ParsedResumeData = {
@@ -380,6 +390,14 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
       const userId = req.user?.uid || req.user?.id;
       const { resumeText, parsedData, templateId, templateStyle } = req.body;
 
+      // Debug: Log received data
+      console.log('🎯 DEBUG: Portfolio generation request:');
+      console.log('👤 User ID:', userId);
+      console.log('📄 Resume text length:', resumeText?.length || 0);
+      console.log('📊 Parsed data received:', JSON.stringify(parsedData, null, 2));
+      console.log('🎨 Template ID:', templateId);
+      console.log('🎨 Template Style:', templateStyle);
+
       if (!userId) {
         return res.status(401).json({ error: 'User authentication required' });
       }
@@ -389,6 +407,33 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
       }
 
       console.log(`Generating portfolio for user ${userId} with template ${templateId}`);
+      
+      // Validate parsed data and attempt re-parsing if needed
+      if (!parsedData || !parsedData.name || parsedData.name === 'Name Not Found') {
+        console.log('⚠️ WARNING: No valid parsed data found. Attempting re-parsing...');
+        console.log('🔍 Resume text preview:', resumeText?.substring(0, 200) + '...');
+        console.log('📊 Current parsed data:', parsedData);
+        
+        // Attempt to re-parse the resume text if we have it
+        if (resumeText && resumeText.length > 50) {
+          console.log('🔄 Attempting to re-parse resume text...');
+          try {
+            const reParsedData = await parseResumeText(resumeText);
+            console.log('🔄 Re-parsed data:', reParsedData);
+            
+            if (reParsedData && reParsedData.name && reParsedData.name !== 'Name Not Found') {
+              console.log('✅ Re-parsing successful! Using re-parsed data.');
+              // Update the parsedData with the re-parsed result
+              const updatedParsedData = reParsedData;
+              // Continue with the updated data
+            } else {
+              console.log('❌ Re-parsing also failed. Will use fallback.');
+            }
+          } catch (reParseError) {
+            console.error('❌ Re-parsing failed:', reParseError);
+          }
+        }
+      }
 
       // Return template information for client-side rendering
       // The actual HTML will be generated client-side using our React components
@@ -417,19 +462,22 @@ export default function portfolioRouter(prisma: PrismaClient): Router {
 
       const selectedTemplateInfo = templateInfo[templateStyle as keyof typeof templateInfo] || templateInfo.modern;
       
+      // Use the updated parsed data if re-parsing was successful
+      const finalParsedData = parsedData;
+      
       // Generate a simple HTML wrapper that indicates client-side rendering is needed
       const generatedContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${parsedData?.name || 'Professional'} - Portfolio</title>
+    <title>${finalParsedData?.name && finalParsedData.name !== 'Name Not Found' ? finalParsedData.name : 'Professional'} - Portfolio</title>
 </head>
 <body>
     <div id="portfolio-root">
         <!-- Portfolio will be rendered client-side using React template: ${templateStyle} -->
         <script type="application/json" id="portfolio-data">
-            ${JSON.stringify({ parsedData, templateStyle, templateInfo: selectedTemplateInfo })}
+            ${JSON.stringify({ parsedData: finalParsedData, templateStyle, templateInfo: selectedTemplateInfo })}
         </script>
     </div>
 </body>
