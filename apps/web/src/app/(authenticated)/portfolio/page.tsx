@@ -172,6 +172,8 @@ function PortfolioContent() {
 
       const authToken = await user.getIdToken();
       
+      console.log('📤 Uploading file:', file.name, 'Size:', file.size, 'Type:', file.type);
+      
       const response = await fetch(`${API_BASE_URL}/api/portfolio/upload-resume`, {
         method: 'POST',
         headers: {
@@ -179,6 +181,9 @@ function PortfolioContent() {
         },
         body: formData
       });
+
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         // Check if response is HTML (404 page) instead of JSON
@@ -189,8 +194,10 @@ function PortfolioContent() {
         
         try {
           const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to upload file');
+          console.error('❌ Server error response:', errorData);
+          throw new Error(errorData.details || errorData.error || 'Failed to upload file');
         } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError);
           throw new Error('Server error occurred. Please try again.');
         }
       }
