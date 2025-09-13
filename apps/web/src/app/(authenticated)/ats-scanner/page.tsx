@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Link, Zap, Search, AlertCircle, FileText, Loader2, History, Clock } from 'lucide-react';
+import { Upload, Link, Zap, Search, AlertCircle, FileText, Loader2, History, Clock, ArrowLeft } from 'lucide-react';
 import { useToast } from '../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
 import { featureAdvancedLayerV2 } from '../../../config/featureFlags';
@@ -731,6 +731,17 @@ const ATSScanner: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="relative text-center mb-8">
+          {/* Back Button - Top Left */}
+          <div className="absolute top-0 left-0">
+            <button
+              onClick={() => router.back()}
+              className="flex items-center space-x-2 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Go back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          </div>
+
           {/* History Button - Top Right */}
           <div className="absolute top-0 right-0">
             <button
