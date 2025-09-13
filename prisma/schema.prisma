@@ -181,7 +181,7 @@ model SavedResume {
   id         String   @id @default(cuid())
   userId     String
   resumeName String
-  resumeText String?  @db.Text
+  resumeText String?  @db.LongText
   fileUrl    String?
   createdAt  DateTime @default(now())
 

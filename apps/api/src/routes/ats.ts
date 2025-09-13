@@ -1946,44 +1946,18 @@ Title:`;
         return res.status(400).json({ error: 'A resume with this name already exists' });
       }
 
-      // Handle large resume text by using fileUrl field for overflow content
+      // Now that database column is LONGTEXT, we can store the full content directly
       const trimmedText = resumeText.trim();
-      const MAX_CHUNK_SIZE = 180; // Safe size under VARCHAR(191) limit
       
-      let finalResumeText = trimmedText;
-      let finalFileUrl = fileUrl || null;
-      
-      // If text is too long, store overflow in fileUrl field as JSON
-      if (trimmedText.length > MAX_CHUNK_SIZE) {
-        console.log(`Resume text too long (${trimmedText.length} chars), using overflow storage`);
-        
-        try {
-          // Split content: first part in resumeText, rest in fileUrl as JSON
-          const mainContent = trimmedText.slice(0, MAX_CHUNK_SIZE);
-          const overflowContent = trimmedText.slice(MAX_CHUNK_SIZE);
-          
-          finalResumeText = mainContent;
-          finalFileUrl = JSON.stringify({
-            type: 'overflow',
-            content: overflowContent,
-            originalUrl: fileUrl || null
-          });
-          
-          console.log(`Split content: main(${mainContent.length}) + overflow(${overflowContent.length}) = ${trimmedText.length} total`);
-        } catch (splitError) {
-          console.error('Failed to split resume text:', splitError);
-          // Fallback: truncate with message
-          finalResumeText = trimmedText.slice(0, 150) + '\n\n[Content truncated due to storage limitations. Please contact support.]';
-        }
-      }
+      console.log(`Storing resume text directly: ${trimmedText.length} characters`);
 
-      // Create the saved resume
+      // Create the saved resume with full content
       const savedResume = await prisma.savedResume.create({
         data: {
           userId,
           resumeName: resumeName.trim(),
-          resumeText: finalResumeText,
-          fileUrl: finalFileUrl
+          resumeText: trimmedText,
+          fileUrl: fileUrl || null
         }
       });
 
@@ -2033,60 +2007,38 @@ Title:`;
         }
       });
 
-      // Reassemble any split content
-      console.log('🔍 Starting reassembly process for resumes...');
-      const reassembledResumes = resumes.map(resume => {
-        console.log(`\n📋 Processing resume ${resume.id} (${resume.resumeName}):`);
-        console.log(`   Current resumeText length: ${resume.resumeText?.length || 0}`);
-        console.log(`   Has fileUrl: ${!!resume.fileUrl}`);
-        
+      // Since database now supports LONGTEXT, we can return resumes as-is
+      // But keep legacy overflow reassembly for existing data
+      const processedResumes = resumes.map(resume => {
+        // Check if this is legacy overflow data that needs reassembly
         if (resume.fileUrl) {
-          console.log(`   FileUrl content: ${resume.fileUrl.slice(0, 200)}...`);
           try {
             const urlData = JSON.parse(resume.fileUrl);
-            console.log(`   Parsed fileUrl successfully:`, { type: urlData.type, hasContent: !!urlData.content, contentLength: urlData.content?.length || 0 });
-            
             if (urlData.type === 'overflow' && urlData.content) {
-              // Reassemble the full content
-              const mainLength = resume.resumeText?.length || 0;
-              const overflowLength = urlData.content.length;
+              // Reassemble legacy overflow data
               const fullContent = (resume.resumeText || '') + urlData.content;
-              console.log(`🔧 REASSEMBLING resume ${resume.id}:`);
-              console.log(`   Main part: ${mainLength} chars`);
-              console.log(`   Overflow part: ${overflowLength} chars`);
-              console.log(`   Total reassembled: ${fullContent.length} chars`);
-              console.log(`   ✅ Reassembly successful!`);
+              console.log(`🔧 Reassembling legacy overflow data for ${resume.resumeName}: ${resume.resumeText?.length || 0} + ${urlData.content.length} = ${fullContent.length} chars`);
               
               return {
                 ...resume,
                 resumeText: fullContent,
                 fileUrl: urlData.originalUrl // Restore original file URL
               };
-            } else {
-              console.log(`   ❌ Not overflow type or missing content:`, { type: urlData.type, hasContent: !!urlData.content });
             }
           } catch (parseError) {
-            console.log(`   ❌ Failed to parse fileUrl as JSON:`, parseError.message);
-            console.log(`   FileUrl appears to be a normal URL, not overflow data`);
+            // Not overflow data, return as-is
           }
-        } else {
-          console.log(`   ℹ️ No fileUrl, returning as-is`);
         }
         return resume;
       });
-      
-      console.log('\n🎯 Reassembly process complete. Final results:');
-      reassembledResumes.forEach(resume => {
-        console.log(`   ${resume.resumeName}: ${resume.resumeText?.length || 0} characters`);
-      });
 
-      console.log('Fetched saved resumes:', reassembledResumes.map(r => ({
+      console.log('Fetched saved resumes:', processedResumes.map(r => ({
         id: r.id,
         resumeName: r.resumeName,
         resumeTextLength: r.resumeText?.length || 0
       })));
 
-      res.status(200).json(reassembledResumes);
+      res.status(200).json(processedResumes);
 
     } catch (error) {
       logger.error('Error fetching saved resumes: ' + (error as Error).message);
