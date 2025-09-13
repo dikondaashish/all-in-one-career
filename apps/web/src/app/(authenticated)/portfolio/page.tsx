@@ -6,6 +6,7 @@ import { ArrowLeftIcon, ArrowRightIcon, Upload, FileText, Eye, Palette, Wand2, G
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useToast } from '../../../components/notifications/ToastContainer';
 import { useAuth } from '@/contexts/AuthContext';
+import { TEMPLATE_COMPONENTS, TemplateType } from '@/components/templates';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -496,16 +497,16 @@ function PortfolioContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
+      {/* Header */}
         <div className="flex items-center space-x-4 mb-8">
-          <button
-            onClick={() => router.back()}
-            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeftIcon className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Portfolio Generator</h1>
+        <button
+          onClick={() => router.back()}
+          className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <ArrowLeftIcon className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Portfolio Generator</h1>
             <p className="text-gray-600">Create a professional portfolio in 5 simple steps</p>
           </div>
         </div>
@@ -591,9 +592,9 @@ function PortfolioContent() {
                           <div className="w-full bg-blue-200 rounded-full h-1.5">
                             <div className="bg-blue-600 h-1.5 rounded-full animate-pulse" style={{width: '60%'}}></div>
                           </div>
-                        </div>
-                      </div>
-                      
+        </div>
+      </div>
+
                       <div className="text-xs text-gray-500 space-y-1">
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -780,8 +781,8 @@ function PortfolioContent() {
                             }`}>
                               {isSelected && (
                                 <CheckCircle className="w-full h-full text-white" />
-                              )}
-                            </div>
+          )}
+        </div>
                           </div>
                         </div>
                       </div>
@@ -948,8 +949,8 @@ function PortfolioContent() {
                         <div className="space-y-4">
                           <div className="animate-spin w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
                           <p className="font-medium">Publishing your portfolio...</p>
-                        </div>
-                      ) : (
+              </div>
+            ) : (
                         <button
                           onClick={handlePublishPortfolio}
                           className="bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-3 rounded-lg font-medium hover:shadow-lg transform hover:scale-105 transition-all duration-200"
@@ -972,38 +973,50 @@ function PortfolioContent() {
                 <h3 className="text-lg font-semibold text-gray-900">Live Preview</h3>
               </div>
               
-              <div className="border border-gray-200 rounded-lg h-96 bg-gray-50 flex items-center justify-center">
-                {generatedPortfolio ? (
-                  <div className="w-full h-full p-4 overflow-auto">
-                    <div 
-                      className="text-sm"
-                      dangerouslySetInnerHTML={{ __html: editableContent || generatedPortfolio.html }}
-                    />
+              <div className="border border-gray-200 rounded-lg h-96 bg-gray-50 overflow-hidden">
+                {generatedPortfolio && selectedTemplate && uploadedFile?.parsedData ? (
+                  <div className="w-full h-full overflow-auto">
+                    <div className="transform scale-[0.4] origin-top-left w-[250%] h-[250%]">
+                      {(() => {
+                        const TemplateComponent = TEMPLATE_COMPONENTS[selectedTemplate.style as TemplateType];
+                        return TemplateComponent ? (
+                          <TemplateComponent data={uploadedFile.parsedData} />
+                        ) : (
+                          <div className="p-8 text-center">
+                            <p>Template not found</p>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-center space-y-3">
-                    <div className="w-12 h-12 rounded-lg bg-gray-200 mx-auto"></div>
-                    <div>
-                      <p className="font-medium text-gray-700">Preview</p>
-                      <p className="text-sm text-gray-500">Generate your portfolio to see preview</p>
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="text-center space-y-3">
+                      <div className="w-12 h-12 rounded-lg bg-gray-200 mx-auto"></div>
+                      <div>
+                        <p className="font-medium text-gray-700">Live Preview</p>
+                        <p className="text-sm text-gray-500">
+                          {currentStep === 4 ? 'Generate your portfolio to see preview' : 'Your live portfolio preview will appear here'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
             </div>
           )}
-        </div>
+      </div>
 
         {/* Navigation Buttons */}
         <div className="flex justify-between items-center mt-8">
-          <button
+        <button
             onClick={handlePreviousStep}
             disabled={currentStep === 1}
             className="flex items-center gap-2 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ArrowLeftIcon className="w-4 h-4" />
             Previous
-          </button>
+        </button>
 
           <div className="text-sm text-gray-500">
             Step {currentStep} of {STEPS.length}
