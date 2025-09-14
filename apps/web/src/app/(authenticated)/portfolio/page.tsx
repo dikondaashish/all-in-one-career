@@ -409,10 +409,16 @@ function PortfolioContent() {
       setGeneratedPortfolio(generatedPortfolio);
       setEditableContent(generatedPortfolio.html);
       
+      // Debug: Log successful generation
+      console.log('✅ Portfolio generation successful!');
+      console.log('📊 Generated portfolio:', generatedPortfolio);
+      console.log('📊 Current parsed data:', uploadedFile.parsedData);
+      console.log('📊 Selected template:', selectedTemplate);
+      
       showToast({
         icon: '🎉',
         title: 'Portfolio Generated',
-        message: 'Your portfolio has been created successfully!'
+        message: `Your ${selectedTemplate.name} portfolio has been created successfully!`
       });
       
       setCurrentStep(4); // Move to editor
@@ -883,8 +889,8 @@ function PortfolioContent() {
                 <div className="flex items-center gap-3 mb-6">
                   <Globe className="w-6 h-6 text-blue-600" />
                   <h2 className="text-xl font-semibold text-gray-900">Preview & Publish</h2>
-                </div>
-                
+        </div>
+
                 <div className="space-y-6">
                   {generatedPortfolio.subdomain ? (
                     <div className="text-center space-y-4">
@@ -896,8 +902,8 @@ function PortfolioContent() {
                         <p className="text-sm text-green-700 mb-2">Your portfolio is now live at:</p>
                         <a
                           href={generatedPortfolio.subdomain}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                    target="_blank"
+                    rel="noopener noreferrer"
                           className="text-blue-600 hover:text-blue-700 font-medium break-all"
                         >
                           {generatedPortfolio.subdomain}
@@ -965,14 +971,35 @@ function PortfolioContent() {
                   <div className="w-full h-full overflow-auto">
                     <div className="transform scale-[0.4] origin-top-left w-[250%] h-[250%]">
                       {(() => {
+                        // Debug: Log the data being passed to template
+                        console.log('🎨 Live Preview Rendering:');
+                        console.log('📊 Template data:', uploadedFile.parsedData);
+                        console.log('🎨 Selected template:', selectedTemplate);
+                        
                         const TemplateComponent = TEMPLATE_COMPONENTS[selectedTemplate.style as TemplateType];
-                        return TemplateComponent ? (
-                          <TemplateComponent data={uploadedFile.parsedData} />
-                        ) : (
-                          <div className="p-8 text-center">
-                            <p>Template not found</p>
-                          </div>
-                        );
+                        
+                        if (!TemplateComponent) {
+                          console.error('❌ Template component not found for style:', selectedTemplate.style);
+                          return (
+                            <div className="p-8 text-center">
+                              <p>Template not found: {selectedTemplate.style}</p>
+                            </div>
+                          );
+                        }
+                        
+                        console.log('✅ Rendering template component:', TemplateComponent.name);
+                        
+                        try {
+                          return <TemplateComponent data={uploadedFile.parsedData} />;
+                        } catch (error) {
+                          console.error('❌ Template rendering error:', error);
+                          return (
+                            <div className="p-8 text-center text-red-600">
+                              <p>Template rendering error</p>
+                              <p className="text-sm">{error instanceof Error ? error.message : 'Unknown error'}</p>
+                            </div>
+                          );
+                        }
                       })()}
                     </div>
                   </div>
@@ -985,12 +1012,39 @@ function PortfolioContent() {
                         <p className="text-sm text-gray-500">
                           {currentStep === 4 ? 'Generate your portfolio to see preview' : 'Your live portfolio preview will appear here'}
                         </p>
+                        
+                        {/* Debug: Show template test option if template is selected */}
+                        {selectedTemplate && uploadedFile?.parsedData && (
+                          <div className="mt-4">
+                            <button
+                              onClick={() => {
+                                console.log('🧪 Testing template with sample data...');
+                                console.log('📊 Data available:', uploadedFile.parsedData);
+                                console.log('📊 Template selected:', selectedTemplate);
+                                
+                                // Force set a minimal generated portfolio for testing
+                                setGeneratedPortfolio({
+                                  id: 'test-portfolio',
+                                  html: '<div>Test Portfolio</div>',
+                                  css: '',
+                                  preview: 'Test preview'
+                                });
+                              }}
+                              className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700 transition-colors"
+                            >
+                              🧪 Test Preview
+                            </button>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Debug: Test template rendering
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                )}
               </div>
-            </div>
+            )}
+          </div>
+        </div>
           )}
       </div>
 
