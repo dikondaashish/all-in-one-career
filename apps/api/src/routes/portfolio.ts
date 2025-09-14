@@ -69,11 +69,121 @@ Write a compelling About Me that introduces them professionally but warmly. Retu
   }
 }
 
+// Manual data extraction as backup
+function manualDataExtraction(resumeText: string): Partial<ParsedResumeData> {
+  console.log('🔧 Starting manual data extraction...');
+  
+  const data: Partial<ParsedResumeData> = {
+    experience: [],
+    education: [],
+    skills: [],
+    projects: [],
+    contact: {}
+  };
+  
+  // Extract name from first few lines
+  const lines = resumeText.split('\n').filter(line => line.trim().length > 0);
+  for (const line of lines.slice(0, 8)) {
+    const trimmedLine = line.trim().replace(/[R\u00ae\u00a9\u2122\u00b0\u00b5\u00d4\u00bd]/g, '').trim();
+    if (trimmedLine.length > 3 && 
+        trimmedLine.length < 60 &&
+        /^[A-Z][a-z]+ [A-Z][a-z]+/.test(trimmedLine) &&
+        !trimmedLine.toLowerCase().includes('resume') &&
+        !trimmedLine.toLowerCase().includes('education') &&
+        !trimmedLine.toLowerCase().includes('experience') &&
+        !trimmedLine.includes('@') &&
+        !trimmedLine.includes('|') &&
+        !trimmedLine.includes('\u00b0') &&
+        !/\d{3}/.test(trimmedLine)) {
+      data.name = trimmedLine;
+      console.log('✅ Manually extracted name:', trimmedLine);
+      break;
+    }
+  }
+  
+  // Extract contact info
+  const emailMatch = resumeText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  const phoneMatch = resumeText.match(/[\u00d4\u00bd]?\s?[0-9]{3}[-\s]?[0-9]{3}[-\s]?[0-9]{4}/);
+  const linkedinMatch = resumeText.match(/(?:linkedin\.com\/in\/|Linkedin\.com\/in\/)([a-zA-Z0-9-]+)/i);
+  
+  if (emailMatch) data.contact!.email = emailMatch[0];
+  if (phoneMatch) data.contact!.phone = phoneMatch[0].replace(/[\u00d4\u00bd]/g, '').trim();
+  if (linkedinMatch) data.contact!.linkedin = `https://linkedin.com/in/${linkedinMatch[1]}`;
+  
+  // Extract skills (look for technical skills section)
+  const skillsMatch = resumeText.match(/(?:Technical Skills|Skills)[\s\S]*?(?=\n\n|Experience|Education|$)/i);
+  if (skillsMatch) {
+    const skillsText = skillsMatch[0];
+    const extractedSkills: string[] = [];
+    
+    // Common tech skills patterns
+    const skillPatterns = [
+      /\b(?:Python|JavaScript|TypeScript|Java|C\+\+|React|Node\.js|Angular|Vue|SQL|MongoDB|AWS|Docker|Kubernetes|TensorFlow|PyTorch)\b/gi,
+      /\b(?:Power BI|Excel|Tableau|machine learning|AI|data visualization|data analytics)\b/gi
+    ];
+    
+    skillPatterns.forEach(pattern => {
+      const matches = skillsText.match(pattern);
+      if (matches) {
+        extractedSkills.push(...matches.map(skill => skill.trim()));
+      }
+    });
+    
+    data.skills = [...new Set(extractedSkills)]; // Remove duplicates
+  }
+  
+  // Extract education
+  const educationMatch = resumeText.match(/Education[\s\S]*?(?=\n\n|Experience|Technical Skills|$)/i);
+  if (educationMatch) {
+    const eduText = educationMatch[0];
+    const degreeMatches = eduText.match(/(?:Master|Bachelor|PhD|Associate)(?:'s)?\s+[^\n]+/gi);
+    if (degreeMatches) {
+      data.education = degreeMatches.map(match => {
+        const parts = match.split(' - ');
+        return {
+          degree: parts[0]?.trim() || match.trim(),
+          school: parts[1]?.trim() || 'University',
+          year: ''
+        };
+      });
+    }
+  }
+  
+  // Extract experience
+  const experienceMatch = resumeText.match(/Experience[\s\S]*?(?=\n\n|Projects|Education|Technical Skills|$)/i);
+  if (experienceMatch) {
+    const expText = experienceMatch[0];
+    const jobMatches = expText.match(/([A-Z][^\n]*(?:Intern|Assistant|Analyst|Engineer|Manager|Developer)[^\n]*)[\s\S]*?(?=\n[A-Z]|$)/gi);
+    if (jobMatches) {
+      data.experience = jobMatches.slice(0, 3).map(match => {
+        const lines = match.split('\n').filter(line => line.trim());
+        const titleLine = lines[0] || '';
+        
+        // Try to split title and company
+        const titleParts = titleLine.split(' - ');
+        
+        return {
+          title: titleParts[0]?.trim() || 'Professional Role',
+          company: titleParts[1]?.trim() || 'Company',
+          duration: 'Recent',
+          description: lines.slice(1, 3).join(' ').substring(0, 150) + '...'
+        };
+      });
+    }
+  }
+  
+  console.log('🔧 Manual extraction results:', data);
+  return data;
+}
+
 // Parse resume text into structured JSON using AI
 async function parseResumeText(resumeText: string): Promise<ParsedResumeData> {
   console.log('🤖 Starting AI resume parsing...');
   console.log('📄 Resume text length:', resumeText.length);
   console.log('📄 Resume preview (first 300 chars):', resumeText.substring(0, 300));
+  
+  // First, try manual extraction as baseline
+  const manualData = manualDataExtraction(resumeText);
   
   const systemPrompt = `You are a professional resume parser. Extract structured information from resume text and return it as valid JSON. Always return complete, valid JSON even if some information is missing.`;
   
@@ -187,80 +297,52 @@ Return ONLY the complete JSON object with all extracted information:`;
       }
     }
     
+    // Merge AI data with manual extraction (manual data as fallback)
     const validatedData: ParsedResumeData = {
-      name: extractedName || 'Professional', // Better fallback than 'Name Not Found'
+      name: extractedName || manualData.name || 'Professional',
       summary: parsedData.summary || undefined,
       headline: parsedData.headline || undefined,
-      experience: Array.isArray(parsedData.experience) ? parsedData.experience : [],
-      education: Array.isArray(parsedData.education) ? parsedData.education : [],
-      skills: Array.isArray(parsedData.skills) ? parsedData.skills : [],
-      projects: Array.isArray(parsedData.projects) ? parsedData.projects : [],
+      experience: Array.isArray(parsedData.experience) && parsedData.experience.length > 0 
+        ? parsedData.experience 
+        : (manualData.experience || []),
+      education: Array.isArray(parsedData.education) && parsedData.education.length > 0 
+        ? parsedData.education 
+        : (manualData.education || []),
+      skills: Array.isArray(parsedData.skills) && parsedData.skills.length > 0 
+        ? parsedData.skills 
+        : (manualData.skills || []),
+      projects: Array.isArray(parsedData.projects) && parsedData.projects.length > 0 
+        ? parsedData.projects 
+        : (manualData.projects || []),
       contact: {
-        email: parsedData.contact?.email || undefined,
-        phone: parsedData.contact?.phone || undefined,
-        location: parsedData.contact?.location || undefined,
-        linkedin: parsedData.contact?.linkedin || undefined,
-        portfolio: parsedData.contact?.portfolio || undefined,
+        email: parsedData.contact?.email || manualData.contact?.email || undefined,
+        phone: parsedData.contact?.phone || manualData.contact?.phone || undefined,
+        location: parsedData.contact?.location || manualData.contact?.location || undefined,
+        linkedin: parsedData.contact?.linkedin || manualData.contact?.linkedin || undefined,
+        portfolio: parsedData.contact?.portfolio || manualData.contact?.portfolio || undefined,
       }
     };
+    
+    console.log('✅ Final merged data:', validatedData);
     
     return validatedData;
     
   } catch (error) {
     console.error('Failed to parse resume with AI:', error);
-    console.log('🔄 Attempting manual fallback parsing...');
+    console.log('🔄 Using manual extraction as complete fallback...');
     
-    // Try manual extraction as fallback
-    try {
-      const lines = resumeText.split('\n').filter(line => line.trim().length > 0);
-      let manualName = 'Professional';
-      
-      // Try to find name in first few lines
-      for (const line of lines.slice(0, 5)) {
-        const trimmedLine = line.trim();
-        if (trimmedLine.length > 3 && 
-            trimmedLine.length < 50 &&
-            /^[A-Z][a-z]+ [A-Z][a-z]+/.test(trimmedLine) &&
-            !trimmedLine.toLowerCase().includes('resume') &&
-            !trimmedLine.toLowerCase().includes('education') &&
-            !trimmedLine.toLowerCase().includes('experience') &&
-            !trimmedLine.includes('@') &&
-            !trimmedLine.includes('|')) {
-          manualName = trimmedLine;
-          console.log('✅ Manual fallback extracted name:', manualName);
-          break;
-        }
-      }
-      
-      // Extract basic email and skills as fallback
-      const emailMatch = resumeText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      const phoneMatch = resumeText.match(/\+?1?[-\s]?\(?[0-9]{3}\)?[-\s]?[0-9]{3}[-\s]?[0-9]{4}/);
-      
-      return {
-        name: manualName,
-        experience: [],
-        education: [],
-        skills: [],
-        projects: [],
-        contact: {
-          email: emailMatch ? emailMatch[0] : undefined,
-          phone: phoneMatch ? phoneMatch[0] : undefined
-        }
-      } as ParsedResumeData;
-      
-    } catch (fallbackError) {
-      console.error('Manual fallback parsing also failed:', fallbackError);
-      
-      // Return absolute minimum fallback
-      return {
-        name: 'Professional',
-        experience: [],
-        education: [],
-        skills: [],
-        projects: [],
-        contact: {}
-      } as ParsedResumeData;
-    }
+    // Use the comprehensive manual extraction we already did
+    const fallbackData: ParsedResumeData = {
+      name: manualData.name || 'Professional',
+      experience: manualData.experience || [],
+      education: manualData.education || [],
+      skills: manualData.skills || [],
+      projects: manualData.projects || [],
+      contact: manualData.contact || {}
+    };
+    
+    console.log('✅ Using manual fallback data:', fallbackData);
+    return fallbackData;
   }
 }
 
