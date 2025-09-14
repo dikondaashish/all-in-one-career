@@ -69,233 +69,11 @@ Write a compelling About Me that introduces them professionally but warmly. Retu
   }
 }
 
-// Manual data extraction as backup
-function manualDataExtraction(resumeText: string): Partial<ParsedResumeData> {
-  console.log('🔧 Starting manual data extraction...');
-  
-  const data: Partial<ParsedResumeData> = {
-    experience: [],
-    education: [],
-    skills: [],
-    projects: [],
-    contact: {}
-  };
-  
-  // Extract name from first few lines with better patterns
-  const lines = resumeText.split('\n').filter(line => line.trim().length > 0);
-  
-  // First try to find the exact name "Venkata Charvi Goud Poshala"
-  for (const line of lines.slice(0, 10)) {
-    let cleanLine = line.trim()
-      .replace(/[R\u00ae\u00a9\u2122\u00b0\u00b5\u00d4\u00bd\u00f4\u00f1]/g, '') // Remove special chars
-      .replace(/^[^a-zA-Z]*/, '') // Remove leading non-letters
-      .trim();
-    
-    // Look for full name patterns
-    if (cleanLine.length > 10 && cleanLine.length < 80) {
-      // Check for multiple capital letters (indicating a name)
-      const capitalCount = (cleanLine.match(/[A-Z]/g) || []).length;
-      const wordCount = cleanLine.split(/\s+/).length;
-      
-      if (capitalCount >= 3 && wordCount >= 3 && wordCount <= 6 &&
-          !cleanLine.toLowerCase().includes('resume') &&
-          !cleanLine.toLowerCase().includes('education') &&
-          !cleanLine.toLowerCase().includes('experience') &&
-          !cleanLine.toLowerCase().includes('university') &&
-          !cleanLine.toLowerCase().includes('skills') &&
-          !cleanLine.includes('@') &&
-          !cleanLine.includes('|') &&
-          !/\d{3}/.test(cleanLine) &&
-          !/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(cleanLine)) {
-        
-        data.name = cleanLine;
-        console.log('✅ Manually extracted name:', cleanLine);
-        break;
-      }
-    }
-  }
-  
-  // If still no name, try simpler pattern
-  if (!data.name) {
-    for (const line of lines.slice(0, 5)) {
-      const cleanLine = line.trim().replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim();
-      if (cleanLine.length > 5 && /^[A-Z][a-z]+ [A-Z][a-z]+/.test(cleanLine)) {
-        data.name = cleanLine;
-        console.log('✅ Backup name extraction:', cleanLine);
-        break;
-      }
-    }
-  }
-  
-  // Extract contact info
-  const emailMatch = resumeText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-  const phoneMatch = resumeText.match(/[\u00d4\u00bd]?\s?[0-9]{3}[-\s]?[0-9]{3}[-\s]?[0-9]{4}/);
-  const linkedinMatch = resumeText.match(/(?:linkedin\.com\/in\/|Linkedin\.com\/in\/)([a-zA-Z0-9-]+)/i);
-  
-  if (emailMatch) data.contact!.email = emailMatch[0];
-  if (phoneMatch) data.contact!.phone = phoneMatch[0].replace(/[\u00d4\u00bd]/g, '').trim();
-  if (linkedinMatch) data.contact!.linkedin = `https://linkedin.com/in/${linkedinMatch[1]}`;
-  
-  // Extract skills (look for technical skills section)
-  const skillsMatch = resumeText.match(/(?:Technical Skills|Skills)[\s\S]*?(?=\n\n|Experience|Education|$)/i);
-  if (skillsMatch) {
-    const skillsText = skillsMatch[0];
-    const extractedSkills: string[] = [];
-    
-    // Common tech skills patterns
-    const skillPatterns = [
-      /\b(?:Python|JavaScript|TypeScript|Java|C\+\+|React|Node\.js|Angular|Vue|SQL|MongoDB|AWS|Docker|Kubernetes|TensorFlow|PyTorch)\b/gi,
-      /\b(?:Power BI|Excel|Tableau|machine learning|AI|data visualization|data analytics)\b/gi
-    ];
-    
-    skillPatterns.forEach(pattern => {
-      const matches = skillsText.match(pattern);
-      if (matches) {
-        extractedSkills.push(...matches.map(skill => skill.trim()));
-      }
-    });
-    
-    data.skills = [...new Set(extractedSkills)]; // Remove duplicates
-  }
-  
-  // Extract education with better parsing
-  const educationMatch = resumeText.match(/Education[\s\S]*?(?=\n\n|Experience|Technical Skills|$)/i);
-  if (educationMatch) {
-    const eduText = educationMatch[0];
-    
-    // Look for university names and degrees
-    const educationEntries = [];
-    
-    // Clark University pattern
-    const clarkMatch = eduText.match(/Clark University[^\n]*([\s\S]*?)(?=\n[A-Z]|$)/i);
-    if (clarkMatch) {
-      educationEntries.push({
-        degree: "Master's in Information Technology",
-        school: "Clark University",
-        year: "Aug 2023 – May 2025"
-      });
-    }
-    
-    // Chaitanya University pattern
-    const chaitanyaMatch = eduText.match(/Chaitanya[^\n]*([\s\S]*?)(?=\n[A-Z]|$)/i);
-    if (chaitanyaMatch) {
-      educationEntries.push({
-        degree: "Bachelor of Business Administration",
-        school: "Chaitanya Deemed University",
-        year: "Aug 2020 – Apr 2023"
-      });
-    }
-    
-    // Fallback: general degree pattern
-    if (educationEntries.length === 0) {
-      const degreeMatches = eduText.match(/(?:Master|Bachelor|PhD|Associate)(?:'s)?[^\n]+/gi);
-      if (degreeMatches) {
-        educationEntries.push(...degreeMatches.map(match => ({
-          degree: match.trim(),
-          school: "University",
-          year: ""
-        })));
-      }
-    }
-    
-    data.education = educationEntries;
-  }
-  
-  // Extract experience with better parsing
-  const experienceMatch = resumeText.match(/Experience[\s\S]*?(?=\n\n|Projects|Education|Technical Skills|$)/i);
-  if (experienceMatch) {
-    const expText = experienceMatch[0];
-    const experienceEntries = [];
-    
-    // Machine Learning Teaching Assistant
-    const taMatch = expText.match(/Machine Learning Teaching Assistant[^\n]*([\s\S]*?)(?=\n[A-Z]|Business & Data|$)/i);
-    if (taMatch) {
-      experienceEntries.push({
-        title: "Machine Learning Teaching Assistant",
-        company: "Clark University",
-        duration: "Jan 2025 – May 2025",
-        description: "Guided students on ML projects using scikit-learn, TensorFlow, and PyTorch, boosting project success rate by 20%. Conducted coding workshops and graded assignments."
-      });
-    }
-    
-    // Business & Data Analytics Intern
-    const internMatch = expText.match(/Business & Data Analytics Intern[^\n]*([\s\S]*?)(?=\n[A-Z]|Projects|$)/i);
-    if (internMatch) {
-      experienceEntries.push({
-        title: "Business & Data Analytics Intern",
-        company: "Zendesk",
-        duration: "Jan 2023 – Jun 2023",
-        description: "Conducted market research & financial analysis to identify new revenue streams. Built Power BI dashboards + SQL queries to track KPIs, improving visibility for leadership."
-      });
-    }
-    
-    // Fallback: general job title pattern
-    if (experienceEntries.length === 0) {
-      const jobMatches = expText.match(/([A-Z][^\n]*(?:Intern|Assistant|Analyst|Engineer|Manager|Developer)[^\n]*)/gi);
-      if (jobMatches) {
-        experienceEntries.push(...jobMatches.slice(0, 2).map(match => ({
-          title: match.trim(),
-          company: "Company",
-          duration: "Recent",
-          description: "Professional experience in the field."
-        })));
-      }
-    }
-    
-    data.experience = experienceEntries;
-  }
-  
-  // Extract projects
-  const projectsMatch = resumeText.match(/Projects[\s\S]*?(?=\n\n|Certificates|$)/i);
-  if (projectsMatch) {
-    const projectsText = projectsMatch[0];
-    const projectEntries = [];
-    
-    // Customer Support AI Agent
-    const aiAgentMatch = projectsText.match(/Customer Support AI Agent[\s\S]*?(?=\n[A-Z][^\n]*(?:Model|Dashboard|App)|$)/i);
-    if (aiAgentMatch) {
-      projectEntries.push({
-        name: "Customer Support AI Agent",
-        description: "Developed a retrieval-augmented chatbot using Pinecone vector database and Gemini API, designed to handle e-commerce FAQs. Achieved a 92% resolution rate without human escalation.",
-        technologies: ["Pinecone", "Gemini API", "Python", "NLP"]
-      });
-    }
-    
-    // Machine Learning Forecasting Model
-    const forecastMatch = projectsText.match(/Machine Learning Forecasting Model[\s\S]*?(?=\n[A-Z][^\n]*(?:Dashboard|App)|$)/i);
-    if (forecastMatch) {
-      projectEntries.push({
-        name: "Machine Learning Forecasting Model",
-        description: "Built and trained Random Forest and XGBoost models on historical retail transaction data to forecast demand. Reduced forecast error by 18%.",
-        technologies: ["Random Forest", "XGBoost", "Python", "Flask"]
-      });
-    }
-    
-    // Sales Performance Analytics Dashboard
-    const dashboardMatch = projectsText.match(/Sales Performance Analytics Dashboard[\s\S]*?(?=\n[A-Z][^\n]*(?:App)|$)/i);
-    if (dashboardMatch) {
-      projectEntries.push({
-        name: "Sales Performance Analytics Dashboard",
-        description: "Built an interactive sales dashboard in Looker Studio using a custom Google Sheets dataset simulating 360 enterprise orders. Visualized key KPIs and trends.",
-        technologies: ["Looker Studio", "Google Sheets", "SQL", "ChatGPT"]
-      });
-    }
-    
-    data.projects = projectEntries;
-  }
-  
-  console.log('🔧 Manual extraction results:', data);
-  return data;
-}
-
 // Parse resume text into structured JSON using AI
 async function parseResumeText(resumeText: string): Promise<ParsedResumeData> {
   console.log('🤖 Starting AI resume parsing...');
   console.log('📄 Resume text length:', resumeText.length);
   console.log('📄 Resume preview (first 300 chars):', resumeText.substring(0, 300));
-  
-  // First, try manual extraction as baseline
-  const manualData = manualDataExtraction(resumeText);
   
   const systemPrompt = `You are a professional resume parser. Extract structured information from resume text and return it as valid JSON. Always return complete, valid JSON even if some information is missing.`;
   
@@ -409,52 +187,80 @@ Return ONLY the complete JSON object with all extracted information:`;
       }
     }
     
-    // Merge AI data with manual extraction (manual data as fallback)
     const validatedData: ParsedResumeData = {
-      name: extractedName || manualData.name || 'Professional',
+      name: extractedName || 'Professional', // Better fallback than 'Name Not Found'
       summary: parsedData.summary || undefined,
       headline: parsedData.headline || undefined,
-      experience: Array.isArray(parsedData.experience) && parsedData.experience.length > 0 
-        ? parsedData.experience 
-        : (manualData.experience || []),
-      education: Array.isArray(parsedData.education) && parsedData.education.length > 0 
-        ? parsedData.education 
-        : (manualData.education || []),
-      skills: Array.isArray(parsedData.skills) && parsedData.skills.length > 0 
-        ? parsedData.skills 
-        : (manualData.skills || []),
-      projects: Array.isArray(parsedData.projects) && parsedData.projects.length > 0 
-        ? parsedData.projects 
-        : (manualData.projects || []),
+      experience: Array.isArray(parsedData.experience) ? parsedData.experience : [],
+      education: Array.isArray(parsedData.education) ? parsedData.education : [],
+      skills: Array.isArray(parsedData.skills) ? parsedData.skills : [],
+      projects: Array.isArray(parsedData.projects) ? parsedData.projects : [],
       contact: {
-        email: parsedData.contact?.email || manualData.contact?.email || undefined,
-        phone: parsedData.contact?.phone || manualData.contact?.phone || undefined,
-        location: parsedData.contact?.location || manualData.contact?.location || undefined,
-        linkedin: parsedData.contact?.linkedin || manualData.contact?.linkedin || undefined,
-        portfolio: parsedData.contact?.portfolio || manualData.contact?.portfolio || undefined,
+        email: parsedData.contact?.email || undefined,
+        phone: parsedData.contact?.phone || undefined,
+        location: parsedData.contact?.location || undefined,
+        linkedin: parsedData.contact?.linkedin || undefined,
+        portfolio: parsedData.contact?.portfolio || undefined,
       }
     };
-    
-    console.log('✅ Final merged data:', validatedData);
     
     return validatedData;
     
   } catch (error) {
     console.error('Failed to parse resume with AI:', error);
-    console.log('🔄 Using manual extraction as complete fallback...');
+    console.log('🔄 Attempting manual fallback parsing...');
     
-    // Use the comprehensive manual extraction we already did
-    const fallbackData: ParsedResumeData = {
-      name: manualData.name || 'Professional',
-      experience: manualData.experience || [],
-      education: manualData.education || [],
-      skills: manualData.skills || [],
-      projects: manualData.projects || [],
-      contact: manualData.contact || {}
-    };
-    
-    console.log('✅ Using manual fallback data:', fallbackData);
-    return fallbackData;
+    // Try manual extraction as fallback
+    try {
+      const lines = resumeText.split('\n').filter(line => line.trim().length > 0);
+      let manualName = 'Professional';
+      
+      // Try to find name in first few lines
+      for (const line of lines.slice(0, 5)) {
+        const trimmedLine = line.trim();
+        if (trimmedLine.length > 3 && 
+            trimmedLine.length < 50 &&
+            /^[A-Z][a-z]+ [A-Z][a-z]+/.test(trimmedLine) &&
+            !trimmedLine.toLowerCase().includes('resume') &&
+            !trimmedLine.toLowerCase().includes('education') &&
+            !trimmedLine.toLowerCase().includes('experience') &&
+            !trimmedLine.includes('@') &&
+            !trimmedLine.includes('|')) {
+          manualName = trimmedLine;
+          console.log('✅ Manual fallback extracted name:', manualName);
+          break;
+        }
+      }
+      
+      // Extract basic email and skills as fallback
+      const emailMatch = resumeText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      const phoneMatch = resumeText.match(/\+?1?[-\s]?\(?[0-9]{3}\)?[-\s]?[0-9]{3}[-\s]?[0-9]{4}/);
+      
+      return {
+        name: manualName,
+        experience: [],
+        education: [],
+        skills: [],
+        projects: [],
+        contact: {
+          email: emailMatch ? emailMatch[0] : undefined,
+          phone: phoneMatch ? phoneMatch[0] : undefined
+        }
+      } as ParsedResumeData;
+      
+    } catch (fallbackError) {
+      console.error('Manual fallback parsing also failed:', fallbackError);
+      
+      // Return absolute minimum fallback
+      return {
+        name: 'Professional',
+        experience: [],
+        education: [],
+        skills: [],
+        projects: [],
+        contact: {}
+      } as ParsedResumeData;
+    }
   }
 }
 
