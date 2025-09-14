@@ -77,7 +77,9 @@ async function parseResumeText(resumeText: string): Promise<ParsedResumeData> {
   
   const systemPrompt = `You are a professional resume parser. Extract structured information from resume text and return it as valid JSON. Always return complete, valid JSON even if some information is missing.`;
   
-  const userPrompt = `Parse the following resume text and extract structured information. Return ONLY valid JSON with this exact structure:
+  const userPrompt = `You are parsing a resume. Extract ALL available information and return it as valid JSON. Be very thorough and extract every detail you can find.
+
+Return ONLY valid JSON with this exact structure:
 
 {
   "name": "Full Name",
@@ -115,10 +117,21 @@ async function parseResumeText(resumeText: string): Promise<ParsedResumeData> {
   }
 }
 
+CRITICAL INSTRUCTIONS:
+- Extract the ACTUAL person's name from the resume (usually at the top)
+- Parse ALL work experience entries with complete details
+- Extract ALL education entries with degrees and schools
+- List ALL skills mentioned (be comprehensive)
+- Include ALL projects with full descriptions
+- Extract complete contact information
+- If any section is missing, use empty array [] or empty object {}
+- NEVER use "Name Not Found" or "Not Found" - extract the real information
+- Look carefully for the person's actual name at the beginning of the resume
+
 Resume Text:
 ${resumeText}
 
-Return only the JSON object, no explanations or markdown formatting.`;
+Return ONLY the complete JSON object with all extracted information:`;
 
   try {
     console.log('🚀 Calling Gemini AI for resume parsing...');
@@ -148,8 +161,34 @@ Return only the JSON object, no explanations or markdown formatting.`;
     console.log('✅ Successfully parsed JSON from AI response:', parsedData);
     
     // Validate and ensure required fields exist
+    let extractedName = parsedData.name;
+    
+    // If AI didn't extract a name, try to manually extract it from the resume text
+    if (!extractedName || extractedName === 'Name Not Found' || extractedName === 'Full Name') {
+      console.log('⚠️ AI did not extract name properly. Attempting manual extraction...');
+      
+      // Try to extract name from first few lines of resume
+      const lines = resumeText.split('\n').filter(line => line.trim().length > 0);
+      for (const line of lines.slice(0, 5)) {
+        // Look for patterns that indicate a name (multiple capitalized words, no common resume keywords)
+        const trimmedLine = line.trim();
+        if (trimmedLine.length > 3 && 
+            trimmedLine.length < 50 &&
+            /^[A-Z][a-z]+ [A-Z][a-z]+/.test(trimmedLine) &&
+            !trimmedLine.toLowerCase().includes('resume') &&
+            !trimmedLine.toLowerCase().includes('education') &&
+            !trimmedLine.toLowerCase().includes('experience') &&
+            !trimmedLine.includes('@') &&
+            !trimmedLine.includes('|')) {
+          extractedName = trimmedLine;
+          console.log('✅ Manually extracted name:', extractedName);
+          break;
+        }
+      }
+    }
+    
     const validatedData: ParsedResumeData = {
-      name: parsedData.name || 'Name Not Found',
+      name: extractedName || 'Professional', // Better fallback than 'Name Not Found'
       summary: parsedData.summary || undefined,
       headline: parsedData.headline || undefined,
       experience: Array.isArray(parsedData.experience) ? parsedData.experience : [],
@@ -169,16 +208,59 @@ Return only the JSON object, no explanations or markdown formatting.`;
     
   } catch (error) {
     console.error('Failed to parse resume with AI:', error);
+    console.log('🔄 Attempting manual fallback parsing...');
     
-    // Return a basic fallback structure
-    return {
-      name: 'Name Not Found',
-      experience: [],
-      education: [],
-      skills: [],
-      projects: [],
-      contact: {}
-    } as ParsedResumeData;
+    // Try manual extraction as fallback
+    try {
+      const lines = resumeText.split('\n').filter(line => line.trim().length > 0);
+      let manualName = 'Professional';
+      
+      // Try to find name in first few lines
+      for (const line of lines.slice(0, 5)) {
+        const trimmedLine = line.trim();
+        if (trimmedLine.length > 3 && 
+            trimmedLine.length < 50 &&
+            /^[A-Z][a-z]+ [A-Z][a-z]+/.test(trimmedLine) &&
+            !trimmedLine.toLowerCase().includes('resume') &&
+            !trimmedLine.toLowerCase().includes('education') &&
+            !trimmedLine.toLowerCase().includes('experience') &&
+            !trimmedLine.includes('@') &&
+            !trimmedLine.includes('|')) {
+          manualName = trimmedLine;
+          console.log('✅ Manual fallback extracted name:', manualName);
+          break;
+        }
+      }
+      
+      // Extract basic email and skills as fallback
+      const emailMatch = resumeText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      const phoneMatch = resumeText.match(/\+?1?[-\s]?\(?[0-9]{3}\)?[-\s]?[0-9]{3}[-\s]?[0-9]{4}/);
+      
+      return {
+        name: manualName,
+        experience: [],
+        education: [],
+        skills: [],
+        projects: [],
+        contact: {
+          email: emailMatch ? emailMatch[0] : undefined,
+          phone: phoneMatch ? phoneMatch[0] : undefined
+        }
+      } as ParsedResumeData;
+      
+    } catch (fallbackError) {
+      console.error('Manual fallback parsing also failed:', fallbackError);
+      
+      // Return absolute minimum fallback
+      return {
+        name: 'Professional',
+        experience: [],
+        education: [],
+        skills: [],
+        projects: [],
+        contact: {}
+      } as ParsedResumeData;
+    }
   }
 }
 
